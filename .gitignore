@@ -1,0 +1,28 @@
+# Production data - never commit. The analysis outputs this tool reads contain
+# part numbers, customer-identifiable family names, work order numbers and real
+# job durations. They live outside this repository and must stay there.
+*.xlsx
+*.parquet
+*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE and tooling
+.idea/
+.vscode/
+.claude/
+*.iml
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
