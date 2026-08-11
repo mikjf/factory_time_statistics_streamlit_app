@@ -70,8 +70,9 @@ c[3].metric("Absolute misstated hours",
             ui.hrs(total.HOURS_DELTA_ABSOLUTE),
             # "per standard" pins the absolute to the right level. Without it,
             # "absolute hours delta" reads as the absolute of each work order's
-            # delta, which is a different and larger number - 12,366 h against
-            # 11,158 - because it counts ordinary job-to-job variation as
+            # delta, which is a different and much larger number - taken over
+            # every in-scope work order it comes to 24,622 h against the 10,966
+            # here - because it counts ordinary job-to-job variation as
             # misstatement. Within one standard the deltas cancel; across
             # standards they do not.
             help="Total absolute hours delta (actual − master) per standard, "

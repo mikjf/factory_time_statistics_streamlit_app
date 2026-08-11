@@ -273,6 +273,95 @@ def extract_facts():
     return _extract_facts(paths.cache_key(paths.CACHE))
 
 
+@st.cache_data(show_spinner=False)
+def _extract_span(key):
+    """Earliest and latest booking in the extract, before any filtering.
+
+    Deliberately not taken from extract_facts(), which reports dates from
+    FY_START onward - that would hide the very thing this is watching for.
+    Reads one column.
+    """
+    d = pd.to_datetime(
+        pd.read_parquet(paths.CACHE, columns=["LAST_TRANSACTION_DATE"])
+        .LAST_TRANSACTION_DATE, errors="coerce")
+    return d.min(), d.max()
+
+
+def extract_span():
+    return _extract_span(paths.cache_key(paths.CACHE))
+
+
+# The exclusions, in the order they are reported. ORDER IS AN ATTRIBUTION
+# DECISION AND NOTHING ELSE - the surviving total is identical whichever way
+# round they run, because every ticket that matches any rule leaves.
+#
+# What order buys is a sensible answer to "why did this one go". The rules
+# overlap heavily: a rework step usually also carries no master hours, so on
+# independent counts it appears under both and the two columns sum to half as
+# much again as the extract holds. Applied in sequence each ticket is counted
+# once, against the first rule it meets, and the column reconciles.
+#
+# So rules that say what a ticket IS come before rules that say what it LACKS.
+# Rework is reported as rework rather than as a step with no standard, and a
+# reversal as a reversal rather than as a ticket with no time on it. Reordering
+# these moves tickets between rows and changes nothing else.
+EXCLUSIONS = [
+    ("Booked outside the fiscal year",
+     lambda d, fy: d.LAST_TRANSACTION_DATE < fy),
+    ("Rework",
+     lambda d, fy: d.OPERATION.str.upper().str.startswith("S RIL")),
+    ("A reversal — hours booked back off a ticket",
+     lambda d, fy: d.HOURS_WORKED < 0),
+    ("The step is no longer in the master routing",
+     lambda d, fy: d.MASTER_OPS_ROWID.isna()),
+    ("The step carries no master hours to compare against",
+     lambda d, fy: ~(d.HOURS_MASTER > 0)),
+    ("Nothing was booked against it",
+     lambda d, fy: d.HOURS_WORKED <= 0),
+]
+
+
+@st.cache_data(show_spinner=False)
+def _deduction(key):
+    """Extract → exclusions → what an analysis actually sees, and its split.
+
+    Returns (rows, split, kept) where rows and split are lists of
+    (label, tickets, hours) and kept is the surviving (tickets, hours).
+
+    The three-way split is asserted exhaustive rather than trusted: a ticket
+    that fell outside all three would silently shrink the table's own total,
+    which is the one failure a reader cannot see.
+    """
+    df = pipeline.read_extract()
+    fy = pd.Timestamp(pipeline.FY_START)
+
+    rows, left = [], df
+    for label, rule in EXCLUSIONS:
+        m = rule(left, fy)
+        gone, left = left[m], left[~m]
+        rows.append((label, -len(gone), -gone.HOURS_WORKED.sum()))
+
+    is_run = left.LT_TYPE == "Run"
+    parts = [
+        ("Run, standard priced per piece (PCS/HR)",
+         is_run & (left.RUN_TYPE_MASTER == "PCS/HR")),
+        ("Run, standard priced per load (HRS/LOAD)",
+         is_run & (left.RUN_TYPE_MASTER == "HRS/LOAD")),
+        ("Setup", left.LT_TYPE == "Setup"),
+    ]
+    covered = pd.concat([m for _, m in parts], axis=1).any(axis=1)
+    assert not (~covered).any(), "the three-way split must be exhaustive"
+
+    split = [(label, int(m.sum()), left.loc[m, "HOURS_WORKED"].sum())
+             for label, m in parts]
+    return (len(df), df.HOURS_WORKED.sum()), rows, split, \
+        (len(left), left.HOURS_WORKED.sum())
+
+
+def deduction():
+    return _deduction(paths.cache_key(paths.CACHE))
+
+
 def all_units(operation):
     """Every part x sequence the run analysis looked at, verdict included.
 

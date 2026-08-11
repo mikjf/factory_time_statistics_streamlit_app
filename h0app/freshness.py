@@ -14,6 +14,7 @@ warnings. The mtimes are shown on the overview whether or not the check passed:
 a check you can only see when it fails is a check nobody trusts.
 """
 
+import pandas as pd
 import streamlit as st
 
 from . import paths
@@ -23,6 +24,48 @@ def _older(a, b):
     """True when a is strictly older than b (and both exist)."""
     ta, tb = paths.mtime(a), paths.mtime(b)
     return ta is not None and tb is not None and ta < tb
+
+
+# A gap this size at the start of a fiscal year is not a quiet fortnight, it is
+# a window that opens in the wrong place. Real drift is a whole year, so the
+# threshold has enormous margin and will not fire on an ordinary slow start.
+WINDOW_GAP_DAYS = 45
+
+
+def _window_problems():
+    """Does the extract actually cover the year the analysis thinks it does?
+
+    The query and the analysis scripts each carry the fiscal year start, and
+    they have to agree. They used to disagree by construction: the query derived
+    its window from GETDATE() while every script hard-coded a date, so on the
+    first of October the extract would begin a year later than the filters
+    applied to it - and the analysis would report on a few weeks of data as
+    though it had a year. Nothing about that failure looks wrong on screen.
+
+    Comparing the extract's earliest booking against FY_START catches it. Loud
+    rather than fatal: unlike the file-ordering checks this is a heuristic, and
+    a genuinely late first booking - a shutdown, a plant coming back on line -
+    should not lock everybody out of the tool.
+    """
+    from . import data, pipeline
+    try:
+        first, last = data.extract_span()
+    except Exception:
+        return []
+    if first is None or pd.isna(first):
+        return []
+    fy = pd.Timestamp(pipeline.FY_START)
+    gap = (first - fy).days
+    if gap <= WINDOW_GAP_DAYS:
+        return []
+    return [("warn",
+             f"**The extract may not cover the year the analysis is filtering "
+             f"for.** It starts {first:%d %b %Y}, which is {gap} days after "
+             f"`FY_START` ({fy:%d %b %Y}) — so anything booked in between is "
+             f"missing rather than excluded, and every hours total here is "
+             f"short by that much. Check that the date in `h0_v2.sql` still "
+             f"matches `FY_START` in the analysis scripts; they are two ends of "
+             f"the same setting and have to be changed together.")]
 
 
 def problems():
@@ -54,6 +97,8 @@ def problems():
             f"{paths.stamp(paths.CACHE)}). The update list predates the data "
             "it claims to describe. Re-run every operation, then "
             "`python h0_v2_update_list.py`."))
+
+    out += _window_problems()
 
     for wb in (paths.SETUP, paths.LOAD):
         if paths.mtime(wb) is None:

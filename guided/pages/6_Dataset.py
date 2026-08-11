@@ -74,6 +74,59 @@ st.caption("Applied before anything is measured. Each of these removes rows "
            "that cannot support a conclusion about a master standard.")
 st.markdown(text.WHAT_IS_EXCLUDED)
 
+# ---- the same exclusions, counted ------------------------------------------
+# The prose above says which rules exist; this says what they cost. Directly
+# below it so the two read as one statement, and above the funnel because the
+# surviving total IS the funnel's first bar.
+#
+# Every ticket is counted against the FIRST rule it meets, so the column
+# subtracts down to the total instead of overshooting - see data.EXCLUSIONS
+# for why the order is what it is.
+(n0, h0), rows, split, (n1, h1) = data.deduction()
+
+tbl = [{"": "Every labour ticket in the extract",
+        "Tickets": ui.num(n0), "Hours": ui.num(h0)}]
+for label, n, h in rows:
+    # A rule that removed nothing prints as a dash rather than a zero. It is
+    # kept on the page even at nothing: the query now bounds the fiscal year
+    # itself, and a row reading "—" says that the rule is still enforced and
+    # simply has nothing left to catch. Dropping it would leave the reader
+    # unable to tell "not applicable" from "not checked".
+    # "+ 0.0" normalises negative zero. The zero-hour tickets sum to exactly
+    # 0.0, negating gives -0.0, and "+,.0f" renders that as "-0" - which reads
+    # as a rounding artefact hiding a real number rather than the true nothing
+    # it is.
+    h = h + 0.0
+    tbl.append({"": f"less  {label}",
+                "Tickets": "—" if n == 0 else ui.num(n),
+                # Reversals carry negative hours, so removing them ADDS to the
+                # running total. Signed explicitly, because a "+" in a column
+                # of deductions is the one entry a reader will assume is a bug.
+                "Hours": "—" if n == 0 else
+                         ("0" if abs(h) < 0.5 else ui.fmt(h, "+,.0f"))})
+tbl.append({"": "Carried into an analysis",
+            "Tickets": ui.num(n1), "Hours": ui.num(h1)})
+
+st.table(pd.DataFrame(tbl).set_index(""))
+st.caption(
+    f"That is **{h1 / h0:.0%} of the hours** booked in the window, and "
+    f"{n1 / n0:.0%} of the tickets — the two differ because most of what is "
+    f"removed is many small tickets rather than many hours. Rows are counted "
+    f"against the first rule they meet, so the column subtracts down to the "
+    f"total; the rules overlap, and counted independently they would sum to "
+    f"more than the extract holds.")
+
+st.markdown("**Those hours split three ways, and each is analysed separately:**")
+sp = [{"": label, "Tickets": ui.num(n), "Hours": ui.num(h)}
+      for label, n, h in split]
+st.table(pd.DataFrame(sp).set_index(""))
+st.caption(
+    "The split is exhaustive — nothing carried in falls outside these three. "
+    "They are kept apart because the arithmetic differs: a `PCS/HR` standard "
+    "is a rate, so a correction divides it, while setup hours and a "
+    "`HRS/LOAD` standard are durations and a correction multiplies. One "
+    "pooled ratio across all three would be wrong in both directions at once.")
+
 st.divider()
 
 # ---- the funnel -------------------------------------------------------------
