@@ -189,10 +189,12 @@ with g4:
                     charts.MISSTATED_LIGHT)))
     st.altair_chart(charts.most_wrong_bar(wrong), width="stretch")
 
+# No made-up figure. "10 h" was an illustration standing in a row of real ones,
+# and the point does not need a number: it is about the sign, not the size.
 st.info(
-    "**Both directions count.** A master that over-allows by 10 h and one that "
-    "under-allows by 10 h are two problems, not zero — so totals add the size "
-    "of each error, never cancel them.",
+    "**Both directions count.** A master that over-allows and one that "
+    "under-allows by the same number of hours are two problems, not zero — so "
+    "totals add the size of each error, never cancel them.",
     icon=":material/functions:")
 
 st.divider()

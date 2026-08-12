@@ -505,6 +505,164 @@ def reconciliation():
     return _reconciliation(paths.cache_key(paths.UPDATE_LIST))
 
 
+@st.cache_data(show_spinner=False)
+def _keying(key):
+    """What a reader actually has to type in, and what to be wary of.
+
+    Three things the workbook knows and no page was saying:
+
+    - HOW_TO_APPLY, which is not one instruction but six, writing to three
+      different fields. A family row and a part row read almost alike and go to
+      different places.
+    - the family decisions carrying no single value, because the family holds
+      several different RUN_MASTER values. Those show a blank where every other
+      row shows a figure, and the instruction is to divide each part's own
+      value by the ratio instead.
+    - REVIEW_FLAG, which the pipeline sets on ratios outside 0.25-4.0. Sound
+      by every one of the six rules and extreme enough to want a human first.
+    """
+    a = pd.read_excel(paths.UPDATE_LIST, sheet_name="01_Actions")
+    run = pd.read_excel(paths.UPDATE_LIST, sheet_name="02_RunUpdateList")
+
+    flagged = run[run.REVIEW_FLAG.notna()]
+    no_value = a[a.SUGGESTED_VALUE.isna()]
+    return {
+        "how_to_apply": list(a.HOW_TO_APPLY.astype(str)
+                             .value_counts().items()),
+        "actions": len(a),
+        "edits": len(run),
+        "flagged": len(flagged),
+        "flag_lo": flagged.RATIO.min() if len(flagged) else None,
+        "flag_hi": flagged.RATIO.max() if len(flagged) else None,
+        "no_value": len(no_value),
+        "no_value_note": (no_value.HOW_TO_APPLY.astype(str).iloc[0]
+                          if len(no_value) else ""),
+        "fam_actions": int(((a.TARGET == "RUN") & (a.RUN_TYPE == "PCS/HR")
+                            & (a.LEVEL == "FAMILY")).sum()),
+        "fam_edits": int((run.ROUTE.astype(str).str.upper() == "FAMILY").sum()),
+        # Run-only, to be compared against the run row count. "actions" is all
+        # three lists and pairing it with the 1,726 run rows compares a total
+        # against a part of one.
+        "run_actions": int(((a.TARGET == "RUN")
+                            & (a.RUN_TYPE == "PCS/HR")).sum()),
+    }
+
+
+def keying():
+    return _keying(paths.cache_key(paths.UPDATE_LIST))
+
+
+@st.cache_data(show_spinner="Reading every operation's workbook...")
+def _coverage(key):
+    """Every operation examined, on every route, with what came of it.
+
+    Replaces a table that counted only the PART-LEVEL PCS/HR run route. That
+    one printed 0 in its Actions column for 13 operations that do have PCS/HR
+    run actions, all of them family-level - a false zero on a table whose whole
+    purpose is that a zero can be trusted and read.
+
+    One row per operation, route AND LEVEL. Split by level because EXAMINED
+    counts different things at each: a part-level pool is one part at one step,
+    a family-level pool is one family at one step. Summing them, which this did
+    at first, adds two units together and reports the result as one number -
+    the same mistake the funnel's opening bar used to make.
+
+    Setup appears at family level only. Setup units average under four worked
+    hours in a year, so nothing clears a materiality gate alone.
+
+    A zero in ACTIONS is readable off TESTABLE: testable pools and no action
+    means tested and holding, no testable pools means there was not enough
+    evidence either way.
+    """
+    a = pd.read_excel(paths.UPDATE_LIST, sheet_name="01_Actions")
+    a["ROUTE"] = np.where(a.TARGET == "SETUP_HRS", "Setup",
+                          "Run " + a.RUN_TYPE.astype(str))
+    edits = {}
+    for sheet, route in [("02_RunUpdateList", "Run PCS/HR"),
+                         ("04_LoadUpdateList", "Run HRS/LOAD"),
+                         ("03_SetupUpdateList", "Setup")]:
+        edits[route] = pd.read_excel(paths.UPDATE_LIST, sheet_name=sheet)
+
+    # (route, level, operation) -> [pools examined, pools testable]
+    pools = {}
+
+    # Run PCS/HR, part level: the per-operation workbooks already publish it.
+    for _, r in operation_summaries().iterrows():
+        pools[("Run PCS/HR", "Part", r.OPERATION)] = [int(r.UNITS),
+                                                      int(r.TESTABLE)]
+
+    # Run PCS/HR, family level: one rollup per operation workbook.
+    for f in paths.ROOT.glob("H0_v2_S_*_FAMILY.xlsx"):
+        try:
+            d = pd.read_excel(f, sheet_name="01_FamilyRollup")
+        except Exception:
+            continue
+        for op, g in d.groupby("OPERATION"):
+            pools[("Run PCS/HR", "Family", str(op).strip())] = [
+                len(g), int((g.FAMEX_WO >= pipeline.MIN_WO).sum())]
+
+    # Setup and HRS/LOAD family pools, read off their verdict columns.
+    for wb, sheet, route, verdict in [
+            (paths.SETUP, "01_FamilyRollup", "Setup", "VERDICT"),
+            (paths.LOAD, "02_FamilyRollup", "Run HRS/LOAD", "FAMEX_VERDICT")]:
+        try:
+            d = pd.read_excel(wb, sheet_name=sheet)
+        except Exception:
+            continue
+        for op, g in d.groupby("OPERATION"):
+            n_ins = int(g[verdict].astype(str).str.contains(
+                "insufficient", case=False).sum())
+            pools[(route, "Family", str(op).strip())] = [len(g),
+                                                         len(g) - n_ins]
+
+    # HRS/LOAD part units carry their own work-order count.
+    try:
+        d = pd.read_excel(paths.LOAD, sheet_name="01_PartUnits")
+        for op, g in d.groupby("OPERATION"):
+            pools[("Run HRS/LOAD", "Part", str(op).strip())] = [
+                len(g), int((g.WO >= pipeline.MIN_WO).sum())]
+    except Exception:
+        pass
+
+    # Part before Family within an operation, which alphabetical order gets
+    # backwards. The two levels run in that order - a part is judged on its own
+    # evidence first, and only what cannot clear the floor alone goes to its
+    # family - so the rows should read the same way.
+    _lvl = {"Part": 0, "Family": 1}
+    rows = []
+    for (route, level, op) in sorted(
+            pools, key=lambda t: (t[2], t[0], _lvl.get(t[1], 9))):
+        examined, testable = pools[(route, level, op)]
+        act = a[(a.ROUTE == route) & (a.OPERATION == op)
+                & (a.LEVEL.astype(str).str.title() == level)]
+        ed = edits[route]
+        ed = ed[(ed.OPERATION.astype(str).str.strip() == op)
+                & (ed.ROUTE.astype(str).str.title() == level)]
+        # Key order IS column order - pd.DataFrame keeps it. Narrowing first
+        # (examined, testable, what it was worth, what came of it), then the
+        # execution detail: how many masters to change and how much keying.
+        rows.append({
+            "OPERATION": op, "ROUTE": route, "LEVEL": level,
+            "EXAMINED": examined, "TESTABLE": testable,
+            "HOURS": act.HOURS_DELTA.abs().sum(),
+            # Always says something. It used to print an em-dash wherever there
+            # WERE actions, under a header reading "if none, why" - so the
+            # commonest value in the column was a character the reader had to
+            # decode as "question does not apply". Three states, one per row.
+            "OUTCOME": ("changes proposed" if len(act) else
+                        "tested and holds" if testable else
+                        "not enough evidence"),
+            "ACTIONS": len(act),
+            "PARTS": ed.PART_ID.astype(str).str.strip().nunique(),
+            "EDITS": len(ed),
+        })
+    return pd.DataFrame(rows)
+
+
+def coverage():
+    return _coverage(paths.cache_key(paths.UPDATE_LIST))
+
+
 def all_units(operation):
     """Every part x sequence the run analysis looked at, verdict included.
 

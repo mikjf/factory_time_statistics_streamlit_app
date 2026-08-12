@@ -225,24 +225,43 @@ WHAT_IS_EXCLUDED_LATER = """
 | Setups booked at or under 0.02 h — *setup* | The setup did not happen. Running several orders of one family back to back on one machine, only the first needs a full setup. Not performed. |
 """
 
-HOW_IT_WORKS = """
+# Split into three so a page can take the piece it needs. The guided app's
+# "How to read it" wants only the correction directions: Methodology now answers
+# "where the numbers come from" at length, and gross-versus-net is stated on the
+# landing page and again in Methodology's reconciliation column. The v1 flat
+# Method page still renders all three, which is why they stay here rather than
+# being deleted.
+# The date is derived from FY_START, not written. "This fiscal year" was vague
+# on the page that carries the dates in its own caption and unanchored on the v1
+# Method page, which renders this at the very top with nothing above it.
+#
+# Day taken off the Timestamp rather than formatted with %-d, which is a glibc
+# extension and raises ValueError on Windows.
+_FY = pd.Timestamp(pipeline.FY_START)
+_FY_LONG = f"{_FY.day} {_FY:%B %Y}"
+#
+# A middle paragraph used to sit here saying that "actual" and "master" are
+# never paraphrased anywhere in the tool. True, and a note to whoever maintains
+# it rather than to the person reading a recommendation - they need the two
+# words defined, which the first paragraph does, not a promise about how
+# consistently they are used.
+WHERE_FROM = f"""
 ### Where the numbers come from
 
-Every labour ticket the ERP recorded this fiscal year is joined to the master
-routing that was in force for it. For each one the analysis has two figures: the
+Every labour ticket the ERP recorded from **{_FY_LONG}** onwards is joined to
+the master routing that was in force for it. For each one the analysis has two
+figures: the
 **actual** hours booked and the **master** hours the standard carries. Their
 ratio is the whole analysis.
-
-Those two words are used everywhere in this tool, and nowhere are they
-paraphrased — they are the names the workbook and the query use, so any figure
-on screen can be traced back without translation.
 
 A single work order says nothing — jobs vary. So the ratios are pooled per
 **part × routing step**, or per **family × routing step** where a part is too
 thin to judge alone, and the question asked of each pool is a statistical one:
 *could this many work orders land this consistently on one side of the standard
 by chance?*
+"""
 
+TWO_DIRECTIONS = """
 ### The two directions of correction
 
 This is the one thing that must not be got backwards, because getting it wrong
@@ -252,7 +271,9 @@ produces plausible numbers that are wrong in **both** directions at once.
   so the correction **divides**: a job taking 25% longer means the rate comes down.
 - **`SETUP_HRS`, and `RUN` under HRS/LOAD** — both are *durations*. The correction
   **multiplies**: a job taking 25% longer means the allowance goes up.
+"""
 
+GROSS_NOT_NET = """
 ### Gross, not net
 
 An operation whose families are half too fast and half too slow is not half
@@ -261,6 +282,10 @@ the gross and net figures differ by nearly an order of magnitude. Every total
 here is gross — the sum of the absolute misstatement — with net shown beside it
 only to show how much cancels. The landing page states both, computed.
 """
+
+# What the v1 flat Method page renders: all three, in the order they were
+# written. Composed rather than copied, so editing a section moves both apps.
+HOW_IT_WORKS = WHERE_FROM + TWO_DIRECTIONS + GROSS_NOT_NET
 
 CANNOT_TELL = """
 - **Whether a standard is *fair*.** It measures actual against master. If a step

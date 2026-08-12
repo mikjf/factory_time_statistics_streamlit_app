@@ -21,9 +21,10 @@ st.set_page_config(page_title="Methodology · H0",
                    page_icon=":material/database:", layout="wide")
 ui.inject()
 st.title("Methodology")
-st.caption("Every labour ticket the ERP recorded, joined to the master routing "
-           "in force for it — and every rule that turns them into the "
-           "recommendations on this site. Read top to bottom.")
+# The joining of tickets to routings was said here and again, more fully, in
+# text.WHERE_FROM directly below. Left to the one that defines the vocabulary.
+st.caption("Every rule that turns raw labour tickets into the recommendations "
+           "on this site. Read top to bottom.")
 freshness.guard()
 
 # Four tables stack down this page in two pairs, and each pair has to read as
@@ -78,6 +79,13 @@ st.caption(
     f"{facts['first']:%d %b %Y} to {facts['last']:%d %b %Y}. Every hours "
     f"figure in this tool is what has already been registered in this time "
     f"window.")
+
+# Moved here from "How to read it", which is about reading one recommendation.
+# This is the question the whole page answers, and it carries the only place the
+# tool defines its own two words: a recommendation names "actual" and "master"
+# on every screen, and nothing else says what they are or that their ratio IS
+# the analysis.
+st.markdown(text.WHERE_FROM)
 
 st.divider()
 
@@ -439,41 +447,75 @@ st.divider()
 with st.expander("Every operation examined, and what came out of it — "
                  "including the ones that produced no action"):
     st.caption("Operations with zero actions are listed on purpose. 'Tested "
-               "and it holds' and 'nothing was testable' are different "
-               "statements, and without both they look identical — here it is "
-               "21 against 1.")
+               "and it holds' and 'never enough evidence' are different "
+               "statements, and from a blank list they look identical.")
 
-    show = ops[["OPERATION", "WORK_ORDERS", "TOKENS", "UNITS", "TESTABLE",
-                "SIGNIFICANT", "MATERIAL", "NOTHING_TESTABLE"]]
+    # ALL THREE ROUTES, not just part-level PCS/HR run. The old version counted
+    # one route and printed 0 in its Actions column for 13 operations that do
+    # have PCS/HR run actions - every one of them family-level. A false zero,
+    # on the one table whose whole purpose is that a zero can be read.
+    cov = data.coverage()
     st.dataframe(
-        ui.swiss_grid(show, {"WORK_ORDERS": ",.0f", "TOKENS": ",.0f",
-                             "UNITS": ",.0f", "TESTABLE": ",.0f",
-                             "SIGNIFICANT": ",.0f", "MATERIAL": ",.0f"}),
+        ui.swiss_grid(cov, {"ACTIONS": ",.0f", "PARTS": ",.0f",
+                            "EDITS": ",.0f", "HOURS": ",.0f",
+                            "EXAMINED": ",.0f", "TESTABLE": ",.0f"}),
         hide_index=True, width="stretch", height=460,
         column_config={
             "OPERATION": st.column_config.TextColumn("Operation",
                                                      width="medium"),
-            "WORK_ORDERS": st.column_config.NumberColumn("Work orders"),
-            "TOKENS": st.column_config.NumberColumn(
-                "Token bookings",
-                help=f"Closed at ≤ {pipeline.TOKEN_HOURS} h — a ticket closed "
-                     f"rather than a job timed. Dropped before testing."),
-            "UNITS": st.column_config.NumberColumn("Part × step"),
+            "ROUTE": st.column_config.TextColumn(
+                "Route",
+                help="The three analyses. An operation can appear on more "
+                     "than one — a milling step has both a run standard and "
+                     "a setup standard, judged separately."),
+            "LEVEL": st.column_config.TextColumn(
+                "Level",
+                help="Part — the part judged on its own evidence. Family — "
+                     "parts too thin to judge alone, pooled with the rest of "
+                     "their family at that step. Setup is family only: setup "
+                     "units average under four worked hours in a year, so "
+                     "nothing clears a materiality gate alone."),
+            "EXAMINED": st.column_config.NumberColumn(
+                "Pools examined",
+                help="At part level, one part at one routing step. At family "
+                     "level, one family at one step. The two are different "
+                     "units, which is why the rows are split."),
             "TESTABLE": st.column_config.NumberColumn(
-                f"{pipeline.MIN_WO}+ work orders",
-                help="Below this no test can reach significance."),
-            "SIGNIFICANT": st.column_config.NumberColumn("Different"),
-            "MATERIAL": st.column_config.NumberColumn("Actions"),
-            "NOTHING_TESTABLE": st.column_config.CheckboxColumn(
-                "Nothing testable",
-                help="Every work order was a token booking. No verdict is "
-                     "possible either way — which is different from the "
-                     "master being fine."),
+                f"Testable ({pipeline.MIN_WO}+ WO)",
+                help="Pools carrying enough work orders to judge. Below this "
+                     "no test can reach significance, whatever the evidence."),
+            "ACTIONS": st.column_config.NumberColumn(
+                "Masters to review",
+                help="Cleared all six rules. Sums to 230 across the table — "
+                     "the same figure the landing page shows."),
+            "PARTS": st.column_config.NumberColumn("Parts"),
+            "EDITS": st.column_config.NumberColumn(
+                "Rows to edit",
+                help="One MASTER_OPS_ROWID each. A family decision writes the "
+                     "same value to every part in its pool."),
+            "HOURS": st.column_config.NumberColumn(
+                "Abs misstated h",
+                help="Absolute, taken per decision before summing, so a "
+                     "decision running long and one running short do not "
+                     "cancel."),
+            "OUTCOME": st.column_config.TextColumn(
+                "Outcome",
+                help="One of three. 'Changes proposed' — standards cleared "
+                     "all six rules and are on the list. 'Tested and holds' — "
+                     "pools cleared the work-order floor and nothing material "
+                     "came out, so the standards are right. 'Not enough "
+                     "evidence' — nothing cleared the floor, so there is no "
+                     "verdict either way. The last two look identical from a "
+                     "blank list, which is why they are named."),
         })
-    st.caption("Run PCS/HR only — setup and HRS/LOAD are judged separately "
-               "and do not appear in these counts.")
+    st.caption(
+        f"All three analyses at both levels, every operation each of them "
+        f"examined — {len(cov)} rows. The counts sum to the totals above: "
+        f"{ui.num(cov.ACTIONS.sum())} standards, {ui.num(cov.EDITS.sum())} "
+        f"rows to edit, {ui.num(cov.HOURS.sum())} h. An operation appears once "
+        f"per route and level it was judged on.")
     st.download_button("Download this coverage table as CSV",
-                       show.to_csv(index=False).encode("utf-8"),
+                       cov.to_csv(index=False).encode("utf-8"),
                        file_name="h0_operation_coverage.csv", mime="text/csv",
                        icon=":material/download:")
 

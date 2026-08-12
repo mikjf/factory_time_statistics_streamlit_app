@@ -40,20 +40,86 @@ with st.sidebar:
     st.caption("Read from the analysis scripts, not typed here — if one "
                "changes, this page moves with it.")
 
-st.markdown(text.HOW_IT_WORKS)
+# Only the correction directions. "Where the numbers come from" is what the
+# whole of Methodology answers, and gross-versus-net is on the landing page and
+# again in Methodology's reconciliation. Both were rendered here as recently as
+# an hour ago because all three live in one constant and I rendered the block
+# whole after cutting the six rules out from under it.
+st.markdown(text.TWO_DIRECTIONS)
+
+# THE SIX RULES ARE NOT REPEATED HERE. Methodology shows them at the point they
+# fire, between step 1 and step 2, where the counts either side make them mean
+# something. A second copy is a second thing to keep in step, and this project
+# has already paid for that once - v1 calls them gates, v2 calls them rules, and
+# text.py uses both in its own docstrings.
 st.page_link("pages/6_Methodology.py",
-             label="What is deliberately left out of the data, and why",
-             icon=":material/database:")
+             label="The six rules, and where each one is applied",
+             icon=":material/rule:")
 
-st.subheader("The six rules")
-st.caption("Applied in this order to every pool. All six must pass before a "
-           "standard is proposed for change — and every unit shows which of "
-           "them it passed, including the ones left alone.")
+st.divider()
 
-# From text.rules(), the same source the rail uses. Written out here separately
-# it drifted out of step with the working page within a day. The layout moved to
-# ui.rule_cards() for the same reason once Dataset started showing them too.
-ui.rule_cards(st, text.rules())
+# ---- what you actually key in -----------------------------------------------
+_k = data.keying()
+
+st.subheader("What you are keying in")
+st.caption("One decision is not one edit, and the field it writes to is not "
+           "always the same one.")
+
+kc1, kc2 = st.columns([1.25, 1])
+with kc1:
+    st.markdown("**The instruction is on every row, and there are six of "
+                "them:**")
+    st.markdown(
+        "\n".join(f"- `{n}` — {how}"
+                  for how, n in _k["how_to_apply"]))
+with kc2:
+    st.info(
+        f"**One family decision is many edits.** The {_k['fam_actions']} "
+        f"`PCS/HR` family decisions write the same value to "
+        f"{ui.num(_k['fam_edits'])} routing lines between them — every part in "
+        f"the pool, each with its own `MASTER_OPS_ROWID`. That is why "
+        f"{ui.num(_k['edits'])} run rows carry only {_k['run_actions']} run "
+        f"decisions.",
+        icon=":material/content_copy:")
+
+# The blank cell that looks like a bug. 21 of 230, all family-level run.
+st.warning(
+    f"**{_k['no_value']} decisions carry no single value to key in, and that "
+    f"is deliberate.** Those families hold several different `RUN_MASTER` "
+    f"values across their parts, so there is no one number to write. The row "
+    f"says *{_k['no_value_note']}* — the ratio is the instruction, not the "
+    f"value. A blank in the suggested column on those rows is the correct "
+    f"reading, not a gap.", icon=":material/functions:")
+
+st.divider()
+
+# ---- the flag ---------------------------------------------------------------
+# 85 rows nothing else in the tool mentioned. They pass all six rules, which is
+# exactly why they need saying: a reader who trusts the rules has no reason to
+# look twice, and these are the ones worth looking at twice.
+st.subheader("Flagged for review")
+fc1, fc2 = st.columns([1, 1])
+with fc1:
+    st.error(
+        f"**{_k['flagged']} of the {ui.num(_k['edits'])} run rows are marked "
+        f"`NEEDS REVIEW`.** Their ratios run from **{_k['flag_lo']:.2f}** to "
+        f"**{_k['flag_hi']:.2f}** — outside 0.25–4.0, meaning the evidence "
+        f"says the standard is off by a factor of four or more.",
+        icon=":material/flag:")
+with fc2:
+    st.markdown("""
+These have passed all six rules. The flag is not a doubt about the statistics —
+it is a doubt about the **standard being corrected**, because a factor of four
+usually means something other than a slow or fast process: a unit of measure
+changed, a routing step now covers different work, or a quantity is being
+booked against the wrong line.
+
+Treat them as **findings to check, not values to key**. The number is in the
+workbook so nothing is hidden, and they are counted in the totals — but keying
+one unread is how a data problem becomes a standard.
+""")
+
+st.divider()
 
 st.subheader("Two estimates, side by side")
 _acts = data.actions()

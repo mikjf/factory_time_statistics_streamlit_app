@@ -176,8 +176,12 @@ if steps.empty:
             icon=":material/info:")
     st.stop()
 
+# Same two states as the Outcome column on Methodology, and worded the same.
+# This page said "tested and it holds" / "never enough data to say" for what
+# that one calls "tested and holds" / "not enough evidence" - one distinction,
+# three phrasings, in a tool whose claim is that its words do not vary.
 st.caption("Including the ones left alone. The verdict column distinguishes "
-           "'tested and it holds' from 'never enough data to say'.")
+           "'tested and holds' from 'not enough evidence'.")
 cols = ["OPERATION", S, "PART_DESCRIPTION", "N_WORK_ORDERS", "HOURS_MASTER",
         "HOURS_WORKED", "HOURS_DELTA", "RATIO_OUTLIERS_REMOVED",
         "RUN_MASTER_CURRENT", "RUN_MASTER_SUGGESTED", "RECOMMENDATION"]
