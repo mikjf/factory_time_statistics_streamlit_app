@@ -305,19 +305,28 @@ def extract_span():
 # Rework is reported as rework rather than as a step with no standard, and a
 # reversal as a reversal rather than as a ticket with no time on it. Reordering
 # these moves tickets between rows and changes nothing else.
+#
+# The third field says whether the rule is DESCRIBED to the reader. All of them
+# run; one is not worth explaining. The fiscal-year bound is a mirror of the
+# query's own lower bound - the window opens at FY_START and runs forward with
+# no upper end, so a ticket can only fall foul of this by predating the year,
+# and the query already refuses those at source. It stays in the list so the
+# surviving total keeps matching the analysis scope filter exactly, which is the
+# whole claim the deduction table makes. Describing it invited the reader to
+# think the year is closed at both ends. It is not.
 EXCLUSIONS = [
-    ("Booked outside the fiscal year",
-     lambda d, fy: d.LAST_TRANSACTION_DATE < fy),
+    ("Booked before the fiscal year opened",
+     lambda d, fy: d.LAST_TRANSACTION_DATE < fy, False),
     ("Rework",
-     lambda d, fy: d.OPERATION.str.upper().str.startswith("S RIL")),
-    ("A reversal — hours booked back off a ticket",
-     lambda d, fy: d.HOURS_WORKED < 0),
-    ("The step is no longer in the master routing",
-     lambda d, fy: d.MASTER_OPS_ROWID.isna()),
-    ("The step carries no master hours to compare against",
-     lambda d, fy: ~(d.HOURS_MASTER > 0)),
+     lambda d, fy: d.OPERATION.str.upper().str.startswith("S RIL"), True),
+    ("Ticket negative correction",
+     lambda d, fy: d.HOURS_WORKED < 0, True),
+    ("Step is no longer in the master routing",
+     lambda d, fy: d.MASTER_OPS_ROWID.isna(), True),
+    ("Step carries no master hours to compare against",
+     lambda d, fy: ~(d.HOURS_MASTER > 0), True),
     ("Nothing was booked against it",
-     lambda d, fy: d.HOURS_WORKED <= 0),
+     lambda d, fy: d.HOURS_WORKED <= 0, True),
 ]
 
 
@@ -336,18 +345,23 @@ def _deduction(key):
     fy = pd.Timestamp(pipeline.FY_START)
 
     rows, left = [], df
-    for label, rule in EXCLUSIONS:
+    for label, rule, _ in EXCLUSIONS:
         m = rule(left, fy)
         gone, left = left[m], left[~m]
         rows.append((label, -len(gone), -gone.HOURS_WORKED.sum()))
 
+    # Labelled by the unit the master is held in, not by a paraphrase of it.
+    # "pieces per hour" and "hours per load" are what PCS/HR and HRS/LOAD
+    # literally expand to, so a reader can see straight off that the first is a
+    # rate and the second a duration - which is the whole reason a correction
+    # divides one and multiplies the other.
     is_run = left.LT_TYPE == "Run"
     parts = [
-        ("Run, standard priced per piece (PCS/HR)",
+        ("Run master pieces per hour (PCS/HR)",
          is_run & (left.RUN_TYPE_MASTER == "PCS/HR")),
-        ("Run, standard priced per load (HRS/LOAD)",
+        ("Run master hours per load (HRS/LOAD)",
          is_run & (left.RUN_TYPE_MASTER == "HRS/LOAD")),
-        ("Setup", left.LT_TYPE == "Setup"),
+        ("Setup hours", left.LT_TYPE == "Setup"),
     ]
     covered = pd.concat([m for _, m in parts], axis=1).any(axis=1)
     assert not (~covered).any(), "the three-way split must be exhaustive"
@@ -360,6 +374,135 @@ def _deduction(key):
 
 def deduction():
     return _deduction(paths.cache_key(paths.CACHE))
+
+
+@st.cache_data(show_spinner=False)
+def _run_funnel(key):
+    """The PCS/HR run funnel's first two bars, at the grain the analysis uses.
+
+    The per-operation workbooks publish "Work orders in scope", which is
+    nunique(WORK_ORDER) WITHIN an operation and summed across them - so a work
+    order that meets the same operation at two sequences counts once, while the
+    analysis tests it twice. That total (19,050) matches nothing else on the
+    page: not the ticket count above it, not the unit count below it.
+
+    to_wo_level is the real grain - one row per standard per work order - and it
+    lands within one row of the ticket count, so the funnel can open where the
+    deduction table closed instead of silently changing what it counts.
+    """
+    df = pipeline.read_extract()
+    sc = df[(df.LT_TYPE == "Run") & (df.RUN_TYPE_MASTER == "PCS/HR")
+            & ~df.OPERATION.str.upper().str.startswith("S RIL")
+            & (df.LAST_TRANSACTION_DATE >= pd.Timestamp(pipeline.FY_START))
+            & (df.RUN_MASTER > 0) & (df.HOURS_MASTER > 0)
+            & (df.HOURS_WORKED > 0) & df.MASTER_OPS_ROWID.notna()]
+    wo = pipeline.to_wo_level(sc)
+    kept, tokens = pipeline.drop_token_bookings(wo)
+    return {"tickets": len(sc), "at_a_standard": len(wo),
+            "with_duration": len(kept), "tokens": len(tokens)}
+
+
+def run_funnel():
+    return _run_funnel(paths.cache_key(paths.CACHE))
+
+
+@st.cache_data(show_spinner="Reading the family workbooks...")
+def _family_funnel(key):
+    """The second route to a decision: pools judged as a family.
+
+    A part that cannot clear the 6-work-order floor alone is not dropped. Its
+    work orders join the rest of its family at the same step, and the pool is
+    put through the same six rules. That route produces most of the PCS/HR run
+    decisions - 106 against 59 - and the part-level funnel does not show it.
+
+    Read from 01_FamilyRollup rather than recomputed. The pooling excludes
+    parts already flagged individually, which is a rule of the family script
+    and not something to reproduce here from the outside.
+    """
+    rows = []
+    for f in paths.ROOT.glob("H0_v2_S_*_FAMILY.xlsx"):
+        try:
+            d = pd.read_excel(f, sheet_name="01_FamilyRollup")
+        except Exception:
+            continue
+        if len(d):
+            rows.append(d)
+    if not rows:
+        return None
+    d = pd.concat(rows, ignore_index=True)
+
+    v = d.FAMEX_VERDICT.astype(str)
+    a = pipeline.ALPHA
+    testable = d[d.FAMEX_WO >= pipeline.MIN_WO]
+    different = testable[
+        (testable.FAMEX_P_WILCOXON < a) & (testable.FAMEX_Q_VALUE < a)
+        & ~((testable.FAMEX_CI95_LOW <= 1) & (testable.FAMEX_CI95_HIGH >= 1))]
+    return {
+        "pools": len(d),
+        "testable": len(testable),
+        "different": len(different),
+        "material": int(v.str.startswith("UPDATE").sum()),
+        "parts_in_pools": int(d.FAMEX_PARTS.sum()),
+        "parts_excluded": int(d.PARTS_FLAGGED_UPDATE.sum()),
+    }
+
+
+def family_funnel():
+    return _family_funnel(paths.cache_key(paths.UPDATE_LIST))
+
+
+@st.cache_data(show_spinner=False)
+def _reconciliation(key):
+    """Every decision by route, tying the three headline figures together.
+
+    Returns (rows, total). A row is (label, actions, parts, edits, hours);
+    the total is (actions, DISTINCT parts across all routes, edits, hours).
+
+    The parts column does NOT add down and the total is not its sum. A part
+    corrected on its run standard and again on its setup is two rows here and
+    one part in the total - 1,296 against 945 on this extract. Actions, edits
+    and hours all add, so only the one column needs saying out loud.
+
+    Hours are absolute and taken PER ACTION before summing, which is the same
+    convention as everywhere else in the tool: an operation with one family
+    running long and another running short is wrong twice, and netting them
+    would report it as nearly right.
+
+    Setup has no part-level route at all: setup units average under four worked
+    hours in a year, so nothing clears a materiality gate alone. An empty row
+    would look like a gap rather than a decision, so routes with nothing in
+    them are dropped and the caption carries the reason.
+    """
+    a = pd.read_excel(paths.UPDATE_LIST, sheet_name="01_Actions")
+    spec = [("02_RunUpdateList", "RUN", "PCS/HR", "Run `PCS/HR`"),
+            ("04_LoadUpdateList", "RUN", "HRS/LOAD", "Run `HRS/LOAD`"),
+            ("03_SetupUpdateList", "SETUP_HRS", None, "Setup")]
+
+    rows, seen = [], set()
+    total_actions = total_edits = 0
+    total_hours = 0.0
+    for sheet, target, run_type, label in spec:
+        d = pd.read_excel(paths.UPDATE_LIST, sheet_name=sheet)
+        seen |= set(d.PART_ID.astype(str).str.strip())
+        for route in ("PART", "FAMILY"):
+            sub = d[d.ROUTE.astype(str).str.upper() == route]
+            act = a[(a.TARGET == target) & (a.LEVEL == route)]
+            if run_type:
+                act = act[act.RUN_TYPE == run_type]
+            if not len(act) and not len(sub):
+                continue
+            hours = act.HOURS_DELTA.abs().sum()
+            rows.append((f"{label} — {route.lower()}", len(act),
+                         sub.PART_ID.astype(str).str.strip().nunique(),
+                         len(sub), hours))
+            total_actions += len(act)
+            total_edits += len(sub)
+            total_hours += hours
+    return rows, (total_actions, len(seen), total_edits, total_hours)
+
+
+def reconciliation():
+    return _reconciliation(paths.cache_key(paths.UPDATE_LIST))
 
 
 def all_units(operation):

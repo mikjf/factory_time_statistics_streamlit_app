@@ -1,0 +1,513 @@
+"""The whole path from raw labour tickets to the 230 decisions, in order.
+
+Was called "Dataset", back when it only described the extract. It grew the
+deduction, the three steps, the six rules and the reconciliation, and at that
+point the name undersold it. Named for what it is now: the word somebody
+reaches for when they doubt a number. Its sibling kept the interpretive half -
+how to read one recommendation once you have it - and is named for that.
+"""
+
+import pathlib
+import sys
+
+import pandas as pd
+import streamlit as st
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+from h0app import data, freshness, paths, pipeline, text, ui  # noqa: E402
+
+st.set_page_config(page_title="Methodology · H0",
+                   page_icon=":material/database:", layout="wide")
+ui.inject()
+st.title("Methodology")
+st.caption("Every labour ticket the ERP recorded, joined to the master routing "
+           "in force for it — and every rule that turns them into the "
+           "recommendations on this site. Read top to bottom.")
+freshness.guard()
+
+# Four tables stack down this page in two pairs, and each pair has to read as
+# one object rather than two that nearly line up.
+# 52%, not the 70% default: the reconciliation table below carries four numeric
+# columns, and at 70% they get 61px each - too narrow for 10'966. The label
+# columns on the other tables still have 420px, which their longest label uses
+# about 340 of.
+ui.align_table_columns(st, table_pct=52)
+
+facts = data.extract_facts()
+ops = data.operation_summaries()
+acts = data.actions()
+
+with st.sidebar:
+    st.caption("**Statistical analysis built from**")
+    for p in (paths.EXTRACT, paths.CACHE, paths.UPDATE_LIST, paths.SETUP,
+              paths.LOAD):
+        st.caption(f"`{p.name}` · {paths.stamp(p)}")
+    st.divider()
+    st.caption("These timestamps are not decoration — every page checks them "
+               "for order before rendering, and refuses to show results built "
+               "from a superseded extract.")
+
+# ---- what is in it ----------------------------------------------------------
+c = st.columns(5)
+# NOT "labour tickets": one row is work order x routing step x Run/Setup x
+# resource, and the query sums the tickets inside each one. There are more
+# tickets than rows and the extract cannot say how many - the aggregation has
+# already happened by the time it reaches here.
+c[0].metric("Labour booking lines", ui.num(facts["rows"]),
+            help="One row per work order, routing step, run or setup, and "
+                 "resource. Labour tickets are summed within each.")
+c[1].metric("Work orders", ui.num(facts["work_orders"]))
+c[2].metric("Parts", ui.num(facts["parts"]))
+c[3].metric("Families", ui.num(facts["families"]))
+c[4].metric("Operations", ui.num(facts["operations"]))
+
+# Derived from FY_START rather than written down, so it cannot drift from the
+# date the analysis actually filters on. ASSUMES THE FISCAL YEAR IS NAMED AFTER
+# THE CALENDAR YEAR IT ENDS IN and opens in the one before - true here, where
+# 1 Oct 2025 opens FY26. A fiscal year that opened in January would need the
+# +1 dropped.
+_fy = pd.Timestamp(pipeline.FY_START)
+FY_LABEL = f"FY{(_fy.year + 1) % 100:02d}"
+
+# The window is still stated by its dates as well as its name: bookings run from
+# the start of the fiscal year to the day the extract was taken, which is not
+# twelve months, and every hours total on the site is bounded by it.
+st.caption(
+    f"Fiscal year from {FY_LABEL} onwards. Bookings in this extract run "
+    f"{facts['first']:%d %b %Y} to {facts['last']:%d %b %Y}. Every hours "
+    f"figure in this tool is what has already been registered in this time "
+    f"window.")
+
+st.divider()
+
+# ---- what is in scope -------------------------------------------------------
+# Directly above the funnel, because these exclusions are what its first two
+# bars are counting. Moved here from the method page: every row is a statement
+# about which labour tickets exist in the data, not about how they are judged.
+st.subheader("What is deliberately left out")
+st.caption("Applied before anything is measured. Each of these removes rows "
+           "that cannot support a conclusion about a master standard.")
+
+# Built from data.EXCLUSIONS rather than written out, so this table and the
+# deduction table below always name the same rules in the same words. They used
+# to be two hand-written lists: this one said "steps not in the current master
+# routing" where the other said "the step is no longer in the master routing",
+# and only two of seven rows corresponded at all.
+#
+# Rules flagged not-described are skipped - see data.EXCLUSIONS for the one that
+# is. A described rule with no reason written for it would render a blank cell,
+# so the assert turns a silent gap into a loud one the moment a rule is added.
+_described = [(label, text.WHY_EXCLUDED.get(label, ""))
+              for label, _, describe in data.EXCLUSIONS if describe]
+assert all(why for _, why in _described), \
+    "every described exclusion needs a reason in text.WHY_EXCLUDED"
+st.markdown(
+    "| Excluded | Why |\n|---|---|\n" +
+    "\n".join(f"| {label} | {why} |" for label, why in _described))
+
+# ---- the same exclusions, counted ------------------------------------------
+# The prose above says which rules exist; this says what they cost. Directly
+# below it so the two read as one statement, and above the funnel because the
+# surviving total IS the funnel's first bar.
+#
+# Every ticket is counted against the FIRST rule it meets, so the column
+# subtracts down to the total instead of overshooting - see data.EXCLUSIONS
+# for why the order is what it is.
+st.subheader("What that leaves to analyse")
+st.caption("The scope rules above, counted — not the ones applied later inside "
+           "an analysis, which act on what survives here and cannot be added "
+           "to the same column. Every ticket is charged to the first rule it "
+           "meets, so the column subtracts down to the total.")
+
+(n0, h0), rows, split, (n1, h1) = data.deduction()
+
+tbl = [{"": "Every labour ticket in the extract",
+        "Tickets": ui.num(n0), "Hours": ui.num(h0)}]
+for label, n, h in rows:
+    # A rule that catches nothing is dropped from the table rather than shown
+    # at zero. The fiscal-year bound is the case: the query now applies it at
+    # source, so the row was permanently empty and read as clutter.
+    #
+    # DROPPED FROM THE DISPLAY, NOT FROM THE COMPUTATION - the rule still runs
+    # in data.EXCLUSIONS. If a future extract ever carries pre-year bookings
+    # again the row reappears on its own, which a hard-coded deletion here
+    # would not do. Subtracting nothing changes no total, so the column
+    # reconciles either way.
+    if n == 0:
+        continue
+    # "+ 0.0" normalises negative zero. The zero-hour tickets sum to exactly
+    # 0.0, negating gives -0.0, and "+,.0f" renders that as "-0" - which reads
+    # as a rounding artefact hiding a real number rather than the true nothing
+    # it is.
+    h = h + 0.0
+    # BACKSLASH-ESCAPED, and it has to be. st.table renders each cell as
+    # markdown, so a leading "- " is list syntax: the row came out as a bulleted
+    # <li> with the hyphen swallowed, showing "Rework" where it should have read
+    # "- Rework". The escape produces a literal ASCII hyphen, which is also the
+    # character the number formatter puts on the values in the same row.
+    tbl.append({"": f"\\- {label}",
+                "Tickets": ui.num(n),
+                # Reversals carry negative hours, so removing them ADDS to the
+                # running total. Signed explicitly, because a "+" in a column
+                # of deductions is the one entry a reader will assume is a bug.
+                "Hours": "0" if abs(h) < 0.5 else ui.fmt(h, "+,.0f")})
+# No "=" prefix: the bold already says this is the result, and a third prefix
+# state alongside "" and "-" made the label column noisier than the arithmetic
+# it was meant to clarify.
+#
+# Bold has to be applied per cell rather than to the row: st.table renders each
+# cell as its own markdown block, so there is no row-level markup to hang it on.
+tbl.append({"": "**Carried into the analysis**",
+            "Tickets": f"**{ui.num(n1)}**", "Hours": f"**{ui.num(h1)}**"})
+
+st.table(pd.DataFrame(tbl).set_index(""))
+# Tickets first, hours second, so the sentence runs in the same order as the
+# columns above it. The bold stays on hours: that is the figure the rest of the
+# tool is denominated in.
+st.caption(
+    f"That is {n1 / n0:.0%} of the tickets in the window, and "
+    f"**{h1 / h0:.0%} of the hours** booked — the two differ because most of "
+    f"what is removed is many small tickets rather than many hours. Rows are "
+    f"counted against the first rule they meet, so the column subtracts down to the "
+    f"total; the rules overlap, and counted independently they would sum to "
+    f"more than the extract holds.")
+
+st.subheader("Carried hours split per type")
+st.caption("Each is analysed separately, and the split is exhaustive — nothing "
+           "carried in falls outside these three.")
+sp = [{"": label, "Tickets": ui.num(n), "Hours": ui.num(h)}
+      for label, n, h in split]
+st.table(pd.DataFrame(sp).set_index(""))
+st.caption(
+    "They are kept apart because the arithmetic differs. A master held in "
+    "pieces per hour is a rate, so a correction divides it; setup hours and a "
+    "master held in hours per load are durations, and a correction multiplies. "
+    "One pooled ratio across all three would be wrong in both directions at "
+    "once.")
+
+# ---- exclusions that happen later, per analysis ----------------------------
+# These are real exclusions too, but they act on what SURVIVED the count above,
+# inside one analysis rather than across all three, so they cannot be added to
+# the same column. Placed after the split rather than before the deduction,
+# where it used to sit: there it interrupted the two sections that belong
+# together - the rules, then the count of those rules - and offered a second,
+# uncountable list before the reader reached the first total.
+#
+# "an analysis" rather than "the analysis" because the split directly above
+# just showed three of them, and each row here names which one it applies to.
+st.subheader("What is set aside inside an analysis")
+st.caption("Applied after everything above, by one analysis rather than all "
+           "three. These act on the hours that survived, so they are not part "
+           "of the count.")
+st.markdown(text.WHAT_IS_EXCLUDED_LATER)
+
+st.divider()
+
+# ---- the funnel -------------------------------------------------------------
+# Full width, and the explanation lives on the bars rather than in a column
+# beside them. It used to be a five-paragraph panel headed "Why the two halves
+# cannot be added"; most of it was answering a question raised one bar earlier,
+# so it now sits on that bar. Two of its paragraphs had also gone stale - the
+# funnel labels its own units in the section headings, which it did not when
+# they were written.
+fn = data.run_funnel()
+_booked = fn["with_duration"]
+_units = int(ops.UNITS.sum())
+_per_unit = _booked / max(_units, 1)
+
+# The heading names the unit this step STARTS in. Safe to do only because the
+# bar that crosses into the other unit spells its own out - without that, a
+# single unit up here would read as covering all three bars, and the last one
+# counts something else.
+st.subheader("Step 1 — from work orders to standards — the `PCS/HR` run "
+             "analysis — one row per WO × standard")
+st.caption("Shown for `PCS/HR` run because it is the biggest of the three and "
+           "the one the method was built on. Setup and `HRS/LOAD` narrow the "
+           "same way on their own share. Nothing here judges a standard yet — "
+           "this is only getting the evidence into the shape a standard can be "
+           "judged in.")
+
+# SPLIT IN TWO, with the six rules between the halves. They were one funnel, and
+# the join was where every question landed: the count more than halves at the
+# regrouping without anything being removed, and the three bars after it are
+# six rules wearing three labels. Cutting there lets the first half be about
+# preparing evidence and the second about testing it, and lets the rules be
+# stated before the reader watches them fire.
+#
+# Two sections inside this half, because the unit changes: one part-and-step is
+# however many work orders happened to run it. Drawn on a single scale the drop
+# read as ten thousand work orders being thrown away.
+#
+# COUNTED IN WORK ORDERS, NOT TICKETS, and the distinction is not pedantic here.
+# ops.WORK_ORDERS is the workbooks' "Work orders in scope", which is nunique per
+# operation - so a work order visiting ten operations counts ten times, and the
+# figure is really work-order x operation. Tickets for the same scope come to
+# 20,373, which is what the deduction table above reports on its Run PCS/HR row.
+ui.funnel(st, [
+    # ui.funnel prepends "counted in", so the unit string must not repeat it
+    ("What the shop floor booked", "work orders at one standard", [
+        # Opens where the deduction table closed. It used to open on 19,050,
+        # the workbooks' per-operation distinct work orders, which is a grain
+        # nothing else on the page uses - lower than the tickets above it for a
+        # reason no reader could infer.
+        # No backticks in a bar note - ui.funnel escapes them rather than
+        # rendering markdown, so they come out as literal characters.
+        # The gap between the ticket count and this bar is explained only when
+        # there IS one. Today it is a single row; it is not structurally always
+        # one, and a note describing a difference of zero would send a reader
+        # hunting for it.
+        ("Carried into this analysis", fn["at_a_standard"],
+         f"the {ui.num(fn['tickets'])} PCS/HR run tickets above, one row per "
+         f"work order per standard"
+         + (f" (more tickets than rows means the same part, operation, "
+            f"sequence and work order ran on more than one machine)"
+            if fn["tickets"] > fn["at_a_standard"] else "")),
+        ("With a duration actually recorded",
+         _booked,
+         f"{ui.num(fn['tokens'])} were closed at ≤ "
+         f"{pipeline.TOKEN_HOURS} h — a booking that records a closure, "
+         f"not a job timed"),
+    ]),
+    ("What a master is judged on", "part × routing step", [
+        # THE ONE BAR THAT NEEDS DEFENDING. The count falls by more than half
+        # here and nothing has been discarded - the unit changed.
+        ("Standards examined (part × sequence × operation)", _units,
+         f"the level a master actually lives at — the same work orders "
+         f"grouped into standards, about {_per_unit:.0f} each. Nothing is "
+         f"discarded here; the unit changes"),
+    ]),
+], scale_to=fn["at_a_standard"])
+
+st.divider()
+
+# ---- the six rules ----------------------------------------------------------
+# Rendered from text.rules(), the same source the sidebar rail and the method
+# page use, so a page carrying its own copy cannot drift from the rail a reader
+# checks it against.
+st.subheader("The six rules")
+st.caption("Applied in this order to every one of those standards. All six must "
+           "pass before a change is proposed — and every unit's page shows "
+           "which of them it passed, including the ones left alone.")
+ui.rule_cards(st, text.rules())
+
+st.divider()
+
+# ---- the funnel, second half ------------------------------------------------
+# Reopens on the same 8,656 the first half closed on, so the drop to 603 stays
+# visible. Repeating the number is the join.
+# The unit goes in this heading and NOT in step 1's. Every bar here is one
+# part x sequence x operation. Step 1 crosses from work orders to standards, so
+# a single unit in its heading would contradict its own last bar.
+st.subheader("Step 2 — from standards to decisions — the `PCS/HR` run "
+             "analysis — part × sequence × operation")
+st.caption("The same six rules, now as counts. This is where the analysis "
+           "actually narrows: most standards never carry enough work orders to "
+           "be judged at all, and that is the design working rather than "
+           "something missing.")
+ui.funnel(st, [
+    ("What survives each rule", "part × routing step", [
+        # Same label and same number as step 1's last bar, deliberately. This
+        # bar exists only to be the join between the two funnels, and it can
+        # only do that if it is recognisably the same thing.
+        ("Standards examined (part × sequence × operation)", _units,
+         "carried down from above"),
+        (f"1 · Enough work orders ({pipeline.MIN_WO}+)",
+         int(ops.TESTABLE.sum()),
+         f"the real narrowing — only "
+         f"{int(ops.TESTABLE.sum()) / max(_units, 1):.0%} clear it. Below "
+         f"this no test can reach significance, whatever the evidence"),
+        ("2–4 · Genuinely different from the master",
+         int(ops.SIGNIFICANT.sum()),
+         "the test itself, the correction for testing hundreds of pools at "
+         "once, and the interval. Different, not just different by chance"),
+        ("5–6 · Big enough to be worth changing", int(ops.MATERIAL.sum()),
+         f"at least {pipeline.MIN_EFFECT:.0%} off and "
+         f"{pipeline.MIN_HOURS_IMPACT:g} h a year"),
+    ]),
+], scale_to=fn["at_a_standard"])   # same scale as the first half, so 8'656
+                                   # is drawn the same width in both
+# WAS ARITHMETICALLY FALSE. It read "those 59 plus setup's and HRS/LOAD's own
+# share give 230 decisions" - 59 + 44 + 21 is 124. The 59 is the PART-LEVEL
+# path only, which is what these workbooks count; the other 106 PCS/HR run
+# decisions come from the family path, where a part too thin to judge alone is
+# pooled with its family at the same step. That path is not in this funnel at
+# all, and it produces nearly twice as many decisions as the one that is.
+_run_part = int(((_acts_run := acts[(acts.TARGET == "RUN")
+                                    & (acts.RUN_TYPE == "PCS/HR")])
+                 .LEVEL == "PART").sum())
+_run_fam = int((_acts_run.LEVEL == "FAMILY").sum())
+st.caption(
+    f"Those {_run_part} are the parts judged **on their own evidence** — the "
+    f"{int(ops.TESTABLE.sum())} that cleared rule 1. The "
+    f"{ui.num(int(ops.UNITS.sum()) - int(ops.TESTABLE.sum()))} that did not "
+    f"are not dropped; they take the second route below.")
+
+st.divider()
+
+# ---- the funnel, third half -------------------------------------------------
+# The route the part-level funnel never showed, and it produces most of the
+# decisions - 106 against 59. A part too thin to judge alone is pooled with its
+# family at the same step and the pool is judged instead, which is the whole
+# reason the analysis has two levels.
+#
+# SCALED TO 20,372 LIKE THE OTHER TWO. The unit differs - a family pool is
+# neither a work order nor a standard - but steps 2 and 3 are parallel routes
+# whose outputs get added together, 59 + 106, so they have to be measurable
+# against each other. On its own scale this funnel drew 106 at 9% while step 2
+# drew 59 at 0.3%, which read as the family route being thirty times the size
+# of the part route rather than roughly twice.
+ff = data.family_funnel()
+if ff:
+    st.subheader("Step 3 — from thin parts to family pools — the `PCS/HR` run "
+                 "analysis — family × part type × sequence × operation")
+    st.caption(
+        f"The other route to a decision, and the busier one. A part that "
+        f"cannot clear rule 1 alone borrows its family's evidence: its work "
+        f"orders join the rest of the family at that step and the pool faces "
+        f"the same six rules. Parts already flagged individually are left out "
+        f"of the pool, so no part is corrected twice.")
+    ui.funnel(st, [
+        ("What a family is judged on", "family × part type × sequence × "
+                                       "operation", [
+            ("Family pools formed", ff["pools"],
+             f"the same {ui.num(ops.UNITS.sum())} standards regrouped by "
+             f"family at each step, covering "
+             f"{ui.num(ff['parts_in_pools'])} of them — the other "
+             f"{ff['parts_excluded']} are the parts flagged on their own"),
+            (f"1 · Enough work orders ({pipeline.MIN_WO}+)", ff["testable"],
+             f"{ff['testable'] / max(ff['pools'], 1):.0%} clear it, against "
+             f"{int(ops.TESTABLE.sum()) / max(int(ops.UNITS.sum()), 1):.0%} of "
+             f"parts alone — pooling is what buys the evidence"),
+            ("2–4 · Genuinely different from the master", ff["different"],
+             "the same three rules, on the pooled ratio"),
+            ("5–6 · Big enough to be worth changing", ff["material"],
+             f"at least {pipeline.MIN_EFFECT:.0%} off and "
+             f"{pipeline.MIN_HOURS_IMPACT:g} h a year"),
+        ]),
+    ], scale_to=fn["at_a_standard"])
+
+st.divider()
+
+# ---- the reconciliation -----------------------------------------------------
+# Where the three headline figures on the landing page come from. Every route
+# that produces a decision, so the totals can be checked rather than taken.
+st.subheader("Every route, and where the headline figures come from")
+st.caption("The six rules run separately down each of these routes. Nothing "
+           "on this page is counted anywhere else on it.")
+
+_rows, (_ta, _tp, _te, _th) = data.reconciliation()
+rec = [{"": lab, "Standards": ui.num(n), "Parts": ui.num(p),
+        "Rows to edit": ui.num(e), "Abs misstated h": ui.num(h)}
+       for lab, n, p, e, h in _rows]
+rec.append({"": "**Total**", "Standards": f"**{ui.num(_ta)}**",
+            "Parts": f"**{ui.num(_tp)}**",
+            "Rows to edit": f"**{ui.num(_te)}**",
+            "Abs misstated h": f"**{ui.num(_th)}**"})
+st.table(pd.DataFrame(rec).set_index(""))
+_worst = max(_rows, key=lambda r: r[4])
+# ui.num() per figure, NOT a .replace(",", "'") over the whole sentence. The
+# blanket version turned every prose comma into an apostrophe too - "one
+# MASTER_OPS_ROWID' one line in the routing" went live before it was spotted.
+st.caption(
+    f"**Standards** is one decision — what the landing page calls *standards "
+    f"to review*. **Rows to edit** is one `MASTER_OPS_ROWID`, one line in the "
+    f"routing; a family decision writes the same value to every part in its "
+    f"pool, which is why {ui.num(_te)} rows carry only {ui.num(_ta)} "
+    f"decisions. **Abs misstated h** is taken per decision before summing, so "
+    f"a route running long and one running short do not cancel — and it is "
+    f"where the work is: *{_worst[0]}* alone carries "
+    f"{_worst[4] / _th:.0%} of it. **Parts** is the only column that does not "
+    f"add down: a part corrected on its run standard and again on its setup "
+    f"is two rows here and one part in the total, "
+    f"{ui.num(sum(p for _, _, p, _, _ in _rows))} against {ui.num(_tp)}. "
+    f"Setup has no part row because setup units average under four worked "
+    f"hours in a year — nothing clears a materiality gate alone, so it is "
+    f"judged at family level only.")
+
+st.divider()
+
+# ---- coverage ---------------------------------------------------------------
+# COLLAPSED, because this is the appendix and the rest of the page is an
+# argument. Its columns are the funnel's own stages broken out per operation, so
+# a reader following the narrative has already been told this; a reader hunting
+# for one operation is not reading the narrative at all and can open it.
+#
+# Not deleted. 15 of the 49 operations produced no action, and this is the only
+# place in the tool that separates "tested and the standard holds" from "nothing
+# was ever testable". Everywhere else both are a blank cell.
+with st.expander("Every operation examined, and what came out of it — "
+                 "including the ones that produced no action"):
+    st.caption("Operations with zero actions are listed on purpose. 'Tested "
+               "and it holds' and 'nothing was testable' are different "
+               "statements, and without both they look identical — here it is "
+               "21 against 1.")
+
+    show = ops[["OPERATION", "WORK_ORDERS", "TOKENS", "UNITS", "TESTABLE",
+                "SIGNIFICANT", "MATERIAL", "NOTHING_TESTABLE"]]
+    st.dataframe(
+        ui.swiss_grid(show, {"WORK_ORDERS": ",.0f", "TOKENS": ",.0f",
+                             "UNITS": ",.0f", "TESTABLE": ",.0f",
+                             "SIGNIFICANT": ",.0f", "MATERIAL": ",.0f"}),
+        hide_index=True, width="stretch", height=460,
+        column_config={
+            "OPERATION": st.column_config.TextColumn("Operation",
+                                                     width="medium"),
+            "WORK_ORDERS": st.column_config.NumberColumn("Work orders"),
+            "TOKENS": st.column_config.NumberColumn(
+                "Token bookings",
+                help=f"Closed at ≤ {pipeline.TOKEN_HOURS} h — a ticket closed "
+                     f"rather than a job timed. Dropped before testing."),
+            "UNITS": st.column_config.NumberColumn("Part × step"),
+            "TESTABLE": st.column_config.NumberColumn(
+                f"{pipeline.MIN_WO}+ work orders",
+                help="Below this no test can reach significance."),
+            "SIGNIFICANT": st.column_config.NumberColumn("Different"),
+            "MATERIAL": st.column_config.NumberColumn("Actions"),
+            "NOTHING_TESTABLE": st.column_config.CheckboxColumn(
+                "Nothing testable",
+                help="Every work order was a token booking. No verdict is "
+                     "possible either way — which is different from the "
+                     "master being fine."),
+        })
+    st.caption("Run PCS/HR only — setup and HRS/LOAD are judged separately "
+               "and do not appear in these counts.")
+    st.download_button("Download this coverage table as CSV",
+                       show.to_csv(index=False).encode("utf-8"),
+                       file_name="h0_operation_coverage.csv", mime="text/csv",
+                       icon=":material/download:")
+
+st.divider()
+
+# ---- how it is kept honest --------------------------------------------------
+# Was a full section on staleness beside a block of shell commands. Both went.
+#
+# The commands were "The pipeline behind this" - five lines of python that only
+# whoever runs the pipeline would ever type, on a page read by project
+# management, finance and supply chain. They are in the README, where the person
+# who needs them already looks.
+#
+# The staleness argument stays because it is a trust claim, but it does not need
+# twenty lines: the timestamps are in the left rail on every page and the guard
+# stops the render before anything is drawn. Saying it once, next to where it
+# actually happens, is the whole of it.
+# OUTSIDE the expander, deliberately. It is a claim about every figure on the
+# page, not about the coverage table, and inside it a reader who never opened
+# the expander would never meet it.
+#
+# Labelled with a bold lead rather than a subheader: one sentence set as a peer
+# of "Step 1" and "The six rules" would carry weight it has not earned, but
+# unlabelled at the foot of a long page it read as a stray afterthought.
+st.caption(
+    f"**Why the figures above can be trusted.** Every one is rebuilt from "
+    f"`{paths.CACHE.name}` when you open a unit and checked against what the "
+    f"workbook stored, and the file times in the left rail are verified in "
+    f"order before any page renders — a newer extract than analysis is a stop, "
+    f"not a warning. Row counts are not a check: an extract once came back "
+    f"with an identical row count after ten families' routings had been "
+    f"rebuilt underneath it.")
+
+st.divider()
+st.page_link("pages/5_How_to_read_it.py",
+             label="How to read one of these recommendations",
+             icon=":material/school:")

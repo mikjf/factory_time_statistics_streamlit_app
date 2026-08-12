@@ -99,7 +99,7 @@ if unknown:
         "may not have run in the current fiscal year.")
     st.info("The analysis covers the current fiscal year only, and only "
             "routing steps that still exist in the current master revision. "
-            "**How it works** lists every exclusion.", icon=":material/info:")
+            "**Methodology** lists every exclusion.", icon=":material/info:")
     st.stop()
 
 if nothing_to_judge:
@@ -172,7 +172,7 @@ if steps.empty:
     st.info(f"No PCS/HR run step of **{part}** is in scope. Either the part did "
             f"not run this year, or every step of it sits outside the analysis "
             f"— most often because the routing step is no longer in the current "
-            f"master revision. **How it works** lists every exclusion.",
+            f"master revision. **Methodology** lists every exclusion.",
             icon=":material/info:")
     st.stop()
 

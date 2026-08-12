@@ -198,55 +198,62 @@ st.info(
 st.divider()
 
 # ---- where to go ------------------------------------------------------------
+# ONE st.columns(3) HOLDING TWO CARDS EACH, not two rows of three. It renders
+# identically - 1 2 3 above 4 5 6 - but puts all six in a single flex row, so
+# the three columns stretch to a common height and the cards inside them can
+# divide it equally. As two separate rows they sized to their own text and came
+# out 188, 233, 188 / 262, 210, 210.
+#
+# The alternative was a min-height in rem, which is the same fix written down as
+# a guess: it holds until somebody edits a caption.
+#
+# Not rendered as raw HTML like ui.rule_cards() either, because each card holds
+# an st.page_link. A plain <a> would navigate by full page load instead of
+# Streamlit's client-side routing, which on a page that reads workbooks is a
+# second of blank screen for a cosmetic gain.
 st.subheader("Where to go")
-n1, n2, n3 = st.columns(3)
-with n1:
-    with st.container(border=True):
-        st.markdown("#### :material/checklist: Review queue")
-        st.caption("Every standard proposed for change. Filter to your family "
-                   "or your operation, see what it is worth, pick one.")
-        st.page_link("pages/1_Review_queue.py", label="Open the queue",
-                     icon=":material/arrow_forward:")
-with n2:
-    with st.container(border=True):
-        st.markdown("#### :material/query_stats: Inspect")
-        st.caption("One recommendation opened up: the six rules with real "
-                   "figures, every work order behind it, and where each sits "
-                   "against the standard. **Use this when you disagree.**")
-        st.page_link("pages/2_Inspect.py", label="Inspect a unit",
-                     icon=":material/arrow_forward:")
-with n3:
-    with st.container(border=True):
-        st.markdown("#### :material/qr_code: By part")
-        st.caption("Everything proposed for one part — and every step of it "
-                   "that was examined and left alone, with the reason.")
-        st.page_link("pages/3_By_part.py", label="Look a part up",
-                     icon=":material/arrow_forward:")
-
-n4, n5, n6 = st.columns(3)
-with n4:
-    with st.container(border=True):
-        st.markdown("#### :material/flag: Not standards changes")
-        st.caption("Hours the schedule reserved and the costing charged for "
-                   "work with no evidence it happened. Real, but a booking and "
-                   "routing question — different people.")
-        st.page_link("pages/4_Not_standards.py", label="See the findings",
-                     icon=":material/arrow_forward:")
-with n5:
-    with st.container(border=True):
-        st.markdown("#### :material/school: How it works")
-        st.caption("The method: the six rules, part versus family, the two "
-                   "directions of correction, and what this cannot tell you.")
-        st.page_link("pages/5_How_it_works.py", label="Read the method",
-                     icon=":material/arrow_forward:")
-with n6:
-    with st.container(border=True):
-        st.markdown("#### :material/database: Dataset")
-        st.caption("What the numbers are computed over: the extract, the "
-                   "period it covers, and how much of it survives to become a "
-                   "decision.")
-        st.page_link("pages/6_Dataset.py", label="See the data",
-                     icon=":material/arrow_forward:")
+NAV = [
+    ("checklist", "Review queue",
+     "Every standard proposed for change. Filter to your family or your "
+     "operation, see what it is worth, pick one.",
+     "pages/1_Review_queue.py", "Open the queue"),
+    # Every caption kept to two lines at full width. A third line on one card
+    # pushes all six taller, because they share a height by design.
+    ("flag", "Not standards changes",
+     "Hours reserved and costed for work with no evidence it happened — a "
+     "booking and routing question.",
+     "pages/4_Not_standards.py", "See the findings"),
+    ("query_stats", "Inspect",
+     "The six rules with real figures, every work order behind it, and where "
+     "each sits. **Use this when you disagree.**",
+     "pages/2_Inspect.py", "Inspect a unit"),
+    # The two explaining pages, named for the difference between them. They were
+    # "How it works" and "Dataset", which described neither: the second had
+    # grown into the method walkthrough while the first held what you need to
+    # read a single recommendation.
+    ("school", "How to read it",
+     "The two directions of correction, part versus family, and what this "
+     "cannot tell you.",
+     "pages/5_How_to_read_it.py", "Read one"),
+    ("qr_code", "By part",
+     "Everything proposed for one part — and every step of it that was "
+     "examined and left alone, with the reason.",
+     "pages/3_By_part.py", "Look a part up"),
+    ("database", "Methodology",
+     "Every labour ticket the ERP recorded, every rule applied to it, down to "
+     "these recommendations.",
+     "pages/6_Methodology.py", "Follow it through"),
+]
+ui.equal_cards(st, min_height="10rem")
+_cols = st.columns(3)
+# Column-major: the list above is ordered so column 1 holds cards 1 and 2,
+# column 2 holds 3 and 4, and so on - which reads across as 1 2 3 / 4 5 6.
+for _i, (_icon, _name, _why, _page, _label) in enumerate(NAV):
+    with _cols[_i // 2]:
+        with st.container(border=True):
+            st.markdown(f"#### :material/{_icon}: {_name}")
+            st.caption(_why)
+            st.page_link(_page, label=_label, icon=":material/arrow_forward:")
 
 st.divider()
 st.caption("Read-only. This tool opens no file for writing anywhere in the "

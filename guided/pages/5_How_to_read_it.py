@@ -9,10 +9,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from h0app import data, freshness, pipeline, text, ui  # noqa: E402
 
-st.set_page_config(page_title="How it works · H0",
+st.set_page_config(page_title="How to read it · H0",
                    page_icon=":material/school:", layout="wide")
 ui.inject()
-st.title("How it works")
+st.title("How to read it")
 freshness.guard()
 
 with st.sidebar:
@@ -41,7 +41,7 @@ with st.sidebar:
                "changes, this page moves with it.")
 
 st.markdown(text.HOW_IT_WORKS)
-st.page_link("pages/6_Dataset.py",
+st.page_link("pages/6_Methodology.py",
              label="What is deliberately left out of the data, and why",
              icon=":material/database:")
 
@@ -51,14 +51,9 @@ st.caption("Applied in this order to every pool. All six must pass before a "
            "them it passed, including the ones left alone.")
 
 # From text.rules(), the same source the rail uses. Written out here separately
-# it drifted out of step with the working page within a day.
-cols = st.columns(3)
-for i, (name, rule, stops) in enumerate(text.rules()):
-    with cols[i % 3]:
-        with st.container(border=True):
-            st.markdown(f"**{i + 1}. {name}**")
-            st.markdown(ui.chip(rule, ui.INFO), unsafe_allow_html=True)
-            st.caption(f"**Stops:** {stops}")
+# it drifted out of step with the working page within a day. The layout moved to
+# ui.rule_cards() for the same reason once Dataset started showing them too.
+ui.rule_cards(st, text.rules())
 
 st.subheader("Two estimates, side by side")
 _acts = data.actions()
@@ -101,7 +96,7 @@ st.markdown(text.CANNOT_TELL)
 # The per-operation coverage table used to sit here in an expander. It is a
 # statement about the data rather than about the method, so it moved to the
 # Dataset page along with the funnel.
-st.page_link("pages/6_Dataset.py",
+st.page_link("pages/6_Methodology.py",
              label="What all this is computed over — the dataset, its period, "
                    "and every operation examined",
              icon=":material/database:")

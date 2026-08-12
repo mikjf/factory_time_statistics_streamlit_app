@@ -74,10 +74,19 @@ def rules():
          f"p under {pipeline.ALPHA}",
          "A few extreme jobs dragging the average while the middle of the "
          "evidence says the standard is fine."),
+        # Said in terms of the odds rather than the method. "Benjamini-Hochberg
+        # controls the false discovery rate" is exact and tells a reader who
+        # does not already know it nothing; the one-in-twenty framing is the
+        # same statement in numbers anybody can follow, and it makes clear that
+        # the flaw is in the NUMBER of tests, not in any one of them.
+        #
+        # No count here on purpose - roughly 30 of 603 on this extract, but the
+        # figures move every run and this string is also the sidebar rail's.
         ("Not a fluke of testing many at once",
          f"q under {pipeline.ALPHA}",
-         "Chance. Hundreds of pools are tested together, so some would look "
-         "convincing on noise alone."),
+         f"Luck. One test in twenty clears {pipeline.ALPHA} by chance, so "
+         f"hundreds of tests throw up convincing results on their own. This "
+         f"caps how many on the list can be flukes."),
         ("Sure of the direction",
          "the range must not span 1.0",
          "A difference the evidence cannot actually separate from zero."),
@@ -171,16 +180,49 @@ def gates(stats, q=None):
 # Which labour tickets are in the data at all. Lives with the dataset rather
 # than with the method: every row is a statement about what the numbers are
 # computed over, and it sits directly above the funnel that counts them.
-WHAT_IS_EXCLUDED = """
-| Excluded | Why |
+# Keyed by the labels in data.EXCLUSIONS, so the prose table and the deduction
+# table below it cannot drift apart. A rule added there without a reason added
+# here renders with a blank Why, which is visible on the page rather than
+# silent - the two are meant to be read as one statement and a missing half
+# should look wrong.
+#
+# THESE ARE THE SCOPE RULES ONLY. They decide which labour tickets reach an
+# analysis at all, which is why the deduction table can count them down to a
+# total. Everything in WHAT_IS_EXCLUDED_LATER happens after that point, inside
+# one analysis, and does not belong in the same arithmetic.
+WHY_EXCLUDED = {
+    "Rework":
+        "Carries no master by design — thousands of actual hours against a "
+        "master of zero. Matched on `S RIL%`.",
+    "Ticket negative correction":
+        "Hours booked back off a ticket already closed, so the figure is "
+        "negative. It records an adjustment, not the length of a job.",
+    "Step is no longer in the master routing":
+        "The work order measured a process that no longer exists. A blank "
+        "routing id means the step was deleted, or the slot now holds a "
+        "different operation.",
+    # Two causes, and the wording has to cover both. It used to say "there is
+    # no standard on the step", which is untrue of roughly a tenth of these:
+    # the standard is set, the booked quantity was zero, and a rate times no
+    # pieces is no hours.
+    "Step carries no master hours to compare against":
+        "Master hours come out at zero, either deliberately or rate is set but "
+        "no quantity was booked against it.",
+    "Nothing was booked against it":
+        "Zero hours recorded. No duration to judge a standard by.",
+}
+
+# Ordered by reach, widest first: the two that apply to every analysis, then run,
+# then HRS/LOAD run, then setup. A reader scanning for "does this affect me"
+# meets the universal rules before the ones that only bite in one place.
+WHAT_IS_EXCLUDED_LATER = """
+| Set aside later, and where | Why |
 |---|---|
-| Steps not in the current master routing | The work order measured a process that no longer exists. A blank routing id means the step was deleted or the slot now holds a different operation. |
-| Rework (`S RIL%`) | Carries no master by design — thousands of actual hours against a master of zero. |
-| Work orders booked at or under 0.02 h | A flat hundredth of an hour against 300 pieces records that a ticket was closed, not how long the job took. There is no duration inside it to correct. |
-| Setups booked at or under 0.02 h | The setup did not happen. Running several orders of one family back to back on one machine, only the first needs a full setup. Measured as not performed. |
-| Work orders run under a master since replaced | They describe a master that no longer exists. |
-| Multi-load `HRS/LOAD` work orders | A job needing two loads is charged two full masters, but data shows that the second load costs less than the first. Data kept and reported separately. |
-| Semi-finished pooled with finished | Same family, different physical job. Never pooled, anywhere. |
+| Semi-finished pooled with finished — *every analysis* | Not an exclusion at all: both are analysed, never in the same pool. Same family, different physical job. |
+| Work orders booked at or under 0.02 h — *every analysis* | A flat hundredth of an hour against a lot records that a ticket was closed, not how long the job took. There is no duration inside it to correct. |
+| Work orders run under a master since replaced — *run* | They describe a master that no longer exists. |
+| Multi-load `HRS/LOAD` work orders — *`HRS/LOAD` run* | A job needing two loads is charged two full masters, but the data shows the second load costs less than the first. Kept and reported separately. |
+| Setups booked at or under 0.02 h — *setup* | The setup did not happen. Running several orders of one family back to back on one machine, only the first needs a full setup. Not performed. |
 """
 
 HOW_IT_WORKS = """

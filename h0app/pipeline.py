@@ -67,6 +67,12 @@ REVIEW_HI = load_view.REVIEW_HI
 
 slug = analysis.slug
 
+# Re-exported rather than reimplemented: the funnel has to count at exactly the
+# grain the analysis tests on, and a second copy of the grouping would drift.
+UNIT = analysis.UNIT
+to_wo_level = analysis.to_wo_level
+drop_token_bookings = analysis.drop_token_bookings
+
 
 def parts_workbook(operation):
     return paths.ROOT / f"H0_v2_{slug(operation)}_PARTS.xlsx"
