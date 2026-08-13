@@ -10,7 +10,11 @@ import sys
 
 import streamlit as st
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+# parent.parent.parent is streamlit_app/, where h0app lives. parent.parent is
+# guided/ - which held only because Overview.py runs first in an ordinary visit
+# and inserts the right path. Deep-link to a page in a fresh session and the
+# import failed with ModuleNotFoundError: no module named 'h0app'.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
 from h0app import data, freshness, pipeline, text, ui  # noqa: E402
 

@@ -45,8 +45,14 @@ def _ticks(lo, hi):
     return sorted(out)
 
 
-def distribution(rows, stats, height=300):
-    """One dot per work order against the standard it was measured on."""
+def distribution(rows, stats, height=300, legend=True):
+    """One dot per work order against the standard it was measured on.
+
+    legend=False suppresses the built-in colour legend, for the one caller that
+    puts ui.chart_key() underneath instead. That key lists every status the
+    chart can draw rather than the two this unit happens to use, and with both
+    on screen four of its rows appeared twice directly above themselves.
+    """
     d = rows[rows.RATIO.notna() & (rows.RATIO > 0)].copy()
     if d.empty:
         return None
@@ -90,7 +96,8 @@ def distribution(rows, stats, height=300):
                             scale=alt.Scale(domain=present,
                                             range=[COLOURS[s] for s in present]),
                             legend=alt.Legend(title=None, orient="bottom",
-                                              columns=1, labelLimit=400)),
+                                              columns=1, labelLimit=400)
+                            if legend else None),
             tooltip=[alt.Tooltip("WORK_ORDER:N", title="work order"),
                      alt.Tooltip("PART_ID:N", title="part"),
                      alt.Tooltip("LAST_DATE:T", title="last booked"),
@@ -102,18 +109,25 @@ def distribution(rows, stats, height=300):
                      alt.Tooltip("RATIO:Q", title="ratio", format=".3f"),
                      alt.Tooltip("STATUS:N", title="")]))
 
+    # DRAWN AFTER THE POINTS, not before. Altair layers in argument order, so
+    # with the rules ahead of the dots a well-populated pool buried the red line
+    # under 250 circles at 0.8 opacity - the one mark the chart exists to show.
+    # The band stays underneath: it is a region, and dots on top of it read
+    # correctly as "inside the interval".
     marks = [(1.0, "the standard", "#555555", [6, 3])]
     if ratio is not None and not pd.isna(ratio):
         marks.append((float(ratio), "the correction", "#c0392b", []))
+    over = []
     for value, label, colour, dash in marks:
         base = alt.Chart(pd.DataFrame({"v": [value], "label": [label]}))
-        layers.append(base.mark_rule(color=colour, size=2, strokeDash=dash)
-                      .encode(x=alt.X("v:Q")))
-        layers.append(base.mark_text(align="left", dx=5, dy=-int(height / 2) + 12,
-                                     fontSize=11, color=colour)
-                      .encode(x=alt.X("v:Q"), text="label:N"))
+        over.append(base.mark_rule(color=colour, size=2.5, strokeDash=dash,
+                                   opacity=1)
+                    .encode(x=alt.X("v:Q")))
+        over.append(base.mark_text(align="left", dx=5, dy=-int(height / 2) + 12,
+                                   fontSize=11, color=colour)
+                    .encode(x=alt.X("v:Q"), text="label:N"))
 
-    return (alt.layer(*layers, points)
+    return (alt.layer(*layers, points, *over)
             .properties(height=height)
             .configure_view(strokeWidth=0))
 

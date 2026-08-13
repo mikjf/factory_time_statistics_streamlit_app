@@ -135,6 +135,26 @@ CSS = """
    the bottom, where it is the same shape in each. */
 .h0-rule-stops { font-size:.84rem; opacity:.75; }
 
+/* Key for the distribution chart: every mark it can draw, in two columns.
+   Sized off the caption scale because it is a caption in every sense except
+   that it happens to contain colour.
+
+   TWO EXPLICIT COLUMNS, not CSS `columns:2`. The split carries meaning - what
+   the chart draws and counts on the left, what it drew but left out of the
+   test on the right - and a column rule would break wherever the halves
+   happened to balance, which is not where the meaning divides. Collapses to
+   one column under 40rem so the labels, several of them long, never get a
+   column half a sentence wide. */
+.h0-key { display:grid; grid-template-columns:repeat(2, minmax(0, auto));
+          justify-content:start; gap:.35rem 2.4rem; margin:.4rem 0 .2rem;
+          font-size:.82rem; opacity:.85; }
+.h0-k-col { display:flex; flex-direction:column; gap:.35rem; }
+@media (max-width:40rem) { .h0-key { grid-template-columns:minmax(0, 1fr); } }
+.h0-k-item { display:inline-flex; align-items:center; gap:.4rem; }
+.h0-k-dot { width:.7rem; height:.7rem; border-radius:50%;
+            display:inline-block; }
+.h0-k-line { width:1.1rem; height:0; display:inline-block; }
+
 .h0-fstep { margin-bottom:.5rem; }
 /* bar and its value share a row, so a bar too narrow to hold the number can
    put it alongside instead of being padded out to fit */
@@ -200,6 +220,45 @@ def rule_cards(container, rules, per_row=3):
     container.markdown(
         f'<div class="h0-rules" style="--h0-cols:{per_row}">{cards}</div>',
         unsafe_allow_html=True)
+
+
+def chart_key(container):
+    """Every mark the distribution chart can draw, whether or not it is drawn.
+
+    The chart's own legend lists only the statuses PRESENT in that unit, which
+    is right there and wrong here: a reader learning the chart from one example
+    sees two dot colours and no mention of the two rules, which are the marks
+    the whole thing is about. Built from charts.COLOURS and the evidence status
+    constants, so a status added there appears here without being retyped.
+
+    Two columns, split on whether the label says "excluded": what the chart
+    draws and counts on the left, what it drew but kept out of the test on the
+    right. DERIVED FROM THE LABEL, not a hard-coded row count - the strings in
+    evidence.py already carry that distinction, and a fixed split would put a
+    status added later into whichever column the arithmetic happened to land on.
+    """
+    from . import charts, evidence
+
+    line = ('<span class="h0-k-line" style="border-top:2.5px {0} {1}">'
+            '</span>')
+    # The two rules head the left column: they are marks the chart always
+    # draws, not evidence it set aside.
+    counts = [line.format("dashed", "#555555") + "the standard as it stands",
+              line.format("solid", "#c0392b") + "the correction"]
+    left_out = []
+    for status in evidence.EXCLUDED_FIRST:
+        mark = (f'<span class="h0-k-dot" '
+                f'style="background:{charts.COLOURS[status]}"></span>'
+                f'{_e(status)}')
+        (left_out if status.startswith("excluded") else counts).append(mark)
+
+    def _col(items):
+        return ('<div class="h0-k-col">'
+                + "".join(f'<span class="h0-k-item">{i}</span>' for i in items)
+                + "</div>")
+
+    container.markdown('<div class="h0-key">' + _col(counts) + _col(left_out)
+                       + "</div>", unsafe_allow_html=True)
 
 
 def equal_cards(container, min_height="16.5rem"):
