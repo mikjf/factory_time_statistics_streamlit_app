@@ -259,7 +259,7 @@ k[3].metric("Ratio", ui.fmt(stats.get("RATIO"), ".3f"),
                  f"Above 1.0 the job takes longer than the master.")
 st.markdown(ui.direction_note(target, run_type))
 
-# 21 of the 230 actions carry no single value to key in, because the family
+# Some family actions carry no single value to key in, because the family
 # runs several different current standards. Those rows say "divide each part's
 # own value by the ratio" - so the ratio has to be on the page, and it is, in
 # the metric above.

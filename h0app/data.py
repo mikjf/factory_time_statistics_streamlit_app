@@ -541,7 +541,7 @@ def _keying(key):
                             & (a.LEVEL == "FAMILY")).sum()),
         "fam_edits": int((run.ROUTE.astype(str).str.upper() == "FAMILY").sum()),
         # Run-only, to be compared against the run row count. "actions" is all
-        # three lists and pairing it with the 1,726 run rows compares a total
+        # three lists and pairing it with the run row count compares a total
         # against a part of one.
         "run_actions": int(((a.TARGET == "RUN")
                             & (a.RUN_TYPE == "PCS/HR")).sum()),

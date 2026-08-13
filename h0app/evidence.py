@@ -42,8 +42,13 @@ SKIPPED = "excluded - the setup was not performed"
 SUPERSEDED = "excluded - ran under a standard since replaced"
 OWN_PART = "excluded - this part is judged on its own"
 MULTILOAD = "excluded - charged for more than one load"
+# Setup only. The setup happened and was charged - it is not a skip - but the
+# people who booked it were not the crew the routing plans for, so the standard
+# does not describe the job that was done. See h0_v2_setup_view.load().
+CREW = "excluded - not the crew the routing plans for"
 
-EXCLUDED_FIRST = [IN, OUTLIER, TOKEN, SKIPPED, SUPERSEDED, OWN_PART, MULTILOAD]
+EXCLUDED_FIRST = [IN, OUTLIER, TOKEN, SKIPPED, CREW, SUPERSEDED, OWN_PART,
+                  MULTILOAD]
 
 ROWS = ["WORK_ORDER", "PART_ID", "LAST_DATE", "TOTAL_QTY", "HOURS_MASTER",
         "HOURS_WORKED", "RATIO", "STATUS"]
@@ -266,10 +271,17 @@ def setup(operation, family, part_type, seq):
         return _blank()
 
     res = sv.test_family(g)
-    real = g[~g.SKIPPED]
+    # Mirrors test_family exactly: performed, THEN crew-matched. Splitting it
+    # any other way makes the chart and the verdict disagree - the MAD filter
+    # runs on whatever set is handed to it, so computing it over all performed
+    # rows would keep and drop different work orders than the test did, and the
+    # reconciliation badge would start failing on units that are fine.
+    performed = g[~g.SKIPPED]
+    real = performed[performed.CREW_OK]
     keep = _mad_keep(real.LOG_RATIO)
 
     rows = pd.concat([_rows(real[keep], IN), _rows(real[~keep], OUTLIER),
+                      _rows(performed[~performed.CREW_OK], CREW),
                       _rows(g[g.SKIPPED], SKIPPED)])
 
     stats = {

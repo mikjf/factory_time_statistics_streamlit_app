@@ -26,6 +26,7 @@ COLOURS = {
     evidence.OUTLIER: "#e8a33d",
     evidence.TOKEN: "#8d6cab",
     evidence.SKIPPED: "#a2705f",
+    evidence.CREW: "#7a9a3f",
     evidence.SUPERSEDED: "#8b8b8b",
     evidence.OWN_PART: "#3aa7a7",
     evidence.MULTILOAD: "#c2554d",
@@ -136,9 +137,10 @@ def ci_caption(stats):
     """The sentence that has to sit under the chart.
 
     The shaded band and the red line are two different estimators and they can
-    legitimately disagree - in 19 of 244 actions the pooled ratio falls outside
-    its own interval. Drawn without saying so, the chart looks broken and takes
-    the analysis down with it.
+    legitimately disagree - on a minority of actions the pooled ratio falls
+    outside its own interval (10 of 224 on the 13 Aug 2026 extract; the guided
+    app computes the live figure rather than quoting one). Drawn without saying
+    so, the chart looks broken and takes the analysis down with it.
     """
     if stats.get("CI_LOW") is None or pd.isna(stats.get("CI_LOW")):
         return ("No interval: this pool never reached the minimum number of "

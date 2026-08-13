@@ -223,6 +223,7 @@ WHAT_IS_EXCLUDED_LATER = """
 | Work orders run under a master since replaced — *run* | They describe a master that no longer exists. |
 | Multi-load `HRS/LOAD` work orders — *`HRS/LOAD` run* | A job needing two loads is charged two full masters, but the data shows the second load costs less than the first. Kept and reported separately. |
 | Setups booked at or under 0.02 h — *setup* | The setup did not happen. Running several orders of one family back to back on one machine, only the first needs a full setup. Not performed. |
+| Setups run by a different crew than planned — *setup* | `SETUP_HRS` is one elapsed value for the crew the routing plans for. A one-person, one-hour setup done by two people is not a fast or slow version of that plan, it is a different job. Still charged, still counted in the skip figures, but not evidence about the standard. |
 """
 
 # Split into three so a page can take the piece it needs. The guided app's

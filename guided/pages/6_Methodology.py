@@ -1,4 +1,4 @@
-"""The whole path from raw labour tickets to the 230 decisions, in order.
+"""The whole path from raw labour tickets to the decisions on the queue.
 
 Was called "Dataset", back when it only described the extract. It grew the
 deduction, the three steps, the six rules and the reconciliation, and at that
@@ -514,10 +514,14 @@ with st.expander("Every operation examined, and what came out of it — "
                 f"Testable ({pipeline.MIN_WO}+ WO)",
                 help="Pools carrying enough work orders to judge. Below this "
                      "no test can reach significance, whatever the evidence."),
+            # The total is read off the table rather than written down. It said
+            # 230 for as long as 230 was true, which is exactly how a figure
+            # goes stale unnoticed: nothing recomputes a help string.
             "ACTIONS": st.column_config.NumberColumn(
                 "Masters to review",
-                help="Cleared all six rules. Sums to 230 across the table — "
-                     "the same figure the landing page shows."),
+                help=f"Cleared all six rules. Sums to "
+                     f"{int(cov.ACTIONS.sum()):,} across the table — the same "
+                     f"figure the landing page shows."),
             "PARTS": st.column_config.NumberColumn("Parts"),
             "EDITS": st.column_config.NumberColumn(
                 "Rows to edit",
