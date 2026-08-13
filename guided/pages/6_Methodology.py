@@ -216,6 +216,32 @@ st.markdown(text.WHAT_IS_EXCLUDED_LATER)
 
 st.divider()
 
+# ---- what makes one pool ----------------------------------------------------
+# Directly above Step 1, whose heading is "one row per WO x standard" - forming
+# the pool IS that step, so the rule that decides what lands in one belongs
+# immediately before it rather than buried in the method summary.
+#
+# NO COUNTS HERE, on purpose. The first draft carried four - 657 pools spanning
+# a revision, 32 split, 216 left whole, 0 of those acted on - and every one of
+# them was defending a design decision rather than reporting a finding. A reader
+# meeting "216 pools, of which 0 produce an action" goes looking for 216
+# problems. The rule is the point; the tallies belong to whoever maintains it,
+# and data.pooling() went with them.
+st.subheader("What counts as one pool")
+st.markdown("""
+One part, one operation, one routing step — every work order matching those
+three is judged together. The routing revision is not part of it: a revision is
+bumped for any edit anywhere in the routing, so it says nothing about this
+step's time.
+
+What does separate work orders is the standard itself changing during the year.
+Only those run under the current value are tested — the earlier ones measured a
+standard that has since been replaced. Where too few ran under the new value to
+judge it, nothing is proposed for that step.
+""")
+
+st.divider()
+
 # ---- the funnel -------------------------------------------------------------
 # Full width, and the explanation lives on the bars rather than in a column
 # beside them. It used to be a five-paragraph panel headed "Why the two halves

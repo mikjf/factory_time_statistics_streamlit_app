@@ -245,6 +245,19 @@ _FY_LONG = f"{_FY.day} {_FY:%B %Y}"
 # it rather than to the person reading a recommendation - they need the two
 # words defined, which the first paragraph does, not a promise about how
 # consistently they are used.
+#
+# The two query-level filters are stated HERE and not in the deduction table,
+# because they run in the SQL: the rows never reach the extract, so nothing
+# downstream can count what they removed. Two sentences saying that in full were
+# cut - they explained the placement to a maintainer, and the reader only needs
+# the fact. Full four-row comparison against the operational dashboard is in
+# README.md, "Why these totals differ from the operational dashboard".
+#
+# The closing paragraph no longer spells out part x routing step / family x
+# routing step: the Methodology page now opens "What counts as one pool"
+# directly below with exactly that, and said twice in two vocabularies it read
+# as two different rules. NOTE the v1 flat Method page has no such block, so it
+# loses the detail - acceptable only because v1 is being retired.
 WHERE_FROM = f"""
 ### Where the numbers come from
 
@@ -254,11 +267,21 @@ figures: the
 **actual** hours booked and the **master** hours the standard carries. Their
 ratio is the whole analysis.
 
-A single work order says nothing — jobs vary. So the ratios are pooled per
-**part × routing step**, or per **family × routing step** where a part is too
-thin to judge alone, and the question asked of each pool is a statistical one:
-*could this many work orders land this consistently on one side of the standard
-by chance?*
+Two filters are applied in the query itself, so those rows never reach the
+extract at all:
+
+- **Closed operations only.** An operation still in progress has booked part of
+  its hours against the whole of its standard, so it would read as fast work.
+- **4-digit routing steps only.** The master-data overhaul renumbered routing
+  steps from 2 and 3 digits to 4 as it rebuilt them, so a shorter sequence
+  belongs to a routing that no longer exists.
+
+The second is usually the whole reason a total here is smaller than the same
+total on the operational dashboard, which includes both.
+
+A single work order says nothing — jobs vary. So the ratios are pooled, and the
+question asked of each pool is a statistical one: *could this many work orders
+land this consistently on one side of the standard by chance?*
 """
 
 TWO_DIRECTIONS = """
