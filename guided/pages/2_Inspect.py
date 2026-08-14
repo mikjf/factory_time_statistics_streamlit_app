@@ -355,7 +355,11 @@ st.divider()
 st.subheader("The work orders behind this")
 st.caption("Every labour ticket in scope, including the ones that did not "
            "count. This is the row-level data the conclusion was drawn from.")
-show = rows.copy()
+# evidence.ROWS, not every column: the frame also carries the pre-formatted
+# strings the chart tooltip needs, which are display text and would sort as text
+# in a column. The CSV below takes the same eight, so the download keeps
+# matching what is on screen.
+show = rows[evidence.ROWS].copy()
 show["LAST_DATE"] = pd.to_datetime(show.LAST_DATE, errors="coerce")
 st.dataframe(
     ui.swiss_grid(show, {"TOTAL_QTY": ",.0f", "HOURS_MASTER": ",.4f",

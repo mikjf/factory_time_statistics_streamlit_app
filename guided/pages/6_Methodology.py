@@ -44,14 +44,37 @@ ops = data.operation_summaries()
 acts = data.actions()
 
 with st.sidebar:
-    st.caption("**Statistical analysis built from**")
-    for p in (paths.EXTRACT, paths.CACHE, paths.UPDATE_LIST, paths.SETUP,
-              paths.LOAD):
-        st.caption(f"`{p.name}` · {paths.stamp(p)}")
+    # What the analysis was built from, and when it was last built. Both facts
+    # sit here rather than only in the body because the sidebar does not
+    # scroll: on much the longest page in the app, the window the figures are
+    # bounded by stays visible the whole way down, where the body caption
+    # saying the same thing is off screen after the first table.
+    #
+    # This replaced five filenames and their modification times. Those said
+    # "is it current?" in the language of the folder rather than the data -
+    # nobody outside this project can place H0_v2_LOAD.xlsx - and five stamps
+    # within half an hour of each other carried one fact between them.
+    ui.kv(st, "Key dates", [
+        ("First labour ticket", f"{facts['first']:%d %b %Y}"),
+        ("Last labour ticket", f"{facts['last']:%d %b %Y}"),
+        ("Last full analysis run", paths.stamp(paths.UPDATE_LIST)),
+    ])
+    # The run time is the third row of that block, not a separate caption under
+    # it - all three are provenance, and a rule or a gap between them split one
+    # idea into two. It comes off the update list, the last artefact the
+    # pipeline writes, so the stamp is when the whole run finished rather than
+    # when any one step did. Full stamp rather than the date alone: two runs on
+    # one day are ordinary here and a date could not tell them apart.
+    #
+    # A divider HERE, where "How to read it" has one too, because what follows
+    # IS a different idea: provenance above, the numbers the rules fire on
+    # below.
+    #
+    # The thresholds sit on this page as well as on "How to read it" because
+    # this is where the six rules are actually enumerated, a long scroll below.
+    # Same helper, so the two cannot disagree.
     st.divider()
-    st.caption("These timestamps are not decoration — every page checks them "
-               "for order before rendering, and refuses to show results built "
-               "from a superseded extract.")
+    ui.thresholds(st)
 
 # ---- what is in it ----------------------------------------------------------
 c = st.columns(5)
@@ -97,7 +120,7 @@ st.divider()
 # Directly above the funnel, because these exclusions are what its first two
 # bars are counting. Moved here from the method page: every row is a statement
 # about which labour tickets exist in the data, not about how they are judged.
-st.subheader("What is deliberately left out")
+st.subheader("What is deliberately left out", anchor="left-out")
 st.caption("Applied before anything is measured. Each of these removes rows "
            "that cannot support a conclusion about a master standard.")
 
@@ -126,7 +149,7 @@ st.markdown(
 # Every ticket is counted against the FIRST rule it meets, so the column
 # subtracts down to the total instead of overshooting - see data.EXCLUSIONS
 # for why the order is what it is.
-st.subheader("What that leaves to analyse")
+st.subheader("What that leaves to analyse", anchor="leaves")
 st.caption("The scope rules above, counted — not the ones applied later inside "
            "an analysis, which act on what survives here and cannot be added "
            "to the same column. Every ticket is charged to the first rule it "
@@ -185,7 +208,7 @@ st.caption(
     f"total; the rules overlap, and counted independently they would sum to "
     f"more than the extract holds.")
 
-st.subheader("Carried hours split per type")
+st.subheader("Carried hours split per type", anchor="split")
 st.caption("Each is analysed separately, and the split is exhaustive — nothing "
            "carried in falls outside these three.")
 sp = [{"": label, "Tickets": ui.num(n), "Hours": ui.num(h)}
@@ -208,7 +231,7 @@ st.caption(
 #
 # "an analysis" rather than "the analysis" because the split directly above
 # just showed three of them, and each row here names which one it applies to.
-st.subheader("What is set aside inside an analysis")
+st.subheader("What is set aside inside an analysis", anchor="set-aside")
 st.caption("Applied after everything above, by one analysis rather than all "
            "three. These act on the hours that survived, so they are not part "
            "of the count.")
@@ -227,7 +250,7 @@ st.divider()
 # meeting "216 pools, of which 0 produce an action" goes looking for 216
 # problems. The rule is the point; the tallies belong to whoever maintains it,
 # and data.pooling() went with them.
-st.subheader("What counts as one pool")
+st.subheader("What counts as one pool", anchor="one-pool")
 st.markdown("""
 One part, one operation, one routing step — every work order matching those
 three is judged together. The routing revision is not part of it: a revision is
@@ -259,7 +282,7 @@ _per_unit = _booked / max(_units, 1)
 # single unit up here would read as covering all three bars, and the last one
 # counts something else.
 st.subheader("Step 1 — from work orders to standards — the `PCS/HR` run "
-             "analysis — one row per WO × standard")
+             "analysis — one row per WO × standard", anchor="step-1")
 st.caption("Shown for `PCS/HR` run because it is the biggest of the three and "
            "the one the method was built on. Setup and `HRS/LOAD` narrow the "
            "same way on their own share. Nothing here judges a standard yet — "
@@ -323,7 +346,7 @@ st.divider()
 # Rendered from text.rules(), the same source the sidebar rail and the method
 # page use, so a page carrying its own copy cannot drift from the rail a reader
 # checks it against.
-st.subheader("The six rules")
+st.subheader("The six rules", anchor="six-rules")
 st.caption("Applied in this order to every one of those standards. All six must "
            "pass before a change is proposed — and every unit's page shows "
            "which of them it passed, including the ones left alone.")
@@ -338,7 +361,7 @@ st.divider()
 # part x sequence x operation. Step 1 crosses from work orders to standards, so
 # a single unit in its heading would contradict its own last bar.
 st.subheader("Step 2 — from standards to decisions — the `PCS/HR` run "
-             "analysis — part × sequence × operation")
+             "analysis — part × sequence × operation", anchor="step-2")
 st.caption("The same six rules, now as counts. This is where the analysis "
            "actually narrows: most standards never carry enough work orders to "
            "be judged at all, and that is the design working rather than "
@@ -398,7 +421,8 @@ st.divider()
 ff = data.family_funnel()
 if ff:
     st.subheader("Step 3 — from thin parts to family pools — the `PCS/HR` run "
-                 "analysis — family × part type × sequence × operation")
+                 "analysis — family × part type × sequence × operation",
+                 anchor="step-3")
     st.caption(
         f"The other route to a decision, and the busier one. A part that "
         f"cannot clear rule 1 alone borrows its family's evidence: its work "
@@ -430,7 +454,8 @@ st.divider()
 # ---- the reconciliation -----------------------------------------------------
 # Where the three headline figures on the landing page come from. Every route
 # that produces a decision, so the totals can be checked rather than taken.
-st.subheader("Every route, and where the headline figures come from")
+st.subheader("Every route, and where the headline figures come from",
+             anchor="routes")
 st.caption("The six rules run separately down each of these routes. Nothing "
            "on this page is counted anywhere else on it.")
 

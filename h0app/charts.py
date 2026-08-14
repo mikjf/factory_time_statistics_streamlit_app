@@ -21,9 +21,30 @@ import pandas as pd
 from . import evidence, ui
 
 # Muted for everything excluded, saturated for the rows that carried the number.
+#
+# NOTHING IN HERE MAY REUSE ui.WARN (#dd9d3d). Amber has one meaning in this
+# tool - a human has to look before keying - and OUTLIER was #e8a33d, which
+# differs from it by 11 in red and 6 in green and is the same colour to any
+# reader. Both were on screen at once on "How to read it": the ! dot in the
+# sidebar legend, the set-aside dots in the chart beside it.
+#
+# PINK, chosen on hue separation rather than on RGB distance. Two earlier
+# attempts and why they were wrong:
+#
+#   #e8a33d amber      - 13 from WARN. The bug.
+#   #7fb3d5 pale blue  - far from WARN, but only 71 from MUTE and it reads as a
+#                        washed-out "counted", which is what it sat beside.
+#   #f0dd7a pale yellow- scores BEST on RGB distance (90) and is still wrong:
+#                        hue 50deg against WARN's 36deg. Same hue family, so it
+#                        reads as "a lighter warning". Euclidean distance in RGB
+#                        does not predict what a reader will confuse.
+#
+# #d977a8 sits at hue 330deg with a 22deg gap to its nearest neighbour - the
+# widest of any candidate - and 114 from WARN. Nothing else here is pink, and
+# pink means nothing else in this tool, which is the whole requirement.
 COLOURS = {
     evidence.IN: "#2b7bba",
-    evidence.OUTLIER: "#e8a33d",
+    evidence.OUTLIER: "#d977a8",
     evidence.TOKEN: "#8d6cab",
     evidence.SKIPPED: "#a2705f",
     evidence.CREW: "#7a9a3f",
@@ -74,11 +95,95 @@ def distribution(rows, stats, height=300, legend=True):
     present = [s for s in evidence.EXCLUDED_FIRST if s in set(d.STATUS)]
     layers = []
 
-    if ci_lo is not None and not pd.isna(ci_lo) and not pd.isna(ci_hi):
+    # ---- the tooltip -------------------------------------------------------
+    # Ordered the way somebody reads a dot: WHICH job (part, work order, when,
+    # which step), HOW BIG it was, WHAT THE ROUTING SAYS, then the arithmetic
+    # that judges it, then what came of it.
+    #
+    # Part before work order. The part is what carries a standard and what gets
+    # edited; the work order is one occasion on which it was made.
+    #
+    # The standard sits ABOVE the hours and the achieved rate BELOW the ratio,
+    # so the four lines read as a sentence: the routing allows 10 pieces an
+    # hour, that made 6.000 master hours against 4.230 actual, a ratio of
+    # 0.705, and the job in fact ran at 14.184 pieces an hour. Putting the two
+    # rates adjacent would have been tidier and would have hidden that the rate
+    # moves the OTHER WAY to the ratio, which is the single thing about this
+    # analysis people get wrong.
+    #
+    # FIELDS THAT ARE EMPTY FOR EVERY DOT DRAWN ARE DROPPED, rather than shown
+    # as a row of dashes. That is what makes one tooltip definition work for
+    # all three routes: setup has no quantity and no achieved rate, HRS/LOAD
+    # has no achieved rate but does have a load count, PCS/HR has both and no
+    # load count. Each chart shows only the lines it can fill.
+    tip_all = [
+        ("PART_ID", alt.Tooltip("PART_ID:N", title="part")),
+        ("WORK_ORDER", alt.Tooltip("WORK_ORDER:N", title="work order")),
+        ("LAST_DATE", alt.Tooltip("LAST_DATE:T", title="last booked")),
+        ("OP_TXT", alt.Tooltip("OP_TXT:N", title="operation")),
+        ("TOTAL_QTY", alt.Tooltip("TOTAL_QTY:Q", title="pieces",
+                                  format=",.0f")),
+        ("LOADS", alt.Tooltip("LOADS:N", title="loads")),
+        ("STANDARD", alt.Tooltip("STANDARD:N", title="standard")),
+        # Pre-formatted strings, not numeric fields with a d3 format: the unit
+        # belongs beside the number and Vega cannot append one to a Q field.
+        # Two decimals throughout - the precision the ERP stores hours at.
+        ("MASTER_TXT", alt.Tooltip("MASTER_TXT:N", title="master")),
+        ("ACTUAL_TXT", alt.Tooltip("ACTUAL_TXT:N", title="actual")),
+        # THE RATIO KEEPS ITS THIRD DECIMAL, alone on this list. It is computed
+        # rather than stored, so there is no false precision to trim - and 1.0
+        # is the reference line this whole chart is drawn against, so rounding
+        # a genuinely-off 1.004 to "1.00" would say the opposite of the truth
+        # at the one value where it matters most.
+        ("RATIO", alt.Tooltip("RATIO:Q", title="ratio", format=".3f")),
+        ("ACHIEVED", alt.Tooltip("ACHIEVED:N", title="achieved")),
+        # title="status", NOT title="". An empty title does not suppress the
+        # key - Vega falls back to the FIELD NAME - so this row has been
+        # showing a shouted "STATUS" beside eleven lower-case labels.
+        ("STATUS", alt.Tooltip("STATUS:N", title="status")),
+    ]
+    tip = [t for col, t in tip_all
+           if col in d.columns and d[col].notna().any()]
+
+    # ---- the reference marks share ONE tooltip -----------------------------
+    # The band, the dashed line and the red line are three readings of the same
+    # comparison, and a reader hovering any of them is asking the same question:
+    # where does this unit sit. Three tooltips each holding a third of the
+    # answer made you hunt for the other two, and the band held none at all.
+    #
+    # Values only. An explanation of what the band IS belongs under the chart,
+    # where it can be read once - a hover is for looking something up, not for
+    # being taught, and a paragraph in one costs a reader the same seconds
+    # every time they check a number.
+    has_band = (ci_lo is not None and not pd.isna(ci_lo)
+                and not pd.isna(ci_hi))
+    has_corr = ratio is not None and not pd.isna(ratio)
+
+    # "measured", NOT "the correction". This chart is drawn for every unit,
+    # including the ones that produced no action - and on those the red line is
+    # not a correction, because nothing is being corrected. It is where the
+    # pool sits, weighted by hours; whether that becomes a correction is the
+    # verdict's business, and the verdict is stated in full elsewhere on the
+    # page. A label that is true on the action units and false on the rest is
+    # worse than one that is true on both.
+    #
+    # No leading "the" on any of the three: they are keys in a two-column table,
+    # not a sentence, and the article only pushed every value further right.
+    ref = {"STD": ["1.000"]}
+    ref_tip = [alt.Tooltip("STD:N", title="standard")]
+    if has_corr:
+        r = float(ratio)
+        ref["COR"] = [f"{r:.3f}   ({100 * (r - 1):+.1f}%)"]
+        ref_tip.append(alt.Tooltip("COR:N", title="measured"))
+    if has_band:
+        ref["BAND"] = [f"{float(ci_lo):.3f}  to  {float(ci_hi):.3f}"]
+        ref_tip.append(alt.Tooltip("BAND:N", title="95% band"))
+
+    if has_band:
         layers.append(
-            alt.Chart(pd.DataFrame({"lo": [ci_lo], "hi": [ci_hi]}))
+            alt.Chart(pd.DataFrame({"lo": [ci_lo], "hi": [ci_hi], **ref}))
             .mark_rect(opacity=0.12, color="#2b7bba")
-            .encode(x=alt.X("lo:Q"), x2=alt.X2("hi:Q")))
+            .encode(x=alt.X("lo:Q"), x2=alt.X2("hi:Q"), tooltip=ref_tip))
 
     points = (
         alt.Chart(d)
@@ -99,34 +204,35 @@ def distribution(rows, stats, height=300, legend=True):
                             legend=alt.Legend(title=None, orient="bottom",
                                               columns=1, labelLimit=400)
                             if legend else None),
-            tooltip=[alt.Tooltip("WORK_ORDER:N", title="work order"),
-                     alt.Tooltip("PART_ID:N", title="part"),
-                     alt.Tooltip("LAST_DATE:T", title="last booked"),
-                     alt.Tooltip("TOTAL_QTY:Q", title="pieces", format=",.0f"),
-                     alt.Tooltip("HOURS_MASTER:Q", title="master h",
-                                 format=".3f"),
-                     alt.Tooltip("HOURS_WORKED:Q", title="actual h",
-                                 format=".3f"),
-                     alt.Tooltip("RATIO:Q", title="ratio", format=".3f"),
-                     alt.Tooltip("STATUS:N", title="")]))
+            tooltip=tip))
 
     # DRAWN AFTER THE POINTS, not before. Altair layers in argument order, so
     # with the rules ahead of the dots a well-populated pool buried the red line
     # under 250 circles at 0.8 opacity - the one mark the chart exists to show.
     # The band stays underneath: it is a region, and dots on top of it read
     # correctly as "inside the interval".
-    marks = [(1.0, "the standard", "#555555", [6, 3])]
-    if ratio is not None and not pd.isna(ratio):
-        marks.append((float(ratio), "the correction", "#c0392b", []))
+    #
+    # BOTH RULES CARRY ref_tip, the same one the band carries. Without any
+    # tooltip at all they showed a box reading "v: 1" - "v" being the column
+    # name in the one-row frame the layer is built from, an implementation
+    # detail escaping onto the screen.
+    # The words drawn on the chart match the keys in the tooltip, so the mark a
+    # reader points at is named the same in both places.
+    marks = [(1.0, "standard", "#555555", [6, 3])]
+    if has_corr:
+        marks.append((float(ratio), "measured", "#c0392b", []))
     over = []
     for value, label, colour, dash in marks:
-        base = alt.Chart(pd.DataFrame({"v": [value], "label": [label]}))
+        base = alt.Chart(pd.DataFrame({"v": [value], "label": [label], **ref}))
         over.append(base.mark_rule(color=colour, size=2.5, strokeDash=dash,
                                    opacity=1)
-                    .encode(x=alt.X("v:Q")))
+                    .encode(x=alt.X("v:Q"), tooltip=ref_tip))
+        # The label above the line gets the same tooltip as the line itself.
+        # They are one object to a reader, and hovering the words rather than
+        # the rule is the easier target of the two.
         over.append(base.mark_text(align="left", dx=5, dy=-int(height / 2) + 12,
                                    fontSize=11, color=colour)
-                    .encode(x=alt.X("v:Q"), text="label:N"))
+                    .encode(x=alt.X("v:Q"), text="label:N", tooltip=ref_tip))
 
     return (alt.layer(*layers, points, *over)
             .properties(height=height)
@@ -147,9 +253,10 @@ def ci_caption(stats):
                 "work orders, so no test was run.")
     return (
         "The shaded band is the 95% interval on the **per-work-order** average "
-        "— every work order counts once, whatever its size. The red line is the "
-        "**hours-weighted** ratio across the pool, which is what the correction "
-        "uses. When large and small jobs behave differently the two genuinely "
+        "— every work order counts once, whatever its size. The red line, "
+        "**measured**, is the hours-weighted ratio across the pool, and it is "
+        "the figure a correction is computed from where one is proposed at "
+        "all. When large and small jobs behave differently the two genuinely "
         "disagree, and the line can sit outside the band. The band is only ever "
         "used as a test — does it exclude 1.0? — never as error bars on the line."
     )
@@ -203,7 +310,8 @@ def _height(n):
     return max(240, 30 * n)
 
 
-def _bar(d, label, value, title, fmt=",.0f", height=None, tooltip=None):
+def _bar(d, label, value, title, fmt=",.0f", height=None, tooltip=None,
+         name="family"):
     """One horizontal ranking. Net is deliberately absent - see the note on
     most_wrong_bar and the sentence under the grid."""
     d = d.copy()
@@ -221,8 +329,12 @@ def _bar(d, label, value, title, fmt=",.0f", height=None, tooltip=None):
                 # format: Vega has no labelExpr equivalent here, so the only
                 # way to get the apostrophe into a tooltip is to put it there
                 # in pandas first.
+                #
+                # `name`, not title="". An empty title leaves Vega to fall
+                # back to the field name, so this row read "LABEL" or
+                # "OPERATION" in capitals.
                 tooltip=tooltip or [
-                    alt.Tooltip(f"{label}:N", title=""),
+                    alt.Tooltip(f"{label}:N", title=name),
                     alt.Tooltip("_VALUE_TXT:N", title=title)])
             .properties(height=height or _height(len(d))))
 
@@ -260,7 +372,7 @@ def operation_bar(d, top=10):
     process owner reads.
     """
     return _bar(d.nlargest(top, "GROSS_HOURS"), "OPERATION", "GROSS_HOURS",
-                HOURS_AXIS)
+                HOURS_AXIS, name="operation")
 
 
 def family_misstated_bar(d, top=10):
@@ -294,7 +406,7 @@ def most_wrong_bar(d):
                       ("PCT_FLAGGED", ".1f")]:
         d[f"{col}_TXT"] = d[col].map(
             lambda v, s=spec: ui.fmt(v, s) if pd.notna(v) else "—")
-    tip = [alt.Tooltip("LABEL:N", title=""),
+    tip = [alt.Tooltip("LABEL:N", title="family"),
            alt.Tooltip("GROSS_HOURS_TXT:N", title="misstated hours"),
            alt.Tooltip("MASTER_H_TXT:N", title="all master run hours"),
            alt.Tooltip("PCT_TXT:N", title=f"% {ALL_STEPS}"),
@@ -349,6 +461,8 @@ def family_bar(fam, top=15):
                                     domain=["misstated (gross)", "net"],
                                     range=["#2b7bba", "#b8c9d9"]),
                                 legend=alt.Legend(title=None, orient="top")),
-                tooltip=["LABEL:N", "MEASURE:N",
-                         alt.Tooltip("HOURS:Q", format=",.0f")])
+                tooltip=[alt.Tooltip("LABEL:N", title="family"),
+                         alt.Tooltip("MEASURE:N", title="measure"),
+                         alt.Tooltip("HOURS:Q", title="hours",
+                                     format=",.0f")])
             .properties(height=max(260, 34 * len(d))))

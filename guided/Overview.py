@@ -35,11 +35,23 @@ with st.sidebar:
     # The six rules used to be listed here too. They belong on Inspect, where
     # they fill in with a unit's own figures and mean something; repeated on the
     # landing page as six static ticks they were a legend for a verdict nobody
-    # had asked for yet.
-    st.caption("**Statistical analysis built from**")
-    for p in (paths.EXTRACT, paths.CACHE, paths.UPDATE_LIST, paths.SETUP,
-              paths.LOAD):
-        st.caption(f"`{p.name}` · {paths.stamp(p)}")
+    # had asked for yet. The thresholds they fire on are absent for the same
+    # reason - on Methodology they sit above the rules themselves, here they
+    # would be five numbers with nothing to attach to.
+    #
+    # Same block as Methodology, same helper. "Is this current?" is the first
+    # question anybody has on a landing page, and the five filenames it replaced
+    # answered it in the language of the folder rather than of the data.
+    #
+    # "Key dates" rather than "Analysis built from": all three rows ARE dates,
+    # and a title naming the time span would have been wrong about the third -
+    # a run timestamp is not part of the window the data covers.
+    _facts = data.extract_facts()
+    ui.kv(st, "Key dates", [
+        ("First labour ticket", f"{_facts['first']:%d %b %Y}"),
+        ("Last labour ticket", f"{_facts['last']:%d %b %Y}"),
+        ("Last full analysis run", paths.stamp(paths.UPDATE_LIST)),
+    ])
 
 # ---- header -----------------------------------------------------------------
 st.title("Overview")

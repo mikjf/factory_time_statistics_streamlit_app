@@ -120,6 +120,31 @@ against a floor of {pipeline.SETUP_MIN}. Untestable, but not unreportable.
         c[1].metric("Charged for setups never performed",
                     ui.hrs(skip.STANDARD_CHARGED_SKIPPED.sum()))
         c[2].metric("Work orders skipped", ui.num(skip.WO_SKIPPED.sum()))
+
+        # 03_SkipRate is filtered to pools with SETUP_MIN or more work orders,
+        # so the figure above is SHORT of the true total - and the README and
+        # the workbook both quote the unfiltered one. Two numbers for the same
+        # thing in documents somebody will compare, with nothing on screen
+        # saying why they differ.
+        #
+        # The unfiltered total is read from 00_Summary rather than recomputed:
+        # that row is what the workbook and the README already quote, so this
+        # cannot drift from them. Printed only when the two actually differ.
+        _sm = data.setup_book("00_Summary")
+        _row = _sm[_sm.METRIC.astype(str).str.strip()
+                   == "Standard charged for setups never performed"]
+        if len(_row):
+            _all = float(_row.HOURS.iloc[0])
+            _shown = float(skip.STANDARD_CHARGED_SKIPPED.sum())
+            if abs(_all - _shown) >= 0.5:
+                st.caption(
+                    f"The table below lists only steps with "
+                    f"{pipeline.SETUP_MIN} or more work orders, so the figure "
+                    f"above is short of the whole picture. Across every step, "
+                    f"including those too small to list, "
+                    f"**{ui.hrs(_all)}** was charged for setups never "
+                    f"performed — {ui.hrs(_all - _shown)} of it in steps that "
+                    f"do not appear here.")
         g1, g2 = st.columns([2, 1])
         fam2 = g1.multiselect("Family", sorted(skip.FAMILY.unique()),
                               placeholder="all families", key="skipfam")

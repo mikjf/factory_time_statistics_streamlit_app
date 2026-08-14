@@ -114,6 +114,39 @@ CSS = """
    41 below. */
 [data-testid="stElementContainer"] hr { margin-top: 24px; margin-bottom: 40px; }
 
+/* ...but NOT in the sidebar. That 40px was measured against the main column's
+   16px flex gap; the sidebar's blocks sit tighter, so the same rule left a 46px
+   trough between a divider and the heading under it - the divider stopped
+   reading as "these two blocks are separate" and started reading as "something
+   is missing here". Even margins, no gap to compensate for. */
+[data-testid="stSidebar"] [data-testid="stElementContainer"] hr {
+    margin-top: 20px; margin-bottom: 20px; }
+
+/* st.warning paints itself rgba(255,255,18,.2) - a pure yellow, and not the
+   amber this tool defines as "a human has to look". The review flag is that
+   state, the ! dot in the legend is that colour, and the box explaining it was
+   arriving in a different one.
+   Recoloured app-wide rather than per call: every st.warning here means the
+   same thing, so they should all read as the same thing. The alert layout is
+   untouched - only the tint moves, so warning boxes still match every other
+   alert in shape and differ only in colour.
+   stAlertContentWarning is the hook; the container above it carries the
+   background, hence :has(). */
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) {
+    background-color: rgba(221, 157, 61, .18) !important; }
+
+/* Vega draws its tooltip as a two-column table and leaves the cells at the
+   default vertical-align:middle. Fine while every value is one line; wrong the
+   moment one wraps, because the label floats to the MIDDLE of its paragraph
+   instead of sitting beside the line it names. Top-aligned, a label always
+   starts level with the first line of what it labels.
+   #vg-tooltip-element is appended to document.body, outside the app tree, so
+   this is the only place it can be reached from. max-width keeps a long note
+   from stretching into a single line across the window. */
+#vg-tooltip-element td.key,
+#vg-tooltip-element td.value { vertical-align: top !important; }
+#vg-tooltip-element td.value { max-width: 340px; }
+
 /* The six rules, 3 x 2. grid-auto-rows:1fr is what makes every box the same
    height - rows size to the tallest card rather than to their own content.
    FIXED AT THREE COLUMNS, not auto-fit: auto-fit packs in as many as will fit,
@@ -145,6 +178,57 @@ CSS = """
    happened to balance, which is not where the meaning divides. Collapses to
    one column under 40rem so the labels, several of them long, never get a
    column half a sentence wide. */
+/* Sidebar label/value blocks. Two levels from weight and opacity, no hue -
+   every colour in this tool carries a meaning and a tinted panel would be the
+   first thing on screen colouring for looks. Opacity rather than a fixed grey
+   so it holds in both light and dark: it is relative to whatever text colour
+   the theme already set. */
+/* Zero margins on the OUTER edges of these blocks, so the divider between two
+   of them is the only thing creating the gap and the space above it equals the
+   space below by construction. With a bottom margin on .h0-kv and a top margin
+   on .h0-kv-title the two sides were built from different elements - 8px one
+   side, 5.6px the other - and the rule sat 2px off centre. Symmetric now
+   whatever the font metrics do. */
+.h0-kv-title { font-size:.82rem; font-weight:700; opacity:.9;
+               margin:0 0 .3rem; }
+/* Small print in a sidebar. st.caption renders at 14px, the h3 a heading would
+   use renders at 18px, and the rail below at 15.2 - four sizes in one column,
+   none of them the .82rem the key/value blocks settled on. */
+.h0-side-note { font-size:.82rem; line-height:1.5; opacity:.72;
+                margin:.1rem 0 .55rem; }
+/* The explain rendering of the legend, shrunk to match. NOT .h0-rail itself:
+   that is Inspect's six-rule rail, which is the main device on that page and
+   is meant to be read, not skimmed. Same markup, sidebar-footnote size. */
+.h0-rail-sm .h0-name { font-size:.82rem; }
+/* Matched to .h0-side-note, not merely to its size. The two were already both
+   13.12px at weight 400, so what still separated them was opacity - .85
+   against .72 - and a tighter line-height. Two greys a hair apart read as a
+   mistake rather than a distinction. */
+.h0-rail-sm .h0-val { font-size:.82rem; opacity:.72; line-height:1.5; }
+.h0-kv { font-size:.82rem; line-height:1.55; margin:0; }
+.h0-kv-row { display:flex; justify-content:space-between; align-items:baseline;
+             gap:.9rem; margin:.12rem 0; }
+/* The row spacing must not leak out of the block. Zeroing .h0-kv's own margins
+   was not enough: the LAST row still carried .12rem below it, inside the block,
+   which is the 2px that kept the divider off centre - 22px above against 20
+   below. Same at the top, so the gap under a title is the title's to set. */
+.h0-kv-row:first-child { margin-top:0; }
+.h0-kv-row:last-child { margin-bottom:0; }
+/* .62 was too far down on a dark background - and these labels are not
+   decoration, "first" against "last" labour ticket is a distinction that has to
+   be read. Subordinate to the value, still legible on its own. */
+.h0-kv-k { opacity:.72; }
+/* The value sits on a tint rather than being bolded. Bold was carrying the
+   separation before and it made a column of shouted numbers; a quiet panel
+   behind them does the same job without raising the voice.
+
+   rgba(128,128,128,...) on purpose - a mid grey lightens a dark background and
+   darkens a light one, so one declaration holds in both themes. A white or
+   black tint would vanish in one of them. */
+.h0-kv-v { font-weight:400; white-space:nowrap;
+           background:rgba(128,128,128,.20); border-radius:4px;
+           padding:.05rem .38rem; }
+
 .h0-key { display:grid; grid-template-columns:repeat(2, minmax(0, auto));
           justify-content:start; gap:.35rem 2.4rem; margin:.4rem 0 .2rem;
           font-size:.82rem; opacity:.85; }
@@ -243,8 +327,13 @@ def chart_key(container):
             '</span>')
     # The two rules head the left column: they are marks the chart always
     # draws, not evidence it set aside.
-    counts = [line.format("dashed", "#555555") + "the standard as it stands",
-              line.format("solid", "#c0392b") + "the correction"]
+    # Named exactly as the chart labels them. The red line is "measured", not
+    # "the correction": it is drawn on every unit, and on one that produced no
+    # action there is no correction for it to be.
+    counts = [line.format("dashed", "#555555")
+              + "standard — the master as it stands",
+              line.format("solid", "#c0392b")
+              + "measured — where the jobs actually ran"]
     left_out = []
     for status in evidence.EXCLUDED_FIRST:
         mark = (f'<span class="h0-k-dot" '
@@ -259,6 +348,75 @@ def chart_key(container):
 
     container.markdown('<div class="h0-key">' + _col(counts) + _col(left_out)
                        + "</div>", unsafe_allow_html=True)
+
+
+def side_title(container, text):
+    """A sidebar block heading. One rendering for all of them.
+
+    st.markdown("### ...") gave an 18px h3 next to a 13px block heading in the
+    same column - the two blocks on this page were built at different times and
+    it showed.
+    """
+    container.markdown(f'<div class="h0-kv-title">{_e(text)}</div>',
+                       unsafe_allow_html=True)
+
+
+def side_note(container, text):
+    """Small print under a sidebar block. st.caption's 14px in .82rem terms."""
+    container.markdown(f'<div class="h0-side-note">{text}</div>',
+                       unsafe_allow_html=True)
+
+
+def kv(container, title, pairs):
+    """A sidebar block of label/value rows.
+
+    NO HUE. Every colour in this tool means something - green/red/amber are
+    rule outcomes, blue is "counted" - and "How to read it" says out loud that
+    nothing is coloured for looks. Tinting a provenance panel would be the
+    first thing on screen to contradict that.
+
+    The contrast comes from weight and opacity instead: label at 62%, value at
+    full strength and semibold. That reads as two levels on any background, and
+    it survives the light/dark switch because opacity is relative to whatever
+    the theme's text colour already is - a hard-coded grey would not.
+
+    Everything was st.caption before, which is one muted grey throughout, so
+    the numbers - the only part anybody scans for - carried no more weight than
+    the words around them.
+    """
+    rows = "".join(
+        f'<div class="h0-kv-row"><span class="h0-kv-k">{_e(k)}</span>'
+        f'<span class="h0-kv-v">{_e(str(v))}</span></div>'
+        for k, v in pairs)
+    side_title(container, title)
+    container.markdown(f'<div class="h0-kv">{rows}</div>',
+                       unsafe_allow_html=True)
+
+
+def thresholds(container):
+    """The numbers the six rules fire on.
+
+    ONE RENDERING, TWO PAGES. Methodology is where the rules are enumerated and
+    "How to read it" is where they are explained, so both want them pinned in
+    the sidebar while the reader scrolls. Copying the block would be the same
+    mistake the two colour legends made - except these are read from the
+    analysis modules rather than typed, so the risk is a stale LABEL rather
+    than a stale number.
+
+    Imported inside the function, matching chart_key below: ui is the lowest
+    layer in this package and pulling pipeline in at module scope would invert
+    that.
+    """
+    from . import pipeline
+
+    kv(container, "Thresholds in force", [
+        ("Minimum work orders", pipeline.MIN_WO),
+        ("Significance", pipeline.ALPHA),
+        ("Minimum deviation", f"{pipeline.MIN_EFFECT:.0%}"),
+        ("Minimum impact", f"{pipeline.MIN_HOURS_IMPACT:g} h "
+                           f"({pipeline.SETUP_MIN_HOURS:g} h setup)"),
+        ("Token booking", f"≤ {pipeline.TOKEN_HOURS} h"),
+    ])
 
 
 def equal_cards(container, min_height="16.5rem"):
@@ -465,12 +623,49 @@ def funnel(container, sections, scale_to=None):
                        unsafe_allow_html=True)
 
 
-def legend(container):
-    container.markdown(
-        chip("✓ rule passed", PASS) + chip("✕ stopped here", FAIL)
-        + chip("! needs a human before keying", WARN)
-        + chip("– failed, but not the blocker", MUTE),
-        unsafe_allow_html=True)
+# THE ONE DEFINITION OF WHAT THE FOUR COLOURS MEAN. Both renderings below read
+# it, so Inspect and the reference panel on "How to read it" cannot drift.
+#
+# They had drifted. Inspect said "rule passed" where the reference panel said
+# "Green - the rule was satisfied", and the panel was missing the amber state
+# entirely - so the page whose job is to teach the colours taught three of the
+# four, in different words than the page that uses them. Amber is not
+# hypothetical: it is the review flag, on 85 rows.
+#
+# (mark, colour, label, what it means on a unit)
+STATES = [
+    ("✓", PASS, "rule passed", "this unit cleared it"),
+    ("✕", FAIL, "stopped here", "only the first failure is marked"),
+    ("!", WARN, "needs a human before keying",
+     "all rules passed but extreme, check"),
+    ("–", MUTE, "failed, but not the blocker",
+     "shown with its real value anyway"),
+]
+
+
+def legend(container, explain=False):
+    """The colour key.
+
+    explain=False - compact chips, for a working page where the rail is on
+    screen and the reader only needs reminding.
+    explain=True  - each state on its own row with what it means, for the
+    reference panel, where the rail is NOT on screen and the words are doing
+    all the work.
+    """
+    if not explain:
+        container.markdown(
+            "".join(chip(f"{m} {label}", c) for m, c, label, _ in STATES),
+            unsafe_allow_html=True)
+        return
+    rows = "".join(
+        f'<div class="h0-step">'
+        f'<div class="h0-dot" style="background:{c}">{m}</div>'
+        f'<div class="h0-txt"><div class="h0-name">{_e(label)}</div>'
+        f'<div class="h0-val">{_e(meaning)}</div></div>'
+        f'</div>'
+        for m, c, label, meaning in STATES)
+    container.markdown(f'<div class="h0-rail h0-rail-sm">{rows}</div>',
+                       unsafe_allow_html=True)
 
 
 def summary_rail(container, items):

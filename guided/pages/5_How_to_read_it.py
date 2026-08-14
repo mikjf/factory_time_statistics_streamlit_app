@@ -21,29 +21,31 @@ st.title("How to read it")
 freshness.guard()
 
 with st.sidebar:
-    st.markdown("### Reading the colours")
-    st.caption("Colour means something here. Nothing is coloured for looks.")
-    ui.gate_rail(st, [
-        {"passed": True, "name": "Green — the rule was satisfied",
-         "value": "this unit cleared it"},
-        {"passed": False, "name": "Red — the rule stopped it",
-         "value": "only the first failure is marked"},
-        {"passed": False, "name": "Grey — not the blocker",
-         "value": "shown with its real value anyway"},
-    ])
-    st.caption("Every colour is paired with a symbol — ✓ ✕ – — because roughly "
-               "one man in twelve cannot separate the green from the red, and "
-               "this goes in front of a room.")
-    st.divider()
-    st.caption("**Thresholds in force**")
-    st.caption(f"Minimum work orders: **{pipeline.MIN_WO}**  \n"
-               f"Significance: **{pipeline.ALPHA}**  \n"
-               f"Minimum deviation: **{pipeline.MIN_EFFECT:.0%}**  \n"
-               f"Minimum impact: **{pipeline.MIN_HOURS_IMPACT:g} h** "
-               f"({pipeline.SETUP_MIN_HOURS:g} h setup)  \n"
-               f"Token booking: **≤ {pipeline.TOKEN_HOURS} h**")
-    st.caption("Read from the analysis scripts, not typed here — if one "
-               "changes, this page moves with it.")
+    # side_title/side_note rather than "### ..." and st.caption. This column had
+    # four type sizes in it - an 18px h3, 14px captions, a 15.2px rail and the
+    # 13.12px key/value blocks that Overview and Methodology settled on. One
+    # size now, set in ui.
+    ui.side_title(st, "Reading the colours")
+    ui.side_note(st, "Colour means something here")
+    # ui.legend rather than a hand-written gate_rail. The hand-written version
+    # named three of the four states, in different words than Inspect uses for
+    # the same thing - and the one it omitted was amber, the review flag. One
+    # definition now, in ui.STATES, rendered two ways.
+    ui.legend(st, explain=True)
+    # TWO THINGS WERE CUT FROM UNDER HERE.
+    #
+    # A line explaining that every colour is paired with a symbol because
+    # roughly one man in twelve cannot tell the green from the red. True, and
+    # the reason the symbols exist - but the symbols are visibly there in the
+    # panel above, so it explained a design decision to somebody who had not
+    # asked. The rationale lives in ui.py's module docstring, where whoever
+    # might remove the symbols will actually read it.
+    #
+    # And the thresholds panel, which Methodology carries. This page links to
+    # the six rules rather than repeating them, on the grounds that Methodology
+    # owns them; copying their NUMBERS while linking to the rules themselves
+    # was the inconsistent half of that. The one threshold this page discusses,
+    # the six-work-order floor, is stated inline in its own prose.
 
 # Only the correction directions. "Where the numbers come from" is what the
 # whole of Methodology answers, and gross-versus-net is on the landing page and
@@ -99,7 +101,12 @@ st.subheader("Two estimates, side by side")
 _acts = data.actions()
 _outside = int(((_acts.RATIO < _acts.CI95_LOW_PER_WO)
                 | (_acts.RATIO > _acts.CI95_HIGH_PER_WO)).sum())
-st.info(
+# Plain prose, not st.info. This one stays prose: it is the section's own
+# content, the subheader above already announces it, and a box around a
+# section's body says "aside" about the main point. That is the test the whole
+# page now uses - box an aside, never a body - and it is why the two notes in
+# "What you are keying in" went back into boxes while this one did not.
+st.markdown(
     f"Every unit shows a **shaded band** and a **red line**, and they are "
     f"different estimates. The band is the range around the average of the "
     f"per-work-order ratios — every work order counts once, big job or small. "
@@ -108,7 +115,7 @@ st.info(
     f"differently the two genuinely disagree, and in {_outside} of "
     f"{len(_acts)} decisions the line sits outside its own band. That is not a "
     f"mistake: the band is only ever used as a test — does it exclude 1.0? — "
-    f"never as error bars on the line.", icon=":material/insights:")
+    f"never as error bars on the line.")
 # Says what to DO about it, which the paragraph above never did. A reader who
 # spots the disagreement and is not told it changes nothing will assume it does.
 st.caption("Nothing to act on. A unit whose line sits outside its band has "
@@ -130,7 +137,7 @@ st.caption("Nothing to act on. A unit whose line sits outside its band has "
 # has landed.
 #
 # The cost, and it is real: NO part-level decision has its line outside its band
-# - all 11 that do are family pools - so this example shows the two estimates
+# - every one that does is a family pool - so this example shows the two estimates
 # AGREEING. It teaches what the chart is; it cannot demonstrate the disagreement
 # the paragraph above describes.
 _ex_pool = _acts[(_acts.LEVEL == "PART") & _acts.SUGGESTED_VALUE.notna()]
@@ -178,9 +185,11 @@ if len(_ex_pool):
                     f"here is **{_ex.CURRENT_VALUE:g} {_unit}**. The "
                     f"**dashed grey line at 1.0** is that standard as it "
                     f"stands; every dot right of it is a job that took longer "
-                    f"than it allows. The **red line is the correction** at "
-                    f"{_ex.RATIO:.3f} — the jobs took "
-                    f"{100 * (_ex.RATIO - 1):+.1f}% longer than allowed, so "
+                    f"than it allows. The **red line, `measured`**, is where "
+                    f"the jobs actually ran, at {_ex.RATIO:.3f} — "
+                    f"{100 * (_ex.RATIO - 1):+.1f}% against what the standard "
+                    f"allows. This unit passed all six rules, so that "
+                    f"measurement becomes the correction and "
                     f"the standard becomes **{_ex.SUGGESTED_VALUE:g} {_unit}** "
                     f"({_ex.CURRENT_VALUE:g} ÷ {_ex.RATIO:.3f}), a change of "
                     f"{_ex.CHANGE_PCT:+.1f}%. The shaded band runs "
@@ -210,7 +219,17 @@ st.divider()
 # were two half-width columns of unequal length, and the eye had to cross the
 # gutter mid-thought to get from the number to what it means.
 st.subheader("Flagged for review")
-st.error(
+# AMBER, not red - but the same ALERT layout as every other st.error/st.warning
+# /st.info in the app, so the boxes differ only in colour. A verdict_banner here
+# was the right colour in the wrong shape: one box on one page laid out unlike
+# the other eighteen.
+#
+# st.error painted this the FAIL colour - "a rule stopped it" - directly above a
+# paragraph that opens "These have passed all six rules". It contradicted the
+# sentence under it and the legend in the sidebar, where the review flag is
+# amber. st.warning is what the rest of the app already uses for "needs
+# attention, nothing is broken".
+st.warning(
     f"**{_k['flagged']} of the {ui.num(_k['edits'])} run rows are marked "
     f"`NEEDS REVIEW`.** Their ratios run from **{_k['flag_lo']:.2f}** to "
     f"**{_k['flag_hi']:.2f}** — outside 0.25–4.0, meaning the evidence says "
@@ -242,34 +261,69 @@ st.subheader("What you are keying in")
 st.caption("One decision is not one edit, and the field it writes to is not "
            "always the same one.")
 
-kc1, kc2 = st.columns([1.25, 1])
-with kc1:
-    # "six of them" is counted, not typed. If the pipeline ever emits a seventh
-    # phrasing the list grows on its own, and a sentence saying six beside a
-    # list of seven is the kind of thing nobody notices for a year.
-    st.markdown(f"**The instruction is on every decision, and there are "
-                f"{len(_k['how_to_apply'])} of them:**")
-    st.markdown(
-        "\n".join(f"- `{n}` — {how}"
-                  for how, n in _k["how_to_apply"]))
-with kc2:
-    st.info(
-        f"**One family decision is many edits.** The {_k['fam_actions']} "
-        f"`PCS/HR` family decisions write the same value to "
-        f"{ui.num(_k['fam_edits'])} routing lines between them — every part in "
-        f"the pool, each with its own `MASTER_OPS_ROWID`. That is why "
-        f"{ui.num(_k['edits'])} run rows carry only {_k['run_actions']} run "
-        f"decisions.",
-        icon=":material/content_copy:")
+# ONE COLUMN, STACKED. This was a 1.25/1 split with the instruction list left
+# and its two notes right, and the two columns were never the same height - a
+# short list beside a long note, or the reverse, leaves a ragged edge down the
+# middle and a block of white space in whichever cell ran out first. Stacked,
+# every block starts at the same left margin and ends where its own text ends.
+#
+# It also puts them in reading order. Both notes are ABOUT the list, and a note
+# beside the thing it annotates asks the eye to cross a gutter mid-thought to
+# find out what is being annotated.
 
-# The blank cell that looks like a bug. 21 of 230, all family-level run.
-st.warning(
-    f"**{_k['no_value']} decisions carry no single value to key in, and that "
-    f"is deliberate.** Those families hold several different `RUN_MASTER` "
-    f"values across their parts, so there is no one number to write. The row "
-    f"says *{_k['no_value_note']}* — the ratio is the instruction, not the "
-    f"value. A blank in the suggested column on those rows is the correct "
-    f"reading, not a gap.", icon=":material/functions:")
+# "six of them" is counted, not typed. If the pipeline ever emits a seventh
+# phrasing the list grows on its own, and a sentence saying six beside a list of
+# seven is the kind of thing nobody notices for a year.
+st.markdown(f"**The instruction is on every decision, and there are "
+            f"{len(_k['how_to_apply'])} of them:**")
+st.markdown(
+    "\n".join(f"- `{n}` — {how}"
+              for how, n in _k["how_to_apply"]))
+
+# BOXED. This is an aside - a note about the list above, not an item in it - and
+# the box is what says so now that it no longer sits in its own column.
+#
+# Blue, not amber. Amber on this page means one thing, a human has to look before
+# keying, and it is spent on the 85 flagged rows above. This carries no doubt: it
+# says a decision fans out to many rows, which is arithmetic.
+#
+# The closing clause splits the 166 rather than describing them all as
+# family-wide, because 59 of them are not: run_actions is every PCS/HR run
+# decision, fam_actions only the FAMILY-level ones, and the difference is the
+# part-level decisions that touch exactly one part. Both numbers are read from
+# the workbook and the remainder is subtracted, so the split cannot drift.
+st.info(
+    f"**One family decision is many edits.** The {_k['fam_actions']} "
+    f"`PCS/HR` family decisions write the same value to "
+    f"{ui.num(_k['fam_edits'])} routing lines between them — every part in "
+    f"the pool, each with its own `MASTER_OPS_ROWID`. That is why "
+    f"{ui.num(_k['edits'])} run rows carry only {_k['run_actions']} run "
+    f"decisions — {_k['fam_actions']} of them landing on every part of a "
+    f"family at once, and only {_k['run_actions'] - _k['fam_actions']} on a "
+    f"single part.",
+    # call_split, not content_copy. The old icon was two sheets of paper, which
+    # reads as "duplicate this" - the wrong idea entirely, since the many rows
+    # are not copies of a decision but the places it lands. One line dividing
+    # into several is the shape of the sentence.
+    icon=":material/call_split:")
+
+# The blank cell that looks like a bug. Unboxed, unlike the note above it: two
+# boxes in a row is a panel of boxes rather than an annotation, and one box
+# followed by a paragraph reads as the note and its follow-on, which is what
+# they are.
+#
+# FULL LENGTH, restored. It was cut by two clauses and the cut cost clarity:
+# "and that is deliberate" reads as a warning that the surprise is coming, and
+# the reader meets the blank column BEFORE the sentence explaining it. And the
+# closing point earns its own sentence - it is the one instruction here, what to
+# do when the cell is empty, and buried behind a comma it reads as an aside.
+st.markdown(
+    f"**{_k['no_value']} decisions carry no single value to key in, and "
+    f"that is deliberate.** Those families hold several different "
+    f"`RUN_MASTER` values across their parts, so there is no one number to "
+    f"write. The row says *{_k['no_value_note']}* — the ratio is the "
+    f"instruction, not the value. A blank in the suggested column on those "
+    f"rows is the correct reading, not a gap.")
 
 # "Staying honest about staleness" and "The pipeline behind this" moved to the
 # Dataset page: both are about the files the analysis is computed from rather

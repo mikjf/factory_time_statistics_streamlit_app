@@ -47,8 +47,13 @@ def _window_problems():
     a genuinely late first booking - a shutdown, a plant coming back on line -
     should not lock everybody out of the tool.
     """
-    from . import data, pipeline
+    # The import sits INSIDE the try with the call it serves. This check is the
+    # heuristic one - "loud rather than fatal", as above - and an import that
+    # cannot resolve is no more fatal than a span that cannot be read. Outside
+    # the try it made the whole guard, which runs before anything renders,
+    # depend on the analysis scripts being importable.
     try:
+        from . import data, pipeline
         first, last = data.extract_span()
     except Exception:
         return []

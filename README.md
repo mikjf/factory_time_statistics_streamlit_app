@@ -127,6 +127,42 @@ Colour carries meaning and is never decoration:
 Every colour is paired with a symbol, because roughly one man in twelve cannot
 separate the green from the red.
 
+## The dot you hover
+
+Each dot on a distribution chart is one work order, and its tooltip is meant to
+be readable detached from the page that drew it — it names the part, the work
+order, the date and the routing step before any arithmetic.
+
+It also shows the standard **in the unit the routing holds it in**, which is the
+unit somebody has to go and change:
+
+| route | standard | achieved |
+|---|---|---|
+| Run PCS/HR | `Run 10.00 PCS/HR` | `8.26 PCS/HR` |
+| Run HRS/LOAD | `Run 5.00 HRS/LOAD` | *— see below* |
+| Setup | `Setup 1.00 h` | *— see below* |
+
+Every value carries its unit beside the number — `master` / `6.00 h`, not
+`master h` / `6.00` — and every value is held to two decimals, the precision the
+ERP stores hours at, whole numbers included.
+
+The ratio keeps three decimals, alone: it is computed rather than stored, and
+rounding a genuinely-off 1.004 to `1.00` would misread the one value the chart
+is drawn against.
+
+The achieved rate appears for PCS/HR only. Every tested HRS/LOAD work order is
+single-load by construction, so hours per load and hours worked are the same
+number; the load count is shown instead, which is what explains where an
+excluded multi-load dot sits. Setup standards are already durations, so achieved
+setup hours are the actual hours already on the line above.
+
+A field that is empty for every dot on a chart is dropped rather than shown as a
+row of dashes, so setup charts carry no quantity and no achieved rate.
+
+On a **crew-mismatch** setup row the standard line shows the routing's own value
+while master hours show the crew-scaled one — `Setup 0.500 h` against a master
+of `0.3334` — and that gap is the reason the row was excluded.
+
 ## Layout
 
 ```

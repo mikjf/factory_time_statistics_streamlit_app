@@ -53,6 +53,25 @@ EXCLUDED_FIRST = [IN, OUTLIER, TOKEN, SKIPPED, CREW, SUPERSEDED, OWN_PART,
 ROWS = ["WORK_ORDER", "PART_ID", "LAST_DATE", "TOTAL_QTY", "HOURS_MASTER",
         "HOURS_WORKED", "RATIO", "STATUS"]
 
+# Tooltip-only, appended after ROWS. The evidence TABLE shows ROWS and nothing
+# else - these four are pre-formatted display strings, which would sort wrongly
+# in a column and say nothing a table column header cannot say better.
+#
+# They exist because the hover is the one place the standard appears in the unit
+# it is actually held in. "master h 6.000" is the analysis speaking; "standard
+# 10 PCS/HR" is the routing speaking, and it is the routing somebody has to go
+# and change. Seeing both, with the ratio between them, is also the clearest
+# demonstration in the tool of why a rate DIVIDES where a duration multiplies:
+# the standard falls from 10 to 8.5 pieces an hour exactly when the ratio rises
+# above 1.
+TIP = ["OP_TXT", "STANDARD", "LOADS", "MASTER_TXT", "ACTUAL_TXT", "ACHIEVED"]
+
+# Which unit the standard is held in. Passed explicitly by each route rather
+# than sniffed from the columns present: the load frame carries RUN_MASTER and
+# TOTAL_QTY exactly like the PCS/HR frame does, so column-sniffing would put
+# pieces-per-hour labels on hours-per-load numbers and nothing would flag it.
+K_PCSHR, K_LOAD, K_SETUP = "PCS/HR", "HRS/LOAD", "SETUP"
+
 
 def _mad_keep(lr):
     """The outlier mask, mirroring the pipeline's three lines.
@@ -73,10 +92,96 @@ def _mad_keep(lr):
     return np.abs(lr - med) <= pipeline.MAD_K * mad
 
 
-def _rows(df, status):
+def _num(v, dp=2):
+    """A number a person would write down. 5 -> "5.00", 93.33333 -> "93.33".
+
+    TWO DECIMALS, not three. The ERP holds hours to two, so a third decimal on
+    a duration is always a zero pretending to be a measurement; and nobody
+    keying a standard needs the thousandth of a piece per hour.
+
+    WHOLE NUMBERS KEEP THEIR ZEROS. A standard of 5 hours per load shown as "5"
+    beside another shown as "1.25" makes the pair hard to compare and the first
+    look like a different kind of quantity. Every value in a tooltip is held to
+    the same precision, so a column of them reads as a column.
+    """
+    if v is None or pd.isna(v):
+        return None
+    return f"{float(v):,.{dp}f}"
+
+
+def _standard_and_achieved(out, kind):
+    """The two rate lines, per route.
+
+    THE STANDARD IS ALWAYS SHOWN, in the unit the routing holds it in, prefixed
+    with the route so a hover is readable on its own.
+
+    THE ACHIEVED LINE IS PCS/HR ONLY, and that is not an oversight:
+
+      HRS/LOAD - every tested work order is single-load by construction, so
+        hours per load and hours worked are the same number. The line would
+        restate "actual h" on every counted dot. The load COUNT goes in
+        instead, which is the figure that actually varies and the one that
+        explains why an excluded multi-load dot sits where it does.
+      SETUP    - the standard is already a duration, so achieved setup hours
+        are "actual h" again.
+
+    A field that is empty for every row drawn is dropped from the tooltip by
+    charts.distribution, so those routes simply show fewer lines.
+    """
+    out["LOADS"] = None
+    out["ACHIEVED"] = None
+
+    # The hours carry their unit in the VALUE, not in the label - "master" /
+    # "6.00 h" rather than "master h" / "6.00". Every other line on the hover
+    # already works that way ("Run 10.00 PCS/HR", "1.25 h"), and master and
+    # actual are the two words this whole tool refuses to paraphrase, so they
+    # read better standing alone than carrying a unit as part of their name.
+    for col, src in (("MASTER_TXT", "HOURS_MASTER"),
+                     ("ACTUAL_TXT", "HOURS_WORKED")):
+        out[col] = out[src].map(
+            lambda v: f"{_num(v)} h" if _num(v) is not None else None)
+
+    if kind == K_PCSHR:
+        out["STANDARD"] = out.RUN_MASTER.map(
+            lambda v: f"Run {_num(v)} PCS/HR" if _num(v) else None)
+        # Pieces over hours actually booked. Both are stored figures, so this
+        # is exact - deriving it from the standard and the ratio instead would
+        # inherit the ERP's rounding of HOURS_MASTER, which is held to two
+        # decimals and drifts by up to 11% on the shortest jobs.
+        ach = out.TOTAL_QTY / out.HOURS_WORKED.replace(0, np.nan)
+        out["ACHIEVED"] = ach.map(
+            lambda v: f"{_num(v)} PCS/HR" if _num(v) else None)
+
+    elif kind == K_LOAD:
+        out["STANDARD"] = out.RUN_MASTER.map(
+            lambda v: f"Run {_num(v)} HRS/LOAD" if _num(v) else None)
+        if "LOADS_CHARGED" in out.columns:
+            out["LOADS"] = out.LOADS_CHARGED.map(
+                lambda v: _num(v, 0) if pd.notna(v) else None)
+
+    else:
+        # HOURS_MASTER on a crew-matched row IS the routing's setup value, so
+        # this line restates it with its unit and its route. On a crew-mismatch
+        # row it is not - master hours there have been scaled by the crew that
+        # actually booked - so the unit's stored value is shown instead, and
+        # the gap between this line and "master h" is the whole reason the row
+        # was excluded. SETUP_HRS_STORED is null on units with no crew-matched
+        # row at all, which shows as a dash rather than a wrong number.
+        crew_ok = (out.CREW_OK if "CREW_OK" in out.columns
+                   else pd.Series(True, index=out.index))
+        stored = (out.SETUP_HRS_STORED if "SETUP_HRS_STORED" in out.columns
+                  else pd.Series(np.nan, index=out.index))
+        src = out.HOURS_MASTER.where(crew_ok.fillna(False), stored)
+        out["STANDARD"] = src.map(
+            lambda v: f"Setup {_num(v)} h" if _num(v) else None)
+
+    return out
+
+
+def _rows(df, status, kind):
     """Shape any per-work-order frame into the common columns."""
     if df is None or len(df) == 0:
-        return pd.DataFrame(columns=ROWS)
+        return pd.DataFrame(columns=ROWS + TIP)
     out = df.copy()
     if "TOTAL_QTY" not in out.columns:      # setup rows carry no quantity
         out["TOTAL_QTY"] = np.nan
@@ -84,11 +189,24 @@ def _rows(df, status):
         out["LAST_DATE"] = pd.NaT
     out["RATIO"] = out.HOURS_WORKED / out.HOURS_MASTER
     out["STATUS"] = status
-    return out[ROWS]
+
+    # Sequence then operation, the way a routing is read aloud. Constant across
+    # every dot on a given chart and shown anyway: a hover is the thing people
+    # screenshot to point at a work order, and it has to be legible detached
+    # from the page that drew it.
+    if "OPERATION" in out.columns and "OPERATION_SEQUENCE" in out.columns:
+        out["OP_TXT"] = (out.OPERATION_SEQUENCE.map(
+            lambda v: f"{int(v)}" if pd.notna(v) else "?")
+            + " " + out.OPERATION.astype(str))
+    else:
+        out["OP_TXT"] = None
+
+    out = _standard_and_achieved(out, kind)
+    return out[ROWS + TIP]
 
 
 def _blank():
-    return pd.DataFrame(columns=ROWS), {}
+    return pd.DataFrame(columns=ROWS + TIP), {}
 
 
 def _pack(rows, counted, stats):
@@ -151,7 +269,7 @@ def run_part(operation, family, part_type, part_id, seq):
     g = _pick(kept, **where)
     tok = _pick(tokens, **where)
     if len(g) == 0:
-        return _pack(_rows(tok, TOKEN), 0,
+        return _pack(_rows(tok, TOKEN, K_PCSHR), 0,
                      {"NOTE": "every work order was a token booking"})
 
     res = pipeline.analysis.test_group(g)
@@ -165,8 +283,10 @@ def run_part(operation, family, part_type, part_id, seq):
         used, old = g, g.iloc[:0]
 
     keep = _mad_keep(used.LOG_RATIO)
-    rows = pd.concat([_rows(used[keep], IN), _rows(used[~keep], OUTLIER),
-                      _rows(old, SUPERSEDED), _rows(tok, TOKEN)])
+    rows = pd.concat([_rows(used[keep], IN, K_PCSHR),
+                      _rows(used[~keep], OUTLIER, K_PCSHR),
+                      _rows(old, SUPERSEDED, K_PCSHR),
+                      _rows(tok, TOKEN, K_PCSHR)])
 
     stats = {
         "N_TESTED": int(res["N_WORK_ORDERS"]),
@@ -226,9 +346,11 @@ def run_family(operation, family, part_type, seq):
     old = all_wo[[t not in seen
                   for t in zip(all_wo.PART_ID, all_wo.WORK_ORDER)]]
 
-    rows = pd.concat([_rows(famex[keep], IN), _rows(famex[~keep], OUTLIER),
-                      _rows(own, OWN_PART), _rows(old, SUPERSEDED),
-                      _rows(_pick(tokens, **where), TOKEN)])
+    rows = pd.concat([_rows(famex[keep], IN, K_PCSHR),
+                      _rows(famex[~keep], OUTLIER, K_PCSHR),
+                      _rows(own, OWN_PART, K_PCSHR),
+                      _rows(old, SUPERSEDED, K_PCSHR),
+                      _rows(_pick(tokens, **where), TOKEN, K_PCSHR)])
 
     stats = {
         "N_TESTED": int(res["FAMEX_WO"]),
@@ -280,9 +402,10 @@ def setup(operation, family, part_type, seq):
     real = performed[performed.CREW_OK]
     keep = _mad_keep(real.LOG_RATIO)
 
-    rows = pd.concat([_rows(real[keep], IN), _rows(real[~keep], OUTLIER),
-                      _rows(performed[~performed.CREW_OK], CREW),
-                      _rows(g[g.SKIPPED], SKIPPED)])
+    rows = pd.concat([_rows(real[keep], IN, K_SETUP),
+                      _rows(real[~keep], OUTLIER, K_SETUP),
+                      _rows(performed[~performed.CREW_OK], CREW, K_SETUP),
+                      _rows(g[g.SKIPPED], SKIPPED, K_SETUP)])
 
     stats = {
         "N_TESTED": int(res["WO_REAL"]),
@@ -328,7 +451,7 @@ def load(operation, family, part_type, seq, part_id=None):
     if part_id is not None:
         pool, over = _pick(pool, PART_ID=part_id), _pick(over, PART_ID=part_id)
     if len(pool) == 0:
-        return _pack(_rows(over, MULTILOAD), 0, {})
+        return _pack(_rows(over, MULTILOAD, K_LOAD), 0, {})
 
     if part_id is not None:
         tested, own = pool, pool.iloc[:0]
@@ -343,8 +466,10 @@ def load(operation, family, part_type, seq, part_id=None):
         p = "FAMEX_"
 
     keep = _mad_keep(tested.LOG_RATIO)
-    rows = pd.concat([_rows(tested[keep], IN), _rows(tested[~keep], OUTLIER),
-                      _rows(own, OWN_PART), _rows(over, MULTILOAD)])
+    rows = pd.concat([_rows(tested[keep], IN, K_LOAD),
+                      _rows(tested[~keep], OUTLIER, K_LOAD),
+                      _rows(own, OWN_PART, K_LOAD),
+                      _rows(over, MULTILOAD, K_LOAD)])
 
     stats = {
         "N_TESTED": int(res[f"{p}WO"]),
