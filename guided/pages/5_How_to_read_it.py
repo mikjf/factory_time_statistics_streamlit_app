@@ -148,9 +148,10 @@ if len(_ex_pool):
     # one also decides the unit the standard is held in, below.
     _route = ("Setup" if _ex.TARGET == "SETUP_HRS"
               else f"Run {_ex.RUN_TYPE}")
-    _unit = ("hours" if _ex.TARGET == "SETUP_HRS"
-             else "hours per load" if _ex.RUN_TYPE == "HRS/LOAD"
-             else "pieces per hour")
+    # The spelled-out unit ("pieces per hour") is gone: the box below prints
+    # every value through evidence.rate_txt, which carries the routing's own
+    # notation - PCS/HR, HRS/LOAD, h - and having both spellings on one screen
+    # invited the reader to wonder whether they meant different things.
     with st.expander(f"See one — Part {_ex.PART_ID} · {_ex.FAMILY} · "
                      f"{_ex.OPERATION} sequence {int(_ex.SEQUENCE)} · "
                      f"{_route}"):
@@ -175,32 +176,146 @@ if len(_ex_pool):
             _chart = charts.distribution(_rows, _stats, height=300,
                                          legend=False)
             if _chart is not None:
+                # ---- ORDER INSIDE THIS EXPANDER ------------------------
+                #   the chart          what the evidence looks like
+                #   the paragraph      how to read the marks on it
+                #   the key            what every mark can be
+                #   ------ then, and only then, the outcome ------
+                #   the six rules      that they were all checked
+                #   the table          what it comes to, in both scales
+                #
+                # The chart and its explanation are one thing and nothing may
+                # come between them - the table used to, which put the answer
+                # above the sentence teaching you to read the picture.
                 st.altair_chart(_chart, width="stretch")
-                # Says what the standard IS, in its own unit, before saying
-                # what it becomes. "10 -> 8.48" means nothing without "pieces
-                # per hour", and the sign only makes sense once you know a
-                # rate falls when a job takes longer.
+
+                # THE NUMBERS LEFT THIS PARAGRAPH. It had eleven of them, every
+                # one now in the table below, and a reader had to reassemble the
+                # table from prose to compare anything. What is left is the part
+                # a table cannot say: which mark is which, and why the standard
+                # falls when the ratio rises.
+                # Built before the f-string, not inside it. A conditional
+                # spanning lines inside braces parses on 3.12+ and nowhere
+                # earlier, and this is the one sentence on the page that has to
+                # be right for all three routes.
+                _kind = evidence.kind_of(_ex.TARGET, _ex.RUN_TYPE)
+                if _kind == evidence.K_PCSHR:
+                    _why = ("`RUN_MASTER` under PCS/HR is a **rate**, so the "
+                            "correction **divides** and the standard comes "
+                            "down even though the ratio went up")
+                else:
+                    _field = ("`SETUP_HRS`" if _kind == evidence.K_SETUP
+                              else "`RUN` under HRS/LOAD")
+                    _why = (f"{_field} is a **duration**, so the correction "
+                            f"**multiplies** and the two move the same way")
                 st.caption(
-                    f"{int(_ex.N_WO)} work orders on one part. The standard "
-                    f"here is **{_ex.CURRENT_VALUE:g} {_unit}**. The "
-                    f"**dashed grey line at 1.0** is that standard as it "
-                    f"stands; every dot right of it is a job that took longer "
-                    f"than it allows. The **red line, `measured`**, is where "
-                    f"the jobs actually ran, at {_ex.RATIO:.3f} — "
-                    f"{100 * (_ex.RATIO - 1):+.1f}% against what the standard "
-                    f"allows. This unit passed all six rules, so that "
-                    f"measurement becomes the correction and "
-                    f"the standard becomes **{_ex.SUGGESTED_VALUE:g} {_unit}** "
-                    f"({_ex.CURRENT_VALUE:g} ÷ {_ex.RATIO:.3f}), a change of "
-                    f"{_ex.CHANGE_PCT:+.1f}%. The shaded band runs "
-                    f"{_ex.CI95_LOW_PER_WO:.3f} to "
-                    f"{_ex.CI95_HIGH_PER_WO:.3f}, and the red line falls "
-                    f"inside it — weighting by hours and counting each work "
-                    f"order once land in the same place here.")
+                    f"{int(_ex.N_WO)} work orders on one part, one dot each. "
+                    f"Left of the **dashed grey line** the job beat the "
+                    f"standard, right of it it took longer. The **red line, "
+                    f"`measured`**, is where the pool actually ran. This unit "
+                    f"passed all six rules, so that measurement becomes the "
+                    f"correction — and {_why}. The red line falls "
+                    f"inside the shaded band here, so weighting by hours and "
+                    f"counting each work order once agree; they need not, and "
+                    f"nothing depends on it.")
                 # Every mark the chart can draw, not only the two this unit
                 # happens to use. Its own legend lists what is present, which
                 # teaches nothing about what a different unit will look like.
                 ui.chart_key(st)
+
+                # ---- the outcome ---------------------------------------
+                # A heading, because everything above is the evidence and
+                # everything below is what came of it. Without the break the
+                # six rule cards read as a fourth thing about the chart.
+                st.markdown("")
+                st.markdown("**What the result looks like**")
+                # The FDR-adjusted q, which rule 3 is stated against. Read the
+                # same way Inspect reads it rather than from the action row: q
+                # is computed across every pool tested together, so it belongs
+                # to the verdict, not to the unit's own figures.
+                _q = evidence.verdict_for(
+                    _ex.TARGET, _ex.RUN_TYPE, _ex.OPERATION, _ex.FAMILY,
+                    _ex.PART_TYPE, _ex.SEQUENCE,
+                    _ex.PART_ID if _ex.LEVEL == "PART" else None).get("q")
+                # EQUAL HALVES. It was 1.15/1, weighted to the rule cards on
+                # the grounds that six boxes need more room than five rows -
+                # but the two are a pair, neither is the subordinate one, and an
+                # asymmetry of that size reads as an accident rather than as
+                # emphasis. At 50/50 the two captions above them also start at
+                # the quarter points, so the heading row is regular.
+                _rc, _tc = st.columns(2)
+
+                with _rc:
+                    st.caption("All six rules, with this unit's own figure "
+                               "against each. What each rule stops is on "
+                               "**Methodology**.")
+                    # Same six cards Inspect draws, minus the explanations -
+                    # one definition in ui, so a reader who meets them on both
+                    # pages meets the same six.
+                    ui.rule_results(st, text.gates(_stats, _q), per_row=2)
+
+                with _tc:
+                    # ---- the two scales, side by side ------------------
+                    # THE POINT OF THIS TABLE. The chart's axis is a ratio; the
+                    # thing somebody keys is a rate or a duration. Nothing else
+                    # in the tool shows the mapping between them, so a reader
+                    # had to hold 1.181 and "10 becomes 8.47" in their head and
+                    # trust the two were the same fact. Read down either column
+                    # and the rule is simply there: the ratio rises 18.1%, the
+                    # rate falls 15.3%, one event.
+                    #
+                    # ROUTE-AWARE, through evidence.rate_txt - the same function
+                    # the chart tooltip uses, so "Run 10.00 PCS/HR" here and on
+                    # the hover cannot drift apart, and setup prints
+                    # "Setup 1.00 h" without this page knowing about units.
+                    _now = evidence.rate_txt(_ex.CURRENT_VALUE, _kind)
+                    _then = evidence.rate_txt(_ex.SUGGESTED_VALUE, _kind)
+                    st.caption("The same comparison in both scales — the one "
+                               "the chart is drawn in, and the one the routing "
+                               "is held in.")
+                    # SUGGESTED_VALUE is what the measured ratio comes to in the
+                    # routing's own unit - for a rate the pipeline computes it
+                    # as current / ratio, which is algebraically the pool's
+                    # achieved pieces per hour whenever the pool holds one
+                    # RUN_MASTER. That is why one row carries both readings
+                    # rather than two rows carrying the same number. Where a
+                    # family pool holds several RUN_MASTER values the two part
+                    # company, and those are exactly the decisions with no
+                    # single value to key.
+                    # WHAT THE FIGURES BELONG TO, first. Every number under it
+                    # is a pool's, and the pool is either one part or a whole
+                    # family - which is the difference between "re-key one
+                    # routing line" and "re-key every part in the family", and
+                    # the two are indistinguishable from the numbers alone.
+                    # Family pools name their size, because a ratio over 12
+                    # parts and a ratio over 2 carry different weight.
+                    if _ex.LEVEL == "PART":
+                        _at = f"part **{_ex.PART_ID}**"
+                    else:
+                        _np = _stats.get("N_PARTS")
+                        _at = ("the family as a whole"
+                               + (f" — {int(_np)} parts pooled" if _np else ""))
+                    # LAST ROW, not the first. Both rows that carry no ratio now
+                    # sit together at the foot, which leaves the ratio column
+                    # three unbroken rows deep - the arithmetic reads without a
+                    # blank cell interrupting it. It also puts the scope where
+                    # it answers a question the reader has just been asked:
+                    # "set THIS PART's RUN_MASTER" - which part - that one.
+                    # Nothing is lost by moving it down, because the expander
+                    # title and the paragraph above have both already named the
+                    # part before anybody reaches the table.
+                    st.markdown(
+                        f"| | ratio | as the routing holds it |\n"
+                        f"|---|---|---|\n"
+                        f"| **standard** | 1.000 | {_now} |\n"
+                        f"| **measured** | {_ex.RATIO:.3f} "
+                        f"({100 * (_ex.RATIO - 1):+.1f}%) | {_then} "
+                        f"({_ex.CHANGE_PCT:+.1f}%) |\n"
+                        f"| **95% band** | {_ex.CI95_LOW_PER_WO:.3f} – "
+                        f"{_ex.CI95_HIGH_PER_WO:.3f} | excludes 1.000 |\n"
+                        f"| **to key** | | **{_ex.SUGGESTED_VALUE:g}** — "
+                        f"{_ex.HOW_TO_APPLY} |\n"
+                        f"| **judged at** | | {_at} |")
             else:
                 st.caption("No chart for this unit.")
         except Exception as err:                     # noqa: BLE001

@@ -21,7 +21,7 @@ import streamlit as st
 # import failed with ModuleNotFoundError: no module named 'h0app'.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from h0app import (charts, data, evidence, freshness, paths,  # noqa: E402
+from h0app import (charts, data, evidence, freshness,  # noqa: E402
                    pipeline, text, ui)
 
 st.set_page_config(page_title="Inspect · H0", page_icon=":material/query_stats:",
@@ -77,8 +77,19 @@ with st.sidebar:
         scoped = (universe[universe.OPERATION == operation]
                   if "OPERATION" in universe.columns else universe)
         pairs = sorted({(f, p) for f, p in zip(scoped.FAMILY, scoped.PART_TYPE)})
-        labels = [f"{f} · {p}" for f, p in pairs]
-        want = f"{pre.get('FAMILY')} · {pre.get('PART_TYPE')}"
+        # ADV / ANDV here too, so the picker and the subtitle it produces say
+        # the same word. with_title=False: a selectbox option is plain text and
+        # cannot carry a hover, and any markup would be shown literally.
+        #
+        # The label is built by a function rather than an f-string in two
+        # places, because `want` has to reproduce it exactly - the pre-selection
+        # from Review queue is matched by string, so a difference of one space
+        # silently lands the reader on the wrong family.
+        def _fam_label(f, p):
+            return f"{f} · {ui.part_tag(p, with_title=False)}"
+
+        labels = [_fam_label(f, p) for f, p in pairs]
+        want = _fam_label(pre.get("FAMILY"), pre.get("PART_TYPE"))
         chosen = st.selectbox("Family", labels, index=_idx(labels, want))
         family, part_type = pairs[labels.index(chosen)]
 
@@ -156,8 +167,25 @@ else:
     target, run_type = "RUN", "PCS/HR"
 
 st.title(f"{family}")
-st.caption(f"{part_type} · {operation} · routing step {seq}"
-           + (f" · part {part_id}" if part_id else " · the family as a whole"))
+# ui.subtitle, not st.caption. This line is what makes every number below it
+# mean something - which part type, which step, one part or the whole family -
+# and it was set in the same 14px grey as a footnote under a chart.
+#
+# WHAT is judged, then WHERE. Part type, then whether this is one part or the
+# whole family, then the step it happens at - so the two facts about the pool
+# sit together instead of being split by the operation and its sequence, which
+# are one fact in two words and belong at the end as the address.
+#
+# ADV / ANDV, the same abbreviation the Overview rankings use, with the full
+# wording on hover. Spelled out it was the longest thing on the line and the
+# least informative - two of the four segments say what this unit IS, and
+# "Articolo di vendita" pushed them along without adding anything a reader of
+# this page does not already know.
+ui.subtitle(st, " · ".join([
+    ui.part_tag(part_type),
+    f"part {part_id}" if part_id else "the family as a whole",
+    str(operation),
+    f"routing step {seq}"]))
 
 if not stats or rows.empty:
     st.info("No work orders in scope for this combination.",
@@ -230,34 +258,66 @@ if needs_human:
 # 172.82 and a green +8.1% under a banner saying to do nothing - and it was
 # inconsistent about it too, so nobody could learn when the number meant "do
 # this". The arithmetic stays available below, labelled as what it is.
-k = st.columns([1, 1, 1, 1.3])
+k = st.columns([1, 1, 1.1, 1, 1])
 k[0].metric("Standard now", ui.fmt(w["current"]))
+
+# MEASURED, between the standard and the decision. The row now reads as the
+# argument it is: this is the standard, this is what the jobs actually came to,
+# so this is what to do about it - and the ratio at the end is the arithmetic
+# joining the first two.
+#
+# On a unit that passes all six rules this equals "Change it to", and that is
+# not a redundancy to hide: for a rate, current / ratio IS the pool's achieved
+# rate, so the value proposed is precisely what the shop floor already does.
+# The help says so. On a unit that fails, the two differ - measured still has a
+# value, and the decision is to leave the standard alone - which is the case the
+# old four-metric row could not express at all, and papered over with a tooltip.
+_mk = evidence.kind_of(target, run_type)
+_op = "÷" if _mk == evidence.K_PCSHR else "×"
+# Derived rather than read off the workbook - see evidence.measured_value. The
+# SUGGESTED columns are empty on every no-change row of the setup and load
+# sheets, so reading them printed a dash on exactly the units where this is the
+# interesting number.
+_measured = evidence.measured_value(w["current"], stats.get("RATIO"), _mk)
+k[1].metric("Measured", ui.fmt(_measured),
+            help=f"What this pool actually came to, in the same unit as the "
+                 f"standard: {ui.fmt(w['current'])} {_op} "
+                 f"{ui.fmt(stats.get('RATIO'), '.3f')}. Where all six rules "
+                 f"pass this is also the value proposed — the new standard is "
+                 f"what the jobs already achieve. Where a rule stops the unit, "
+                 f"this is still what was measured; it is simply not proposed.")
 if kindof == "act":
     # delta_color is always "off". Streamlit's default colours a delta by its
     # arithmetic sign, so a rate correctly coming DOWN prints red - a colour
     # meaning something other than what the legend says, in the one product
     # whose rule is that colour always carries meaning.
-    k[1].metric("Change it to", ui.fmt(w["suggested"]),
+    k[2].metric("Change it to", ui.fmt(w["suggested"]),
                 delta=(f"{(w['suggested'] / w['current'] - 1) * 100:+.1f}%"
                        if pd.notna(w["suggested"]) and pd.notna(w["current"])
                        and w["current"] else None),
                 delta_color="off")
 else:
-    k[1].metric("Change it to", "leave as is",
-                help=f"The arithmetic would give "
-                     f"{ui.fmt(w['suggested'])}, but this unit did not clear "
-                     f"all six rules, so it is not proposed. Shown here only "
-                     f"so the number is not hidden.")
-k[2].metric("Hours a year", ui.hrs(stats.get("HOURS_DELTA", 0)),
+    # No number here, and no apology for it either. "Measured" two columns left
+    # now carries the arithmetic openly, so this metric no longer has to smuggle
+    # it into a tooltip to avoid hiding it.
+    k[2].metric("Change it to", "leave as is",
+                help="This unit did not clear all six rules, so no change is "
+                     "proposed. What the evidence measured is beside it.")
+k[3].metric("Hours a year", ui.hrs(stats.get("HOURS_DELTA", 0)),
             help="Actual minus master, over the fiscal year, for this unit. "
                  "Positive means the job takes longer than the master allows.")
-k[3].metric("Ratio", ui.fmt(stats.get("RATIO"), ".3f"),
+k[4].metric("Ratio", ui.fmt(stats.get("RATIO"), ".3f"),
             help=f"Actual hours ÷ master hours, outliers removed, across "
                  f"{ui.num(stats.get('N_COUNTED', 0))} counted work orders "
                  f"({ui.num(len(rows))} in scope, "
                  f"{ui.num(len(rows) - stats.get('N_COUNTED', 0))} excluded). "
                  f"Above 1.0 the job takes longer than the master.")
-st.markdown(ui.direction_note(target, run_type))
+# st.caption, not st.markdown. This sentence is a note about how to read the
+# two numbers above it, which is what every other caption on the page does; at
+# body weight it sat in the reading flow as though it were a finding of its own.
+# The v1 page has always rendered it as a caption - the guided one was the odd
+# man out.
+st.caption(ui.direction_note(target, run_type))
 
 # Some family actions carry no single value to key in, because the family
 # runs several different current standards. Those rows say "divide each part's
@@ -275,10 +335,14 @@ got = evidence.stored(target, run_type, operation, family, part_type, seq,
                       part_id)
 ok, why = evidence.reconcile(stats, got[0] if got else None,
                              got[1] if got else None)
-if ok is True:
-    st.caption(f":material/verified: Rebuilt independently from "
-               f"`{paths.CACHE.name}` — {why}.")
-elif ok is False:
+# REPORTED BY EXCEPTION. The success line - "rebuilt independently, reproduces
+# the workbook" - said the same thing on every unit that was working correctly,
+# which is nearly all of them, and cost a line above the fold on each. The check
+# still runs on every unit; it now only speaks when it has something to say.
+#
+# The failure branch below is deliberately louder than the removed caption was
+# quiet: it is an st.error telling the reader not to key the number in.
+if ok is False:
     st.error(f"**These figures no longer reproduce** — {why}. Either the "
              f"workbook was written from a different extract, or an exclusion "
              f"rule has drifted. Do not key this in until the pipeline has "
@@ -288,6 +352,101 @@ if freshness.operation_is_stale(operation):
     st.warning(f"`{pipeline.parts_workbook(operation).name}` is older than the "
                f"extract — the stored figures are from an earlier run.",
                icon=":material/warning:")
+
+st.divider()
+
+# ---- what the result looks like ---------------------------------------------
+# ABOVE THE CHART, not below it. On "How to read it" this pair comes last,
+# because that page is teaching you to read the picture and the outcome is the
+# payoff. Here the reader arrives already holding a recommendation and wants to
+# know whether to trust it; the six marks and the two scales answer that in one
+# screen, and the chart below is the backing they can check afterwards.
+#
+# THE FULL-DETAIL RULE CARDS THAT USED TO SIT LOWER DOWN ARE GONE. With this
+# block added the page carried the six rules three times - the sidebar rail, a
+# compact set here, and a set of cards with an explanatory paragraph each. What
+# each rule stops is worth reading once, and Methodology owns it.
+#
+# A HEADING, BUT NO CAPTIONS. The two blocks are self-describing - six ticks
+# and crosses against six named rules, and a table whose own header says "ratio"
+# and "as the routing holds it" - so the three lines of caption that used to
+# introduce them were paying rent above the fold for nothing. The heading is a
+# different matter: it names what the pair IS, and without one the section sat
+# between the verdict and the chart with nothing to say which question it
+# answers.
+#
+# "How this was decided", not "What the result looks like". The banner above
+# says WHAT was decided and the chart below is the EVIDENCE; this block is the
+# working in between - the checks on the left, the figures they were applied to
+# on the right. It also stays true when the answer is to leave the standard
+# alone, which "the result" does not, quite.
+st.subheader("How this was decided")
+
+_rc, _tc = st.columns(2)
+
+with _rc:
+    ui.rule_results(st, gates, per_row=2)
+
+with _tc:
+    # _mk and _measured come from the metric row above - one derivation per
+    # page, so the table and the metric can never show different numbers for
+    # the same thing.
+    _now = evidence.rate_txt(w["current"], _mk)
+    _then = evidence.rate_txt(_measured, _mk)
+    _ratio = stats.get("RATIO")
+    _lo, _hi = stats.get("CI_LOW"), stats.get("CI_HIGH")
+
+    # Every row below has to survive a unit that is NOT an action, which the
+    # example on "How to read it" never is. Three differences follow.
+    #
+    # 1. The change in the routing's own unit is computed here rather than read
+    #    from CHANGE_PCT: a non-action unit has no row in 01_Actions to read it
+    #    from, and the arithmetic is still worth showing. From _measured, which
+    #    every unit has, rather than from the workbook's SUGGESTED, which most
+    #    no-change units leave empty.
+    _pct = ((_measured / w["current"] - 1) * 100
+            if _measured is not None and pd.notna(w.get("current"))
+            and w["current"] else None)
+    # 2. The band may SPAN 1.0 here. That is rule 4 failing - the evidence is
+    #    consistent with the standard being right - and printing "excludes
+    #    1.000" on such a unit would state the opposite of the verdict above.
+    if _lo is None or pd.isna(_lo) or _hi is None or pd.isna(_hi):
+        _band, _band_says = "—", "no interval — too few work orders to test"
+    else:
+        _band = f"{_lo:.3f} – {_hi:.3f}"
+        _band_says = ("excludes 1.000" if not (_lo <= 1.0 <= _hi)
+                      else "**spans 1.000** — consistent with the standard "
+                           "being right")
+    # 3. "to key" is only a number when the verdict says to key one. Otherwise
+    #    it says to leave it, and names the rule that decided - the same reason
+    #    the metric above prints "leave as is" rather than a live-looking value.
+    if kindof == "act":
+        _key = (f"**{ui.fmt(w['suggested'])}** — edit `{field}`"
+                if pd.notna(w.get("suggested"))
+                else f"no single value — apply the ratio to each part")
+    elif blocker is not None:
+        _key = f"nothing — rule {blocker + 1} of 6 stopped it"
+    else:
+        _key = "nothing"
+
+    _at = (f"part **{part_id}**" if part_id else
+           "the family as a whole"
+           + (f" — {int(stats['N_PARTS'])} parts pooled"
+              if stats.get("N_PARTS") else ""))
+
+    st.markdown(
+        f"| | ratio | as the routing holds it |\n"
+        f"|---|---|---|\n"
+        f"| **standard** | 1.000 | {_now} |\n"
+        f"| **measured** | {ui.fmt(_ratio, '.3f')}"
+        + (f" ({100 * (_ratio - 1):+.1f}%)"
+           if pd.notna(_ratio) else "")
+        + f" | {_then}"
+        + (f" ({_pct:+.1f}%)" if _pct is not None else "")
+        + f" |\n"
+        f"| **95% band** | {_band} | {_band_says} |\n"
+        f"| **to key** | | {_key} |\n"
+        f"| **judged at** | | {_at} |")
 
 st.divider()
 
@@ -332,24 +491,22 @@ with c2:
 
 st.divider()
 
-# ---- the rules, explained ---------------------------------------------------
-st.subheader("The six rules, for this unit")
-st.caption("Same rail as the sidebar, with the reason each rule exists. All six "
-           "must pass before a standard is proposed for change.")
-gcols = st.columns(3)
-for i, g in enumerate(gates):
-    with gcols[i % 3]:
-        with st.container(border=True):
-            colour = ui.PASS if g["passed"] else (
-                ui.FAIL if i == blocker else ui.MUTE)
-            mark = "✓" if g["passed"] else ("✕" if i == blocker else "–")
-            st.markdown(
-                f'<span style="color:{colour};font-weight:700">{mark} '
-                f'{i + 1}. {g["name"]}</span>', unsafe_allow_html=True)
-            st.markdown(f"**{g['value']}**")
-            st.caption(g["detail"])
-
-st.divider()
+# "The six rules, for this unit" USED TO SIT HERE, as six bordered cards each
+# carrying an explanatory paragraph. It moved above the chart in compact form -
+# see "How this was decided" - because a reader deciding whether to trust a
+# recommendation wants the six marks before the evidence, not after it.
+#
+# The paragraphs did not come with it. They explain what each rule is FOR, which
+# is worth reading once rather than on every unit, and Methodology carries them
+# in full. Keeping them here as well would have put the six rules on this one
+# page three times over: the sidebar rail, the compact set, and these.
+#
+# The link that replaced them is now at the foot of the page rather than here.
+# Two reasons, and the second is the one that matters: it reads better as the
+# way out of a finished page than as an interruption before the row-level data;
+# and st.page_link raises inside Streamlit's AppTest harness, which aborts the
+# script, so anything below it is invisible to the test suite. Sitting here it
+# hid the work-order table and its download from every automated run.
 
 # ---- the rows ---------------------------------------------------------------
 st.subheader("The work orders behind this")
@@ -384,3 +541,11 @@ st.download_button("Download these work orders as CSV",
                    show.to_csv(index=False).encode("utf-8"),
                    file_name=f"h0_evidence_{pipeline.slug(tag)}.csv",
                    mime="text/csv", icon=":material/download:")
+
+# Last on the page, deliberately - see the note where the six explained rule
+# cards used to be. It is the way out of a finished page, and it is the one
+# element that blinds the test harness to everything after it.
+st.divider()
+st.page_link("pages/6_Methodology.py",
+             label="What each of the six rules is for, and where it is applied",
+             icon=":material/rule:")

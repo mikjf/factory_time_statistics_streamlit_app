@@ -146,7 +146,9 @@ if rows:
     with st.container(border=True):
         st.markdown(f"**{r.FAMILY} · {r.OPERATION} · seq {int(r[S])}** — "
                     f"{r.HOW_TO_APPLY}")
-        st.markdown(ui.direction_note(r.TARGET, r.RUN_TYPE))
+        # Caption, matching Inspect: the same sentence should not be body text
+        # on one page and a note on the next.
+        st.caption(ui.direction_note(r.TARGET, r.RUN_TYPE))
         st.page_link("pages/2_Inspect.py",
                      label="Open the evidence behind this",
                      icon=":material/query_stats:")

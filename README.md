@@ -60,11 +60,11 @@ evidence to say — instead of by whoever built the analysis.
 |---|---|
 | **Overview** | Headline numbers, and where the hours sit by operation and family |
 | **Review queue** | Every standard proposed for change, filterable |
-| **Inspect** | One recommendation opened up: the six rules with real figures, the work orders behind it, and where each sits against the master |
+| **Inspect** | One recommendation opened up: how it was decided, the work orders behind it, and where each sits against the master |
 | **By part** | Everything proposed for one part — and every step examined and left alone, with the reason |
 | **Not standards changes** | Hours charged for work with no evidence it happened. Real, but a routing and booking question |
-| **How it works** | The method |
-| **Dataset** | What the numbers are computed over |
+| **How to read it** | How to read a recommendation, worked through one real unit |
+| **Methodology** | The method, and what the numbers are computed over |
 
 ## It writes nothing
 
@@ -99,11 +99,12 @@ the evidence behind everything else has to be rebuilt from the extract. That
 turns out to be the better answer: a viewer that read the numbers back out of the
 workbook could only ever agree with it.
 
-This one recomputes, using the analysis's own functions, and compares. Every unit
-says whether it reproduces. A mismatch means the workbook was written from a
-different extract, or an exclusion rule here has drifted — and either way the
-number about to be keyed into the ERP is not the number the current data
-supports.
+This one recomputes, using the analysis's own functions, and compares — on every
+unit, every time. It reports by exception: a unit that reproduces says nothing,
+and a unit that does not gets an error telling the reader not to key the number
+in. A mismatch means the workbook was written from a different extract, or an
+exclusion rule here has drifted, and either way the number about to go into the
+ERP is not the number the current data supports.
 
 The comparison is always against the workbook that **computed** the figure, never
 the consolidated update list, whose ratios are rounded to three decimals for
@@ -160,19 +161,48 @@ A field that is empty for every dot on a chart is dropped rather than shown as a
 row of dashes, so setup charts carry no quantity and no achieved rate.
 
 On a **crew-mismatch** setup row the standard line shows the routing's own value
-while master hours show the crew-scaled one — `Setup 0.500 h` against a master
-of `0.3334` — and that gap is the reason the row was excluded.
+while master hours show the crew-scaled one — `Setup 0.50 h` against a master of
+`0.33 h` — and that gap is the reason the row was excluded.
+
+## Two scales, one table
+
+The chart's axis is a ratio. The thing somebody keys into the ERP is a rate or a
+duration. Inspect and "How to read it" both carry the mapping between them:
+
+| | ratio | as the routing holds it |
+|---|---|---|
+| **standard** | 1.000 | Run 10.00 PCS/HR |
+| **measured** | 1.181 (+18.1%) | Run 8.47 PCS/HR (−15.3%) |
+| **95% band** | 1.067 – 1.244 | excludes 1.000 |
+| **to key** | | 8.47 — edit `RUN_MASTER` |
+| **judged at** | | one part, or the family as a whole |
+
+Read down either column and the correction directions are simply there: the
+ratio rises 18.1%, the rate falls 15.3%, one event. A duration moves the same
+way as its ratio, which is the whole distinction, visible without a sentence
+explaining it.
+
+**Measured is derived, not read.** Every workbook writes its `SUGGESTED` column
+only for the units it recommends changing — the setup rollup and both load
+sheets leave it empty on *all* of their no-change rows — so it is computed as
+`current ÷ ratio` for a rate and `current × ratio` for a duration. Where the
+pipeline does write a value, the derivation reproduces it, so no unit shows one
+number as measured and another as the value to key.
+
+The band row states whether it **excludes 1.000**, which is rule 4 and the
+band's only job. Where the line falls relative to the band is deliberately not
+reported: the two estimators can disagree, and nothing depends on it.
 
 ## Layout
 
 ```
-guided/Overview.py              headline numbers, where the hours sit
-guided/pages/1_Review_queue.py  every standard proposed for change
-guided/pages/2_Inspect.py       one recommendation, with the six-rule rail
-guided/pages/3_By_part.py       one part, changed and unchanged steps alike
-guided/pages/4_Not_standards.py hours charged for work with no evidence
-guided/pages/5_How_it_works.py  the method
-guided/pages/6_Dataset.py       what it is all computed over
+guided/Overview.py               headline numbers, where the hours sit
+guided/pages/1_Review_queue.py   every standard proposed for change
+guided/pages/2_Inspect.py        one recommendation, with the six-rule rail
+guided/pages/3_By_part.py        one part, changed and unchanged steps alike
+guided/pages/4_Not_standards.py  hours charged for work with no evidence
+guided/pages/5_How_to_read_it.py how to read a recommendation
+guided/pages/6_Methodology.py    the method, and what it is computed over
 
 h0app/paths.py      where the analysis lives; imports nothing from it
 h0app/pipeline.py   imports the analysis scripts; re-exports their thresholds

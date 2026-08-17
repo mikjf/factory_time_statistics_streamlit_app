@@ -340,20 +340,14 @@ def _bar(d, label, value, title, fmt=",.0f", height=None, tooltip=None,
 
 
 def _part_tag(s):
-    """ADV / ANDV. Family names are long and the part type only has to
-    disambiguate, not describe - spelled out it took a third of the axis and
-    truncated to "Articolo di vend" on every row anyway.
+    """ADV / ANDV down a column. Spelled out, the part type took a third of the
+    axis and truncated to "Articolo di vend" on every row anyway.
 
-    Anything unrecognised falls back to its initials rather than defaulting to
-    one of the two, so a third part type would show up as itself instead of
-    silently joining a bucket it does not belong to.
+    The mapping itself moved to ui.part_tag, which Inspect also uses in its
+    subtitle. with_title=False because a Vega axis label is plain text - there
+    is no element to hang a hover on.
     """
-    def tag(v):
-        t = str(v).strip().lower()
-        if t.startswith("articolo"):
-            return "ANDV" if " non " in f" {t} " else "ADV"
-        return "".join(w[0] for w in str(v).split()).upper() or "?"
-    return s.map(tag)
+    return s.map(lambda v: ui.part_tag(v, with_title=False))
 
 
 def _family_label(d):

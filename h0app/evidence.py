@@ -72,6 +72,72 @@ TIP = ["OP_TXT", "STANDARD", "LOADS", "MASTER_TXT", "ACTUAL_TXT", "ACHIEVED"]
 # pieces-per-hour labels on hours-per-load numbers and nothing would flag it.
 K_PCSHR, K_LOAD, K_SETUP = "PCS/HR", "HRS/LOAD", "SETUP"
 
+# How each route names and units its standard. ONE definition, used by the chart
+# tooltip and by any page that has to print a standard: "Run 10.00 PCS/HR" has
+# to look identical wherever it appears, and two copies of a format string is
+# how "10.00 PCS/HR" and "10 pcs/h" end up on the same screen.
+UNITS = {K_PCSHR: ("Run", "PCS/HR"),
+         K_LOAD: ("Run", "HRS/LOAD"),
+         K_SETUP: ("Setup", "h")}
+
+
+def kind_of(target, run_type):
+    """Which unit a workbook row's standard is held in.
+
+    TARGET and RUN_TYPE are what the update list carries; the three K_ constants
+    are what this module works in. One mapping, so a page never has to decide
+    what counts as setup.
+    """
+    if str(target) == "SETUP_HRS":
+        return K_SETUP
+    return K_LOAD if str(run_type) == "HRS/LOAD" else K_PCSHR
+
+
+def num(v, dp=2):
+    """A number a person would write down. 5 -> "5.00", 93.33333 -> "93.33".
+
+    TWO DECIMALS, not three. The ERP holds hours to two, so a third decimal on
+    a duration is always a zero pretending to be a measurement; and nobody
+    keying a standard needs the thousandth of a piece per hour.
+
+    WHOLE NUMBERS KEEP THEIR ZEROS. A standard of 5 hours per load shown as "5"
+    beside another shown as "1.25" makes the pair hard to compare and the first
+    look like a different kind of quantity. Every value on screen is held to the
+    same precision, so a column of them reads as a column.
+    """
+    if v is None or pd.isna(v):
+        return None
+    return f"{float(v):,.{dp}f}"
+
+
+def rate_txt(value, kind):
+    """A standard in the unit the routing holds it in, route prefix included."""
+    prefix, unit = UNITS[kind]
+    n = num(value)
+    return f"{prefix} {n} {unit}" if n is not None else "—"
+
+
+def measured_value(current, ratio, kind):
+    """What the pool came to, in the unit the routing holds the standard in.
+
+    DERIVED, NOT READ. Every workbook writes its SUGGESTED column only for the
+    units it recommends changing - the setup rollup and both load sheets leave
+    it empty on 100% of their no-change rows, and the PCS/HR parts sheet on 784
+    of 839. Reading it therefore showed a dash on most units that were tested and
+    held, which are precisely the ones where "what did it actually come to?" is
+    the question being asked.
+
+    The arithmetic is the pipeline's own, and it is the reason the two directions
+    matter: a rate divides, a duration multiplies. Where the pipeline does write
+    a suggested value this reproduces it, so no unit shows one number here and a
+    different one as the value to key.
+    """
+    if (current is None or pd.isna(current) or ratio is None
+            or pd.isna(ratio) or not ratio):
+        return None
+    return (float(current) / float(ratio) if kind == K_PCSHR
+            else float(current) * float(ratio))
+
 
 def _mad_keep(lr):
     """The outlier mask, mirroring the pipeline's three lines.
@@ -90,23 +156,6 @@ def _mad_keep(lr):
     if mad <= 0:
         return np.ones(len(lr), bool)
     return np.abs(lr - med) <= pipeline.MAD_K * mad
-
-
-def _num(v, dp=2):
-    """A number a person would write down. 5 -> "5.00", 93.33333 -> "93.33".
-
-    TWO DECIMALS, not three. The ERP holds hours to two, so a third decimal on
-    a duration is always a zero pretending to be a measurement; and nobody
-    keying a standard needs the thousandth of a piece per hour.
-
-    WHOLE NUMBERS KEEP THEIR ZEROS. A standard of 5 hours per load shown as "5"
-    beside another shown as "1.25" makes the pair hard to compare and the first
-    look like a different kind of quantity. Every value in a tooltip is held to
-    the same precision, so a column of them reads as a column.
-    """
-    if v is None or pd.isna(v):
-        return None
-    return f"{float(v):,.{dp}f}"
 
 
 def _standard_and_achieved(out, kind):
@@ -139,25 +188,28 @@ def _standard_and_achieved(out, kind):
     for col, src in (("MASTER_TXT", "HOURS_MASTER"),
                      ("ACTUAL_TXT", "HOURS_WORKED")):
         out[col] = out[src].map(
-            lambda v: f"{_num(v)} h" if _num(v) is not None else None)
+            lambda v: f"{num(v)} h" if num(v) is not None else None)
 
     if kind == K_PCSHR:
         out["STANDARD"] = out.RUN_MASTER.map(
-            lambda v: f"Run {_num(v)} PCS/HR" if _num(v) else None)
+            lambda v: rate_txt(v, kind) if pd.notna(v) else None)
         # Pieces over hours actually booked. Both are stored figures, so this
         # is exact - deriving it from the standard and the ratio instead would
         # inherit the ERP's rounding of HOURS_MASTER, which is held to two
         # decimals and drifts by up to 11% on the shortest jobs.
+        #
+        # No route prefix: the line above has already said "Run", and repeating
+        # it on the achieved figure reads as a second standard.
         ach = out.TOTAL_QTY / out.HOURS_WORKED.replace(0, np.nan)
         out["ACHIEVED"] = ach.map(
-            lambda v: f"{_num(v)} PCS/HR" if _num(v) else None)
+            lambda v: f"{num(v)} {UNITS[kind][1]}" if num(v) else None)
 
     elif kind == K_LOAD:
         out["STANDARD"] = out.RUN_MASTER.map(
-            lambda v: f"Run {_num(v)} HRS/LOAD" if _num(v) else None)
+            lambda v: rate_txt(v, kind) if pd.notna(v) else None)
         if "LOADS_CHARGED" in out.columns:
             out["LOADS"] = out.LOADS_CHARGED.map(
-                lambda v: _num(v, 0) if pd.notna(v) else None)
+                lambda v: num(v, 0) if pd.notna(v) else None)
 
     else:
         # HOURS_MASTER on a crew-matched row IS the routing's setup value, so
@@ -173,7 +225,7 @@ def _standard_and_achieved(out, kind):
                   else pd.Series(np.nan, index=out.index))
         src = out.HOURS_MASTER.where(crew_ok.fillna(False), stored)
         out["STANDARD"] = src.map(
-            lambda v: f"Setup {_num(v)} h" if _num(v) else None)
+            lambda v: rate_txt(v, kind) if pd.notna(v) else None)
 
     return out
 

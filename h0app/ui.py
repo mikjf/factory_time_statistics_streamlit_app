@@ -135,6 +135,28 @@ CSS = """
 [data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) {
     background-color: rgba(221, 157, 61, .18) !important; }
 
+/* The line under a page title that says WHICH unit this is: part type, step,
+   and whether one part or a whole family. It was st.caption - 14px at 60%
+   opacity, the same treatment as a footnote under a chart - and it is not a
+   footnote, it is the identity of everything below it.
+   Set to match st.subheader exactly - 28px, weight 600, full opacity, the same
+   -0.14px tracking - so the identity of the unit carries the same weight as the
+   section headings below it rather than less. Measured off the rendered h3
+   rather than guessed, because Streamlit's heading sizes are not the browser
+   defaults, and pulled up so it reads as part of the heading rather than as the
+   first line of content. */
+.h0-subtitle { font-size:1.75rem; font-weight:600; line-height:1.2;
+               letter-spacing:-.005em; opacity:1; margin:-.4rem 0 1rem; }
+
+/* Markdown tables fill whatever holds them, like every other block in this app.
+   Streamlit leaves them at width:auto, so a table sized to its own content and
+   stopped short of the column edge - fine at a narrow window, where the content
+   wanted more room than there was, and visibly ragged on a wide one, where a
+   half-width column ended 100px before the block beside it did.
+   Scoped to stMarkdown so it cannot reach the Vega tooltip, which is also a
+   table and is appended outside the app tree. */
+[data-testid="stMarkdown"] table { width: 100%; }
+
 /* Vega draws its tooltip as a two-column table and leaves the cells at the
    default vertical-align:middle. Fine while every value is one line; wrong the
    moment one wraps, because the label floats to the MIDDLE of its paragraph
@@ -153,7 +175,7 @@ CSS = """
    so a wide window laid the six out 5 + 1 and the pairing of rows 1-3 and 4-6
    disappeared. Stepped down explicitly instead, so a narrow pane still works. */
 .h0-rules { display:grid; gap:.7rem; grid-auto-rows:1fr;
-            grid-template-columns:repeat(3, 1fr); }
+            grid-template-columns:repeat(var(--h0-cols, 3), 1fr); }
 @media (max-width: 900px) {
     .h0-rules { grid-template-columns:repeat(2, 1fr); } }
 @media (max-width: 600px) {
@@ -162,6 +184,13 @@ CSS = """
            padding:.85rem 1rem; display:flex; flex-direction:column;
            gap:.5rem; }
 .h0-rule-name { font-weight:700; font-size:1rem; }
+/* The result-only variant: a mark, a name and this unit's figure, no sentence.
+   Tighter than .h0-rule because there are six of them beside a table rather
+   than six across a page, and the explanations live on the full set elsewhere.
+   The figure is the thing being read, so it is the one line at full opacity. */
+.h0-rule-tight { padding:.55rem .7rem; gap:.28rem; }
+.h0-rule-tight .h0-rule-name { font-size:.92rem; }
+.h0-rule-val { font-size:.92rem; font-weight:600; }
 /* No margin-top:auto here. Pushing this to the foot of the card left a gap of a
    different size under every pill, so six boxes of identical height still read
    as six different layouts. The text follows the pill and the slack collects at
@@ -306,6 +335,42 @@ def rule_cards(container, rules, per_row=3):
         unsafe_allow_html=True)
 
 
+def rule_results(container, gates, per_row=2):
+    """The six rules with this unit's own figure, and nothing else.
+
+    The same six cards as rule_cards, minus the explanation of what each rule
+    stops. That sentence is worth reading once - it is on Methodology, and on
+    Inspect where somebody is deciding a single standard - but here the cards sit
+    beside the result table as the evidence that the six were checked, and six
+    paragraphs would out-weigh the thing they support.
+
+    Marks follow gate_rail exactly, including that ONLY THE FIRST failure is the
+    blocker: a later rule that also failed is shown with its real value in grey
+    rather than a second red cross, because "it failed on the hours floor" and
+    "it failed on everything" are different situations.
+
+    Its own CSS grid, not st.columns - st.columns(2) lays out two columns of
+    three and sizes each box to its own content, so the six come out six
+    different heights. grid-auto-rows:1fr is what makes them equal.
+    """
+    blocker = next((i for i, g in enumerate(gates) if not g["passed"]), None)
+    cards = []
+    for i, g in enumerate(gates):
+        ok = g["passed"]
+        colour = PASS if ok else (FAIL if i == blocker else MUTE)
+        mark = "&#10003;" if ok else ("&#10005;" if i == blocker else "&ndash;")
+        cards.append(
+            f'<div class="h0-rule h0-rule-tight">'
+            f'<div class="h0-rule-name" style="color:{colour}">'
+            f'{mark} {i + 1}. {_e(g["name"])}</div>'
+            f'<div class="h0-rule-val">{_e(g.get("value", ""))}</div>'
+            f'</div>')
+    container.markdown(
+        f'<div class="h0-rules" style="--h0-cols:{per_row}">'
+        f'{"".join(cards)}</div>', unsafe_allow_html=True)
+    return blocker
+
+
 def chart_key(container):
     """Every mark the distribution chart can draw, whether or not it is drawn.
 
@@ -364,6 +429,44 @@ def side_title(container, text):
 def side_note(container, text):
     """Small print under a sidebar block. st.caption's 14px in .82rem terms."""
     container.markdown(f'<div class="h0-side-note">{text}</div>',
+                       unsafe_allow_html=True)
+
+
+def part_tag(value, with_title=True):
+    """ADV / ANDV. The part type only has to disambiguate, not describe.
+
+    LIVES HERE, not in charts.py, because it is no longer only a chart concern:
+    the Overview rankings abbreviate it to fit an axis, and Inspect abbreviates
+    it in the line under the title. One mapping, so a reader who learns "ADV" in
+    one place is not shown "Articolo di vendita" in the other and left to work
+    out whether they are the same thing.
+
+    Anything unrecognised falls back to its initials rather than defaulting to
+    one of the two, so a third part type shows up as itself instead of silently
+    joining a bucket it does not belong to.
+
+    with_title wraps it so hovering restores the full wording. Free where the
+    output is HTML; impossible on a Vega axis label, which is why it is optional
+    rather than always on.
+    """
+    t = str(value).strip().lower()
+    if t.startswith("articolo"):
+        short = "ANDV" if " non " in f" {t} " else "ADV"
+    else:
+        short = "".join(w[0] for w in str(value).split()).upper() or "?"
+    if not with_title:
+        return short
+    return f'<span title="{_e(value)}">{short}</span>'
+
+
+def subtitle(container, text):
+    """The identity line under a page title - which unit this page is about.
+
+    Not st.caption. A caption is for something subordinate to what it sits
+    under, and this is the opposite: every figure below it is only meaningful
+    once you know it belongs to this part, this step, this pool.
+    """
+    container.markdown(f'<div class="h0-subtitle">{text}</div>',
                        unsafe_allow_html=True)
 
 
