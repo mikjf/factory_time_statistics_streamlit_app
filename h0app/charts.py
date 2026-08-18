@@ -201,8 +201,36 @@ def distribution(rows, stats, height=300, legend=True):
             color=alt.Color("STATUS:N",
                             scale=alt.Scale(domain=present,
                                             range=[COLOURS[s] for s in present]),
+                            # SOLID DOTS, matching ui.chart_key. Left alone,
+                            # a Vega legend inherits the mark's own styling -
+                            # 0.8 opacity and a half-pixel white stroke, which
+                            # are there so 250 overlapping circles stay
+                            # readable. One swatch on its own has nothing to
+                            # overlap, so it just looked faded and ringed
+                            # beside the same status drawn solid on the other
+                            # page. symbolSize 100 is the area that matches the
+                            # .7rem CSS dot the key uses.
+                            #
+                            # The rest of these match ui.chart_key's CSS, which
+                            # is the same key rendered in HTML on another page:
+                            #   labelOpacity .85   .h0-key opacity:.85
+                            #   labelFontSize 13   .h0-key .82rem
+                            #   rowPadding 6       .h0-k-col gap:.35rem
+                            #   labelOffset 6      .h0-k-item gap:.4rem
+                            # labelOpacity rather than a literal colour: the
+                            # CSS dims the theme's own text, so a hard-coded
+                            # white would be right in dark mode and invisible
+                            # in light.
                             legend=alt.Legend(title=None, orient="bottom",
-                                              columns=1, labelLimit=400)
+                                              columns=1, labelLimit=400,
+                                              symbolType="circle",
+                                              symbolOpacity=1,
+                                              symbolStrokeWidth=0,
+                                              symbolSize=100,
+                                              labelFontSize=13,
+                                              labelOpacity=0.85,
+                                              labelOffset=6,
+                                              rowPadding=6)
                             if legend else None),
             tooltip=tip))
 

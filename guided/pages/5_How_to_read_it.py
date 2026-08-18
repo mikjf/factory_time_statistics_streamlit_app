@@ -177,58 +177,24 @@ if len(_ex_pool):
                                          legend=False)
             if _chart is not None:
                 # ---- ORDER INSIDE THIS EXPANDER ------------------------
-                #   the chart          what the evidence looks like
-                #   the paragraph      how to read the marks on it
-                #   the key            what every mark can be
-                #   ------ then, and only then, the outcome ------
                 #   the six rules      that they were all checked
                 #   the table          what it comes to, in both scales
+                #   the chart          the evidence underneath both
+                #   the paragraph      how to read the marks on it
+                #   the key            what every mark can be
                 #
-                # The chart and its explanation are one thing and nothing may
-                # come between them - the table used to, which put the answer
-                # above the sentence teaching you to read the picture.
-                st.altair_chart(_chart, width="stretch")
-
-                # THE NUMBERS LEFT THIS PARAGRAPH. It had eleven of them, every
-                # one now in the table below, and a reader had to reassemble the
-                # table from prose to compare anything. What is left is the part
-                # a table cannot say: which mark is which, and why the standard
-                # falls when the ratio rises.
-                # Built before the f-string, not inside it. A conditional
-                # spanning lines inside braces parses on 3.12+ and nowhere
-                # earlier, and this is the one sentence on the page that has to
-                # be right for all three routes.
-                _kind = evidence.kind_of(_ex.TARGET, _ex.RUN_TYPE)
-                if _kind == evidence.K_PCSHR:
-                    _why = ("`RUN_MASTER` under PCS/HR is a **rate**, so the "
-                            "correction **divides** and the standard comes "
-                            "down even though the ratio went up")
-                else:
-                    _field = ("`SETUP_HRS`" if _kind == evidence.K_SETUP
-                              else "`RUN` under HRS/LOAD")
-                    _why = (f"{_field} is a **duration**, so the correction "
-                            f"**multiplies** and the two move the same way")
-                st.caption(
-                    f"{int(_ex.N_WO)} work orders on one part, one dot each. "
-                    f"Left of the **dashed grey line** the job beat the "
-                    f"standard, right of it it took longer. The **red line, "
-                    f"`measured`**, is where the pool actually ran. This unit "
-                    f"passed all six rules, so that measurement becomes the "
-                    f"correction — and {_why}. The red line falls "
-                    f"inside the shaded band here, so weighting by hours and "
-                    f"counting each work order once agree; they need not, and "
-                    f"nothing depends on it.")
-                # Every mark the chart can draw, not only the two this unit
-                # happens to use. Its own legend lists what is present, which
-                # teaches nothing about what a different unit will look like.
-                ui.chart_key(st)
-
-                # ---- the outcome ---------------------------------------
-                # A heading, because everything above is the evidence and
-                # everything below is what came of it. Without the break the
-                # six rule cards read as a fourth thing about the chart.
-                st.markdown("")
+                # OUTCOME FIRST, matching Inspect. The chart used to open the
+                # expander and the outcome closed it, which is the right order
+                # for teaching a picture and the wrong one for a reader who has
+                # just been told this is what a decision looks like: they want
+                # the decision, then the evidence it rests on.
+                #
+                # The chart, its paragraph and its key stay together in that
+                # order and nothing may come between them - the table did once,
+                # which put the answer above the sentence that teaches you to
+                # read the picture.
                 st.markdown("**What the result looks like**")
+                _kind = evidence.kind_of(_ex.TARGET, _ex.RUN_TYPE)
                 # The FDR-adjusted q, which rule 3 is stated against. Read the
                 # same way Inspect reads it rather than from the action row: q
                 # is computed across every pool tested together, so it belongs
@@ -316,6 +282,44 @@ if len(_ex_pool):
                         f"| **to key** | | **{_ex.SUGGESTED_VALUE:g}** — "
                         f"{_ex.HOW_TO_APPLY} |\n"
                         f"| **judged at** | | {_at} |")
+
+                # ---- the evidence the two blocks above rest on ---------
+                st.markdown("")
+                st.altair_chart(_chart, width="stretch")
+
+                # THE NUMBERS LEFT THIS PARAGRAPH. It had eleven of them, every
+                # one now in the table above, and a reader had to reassemble the
+                # table from prose to compare anything. What is left is the part
+                # a table cannot say: which mark is which, and why the standard
+                # falls when the ratio rises.
+                #
+                # _why is built before the f-string, not inside it. A
+                # conditional spanning lines inside braces parses on 3.12+ and
+                # nowhere earlier, and this is the one sentence on the page that
+                # has to be right for all three routes.
+                if _kind == evidence.K_PCSHR:
+                    _why = ("`RUN_MASTER` under PCS/HR is a **rate**, so the "
+                            "correction **divides** and the standard comes "
+                            "down even though the ratio went up")
+                else:
+                    _field = ("`SETUP_HRS`" if _kind == evidence.K_SETUP
+                              else "`RUN` under HRS/LOAD")
+                    _why = (f"{_field} is a **duration**, so the correction "
+                            f"**multiplies** and the two move the same way")
+                st.caption(
+                    f"{int(_ex.N_WO)} work orders on one part, one dot each. "
+                    f"Left of the **dashed grey line** the job beat the "
+                    f"standard, right of it it took longer. The **red line, "
+                    f"`measured`**, is where the pool actually ran. This unit "
+                    f"passed all six rules, so that measurement becomes the "
+                    f"correction — and {_why}. The red line falls "
+                    f"inside the shaded band here, so weighting by hours and "
+                    f"counting each work order once agree; they need not, and "
+                    f"nothing depends on it.")
+                # Every mark the chart can draw, not only the two this unit
+                # happens to use. Its own legend lists what is present, which
+                # teaches nothing about what a different unit will look like.
+                ui.chart_key(st)
             else:
                 st.caption("No chart for this unit.")
         except Exception as err:                     # noqa: BLE001

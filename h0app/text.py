@@ -68,32 +68,37 @@ def rules():
          f"at least {pipeline.MIN_WO}",
          f"A verdict drawn from too little evidence. A hard floor, not a "
          f"preference: below {pipeline.MIN_WO} the test cannot reach "
-         f"significance however consistently the work orders miss the "
-         f"standard."),
+         f"significance."),
         ("Consistently off the standard",
          f"p under {pipeline.ALPHA}",
          "A few extreme jobs dragging the average while the middle of the "
          "evidence says the standard is fine."),
-        # Said in terms of the odds rather than the method. "Benjamini-Hochberg
+        # Said as the consequence rather than the method. "Benjamini-Hochberg
         # controls the false discovery rate" is exact and tells a reader who
-        # does not already know it nothing; the one-in-twenty framing is the
-        # same statement in numbers anybody can follow, and it makes clear that
-        # the flaw is in the NUMBER of tests, not in any one of them.
+        # does not already know it nothing. What they need is that the flaw is
+        # in the NUMBER of tests, not in any one of them - which is the whole
+        # of the first sentence.
         #
-        # No count here on purpose - roughly 30 of 603 on this extract, but the
-        # figures move every run and this string is also the sidebar rail's.
-        ("Not a fluke of testing many at once",
+        # "Look wrong when they aren't" rather than "look off": it names the
+        # error instead of gesturing at it. A pool looks wrong when its work
+        # orders happen to land mostly on one side of the standard - which some
+        # will do by chance in any large enough set, with nothing at all wrong.
+        #
+        # No count and no odds here on purpose. An earlier version worked
+        # through 1-in-20 against roughly 600 tests, which is the right
+        # arithmetic and three times the length; the figures also move every run
+        # and this string is the sidebar rail's as well.
+        ("Not luck across many tests",
          f"q under {pipeline.ALPHA}",
-         f"Luck. One test in twenty clears {pipeline.ALPHA} by chance, so "
-         f"hundreds of tests throw up convincing results on their own. This "
-         f"caps how many on the list can be flukes."),
+         "Coincidences. Testing many standards at once can lead to mistakes: "
+         "q tightens the threshold in proportion."),
         ("Sure of the direction",
          "the range must not span 1.0",
          "A difference the evidence cannot actually separate from zero."),
         ("Big enough to be worth it",
          f"at least {pipeline.MIN_EFFECT:.0%} off",
-         "Churn. Re-keying a standard across a family to move it 4% costs "
-         "more than it is worth."),
+         "Churn. Avoids re-keying a standard that does not have relevant "
+         "impact."),
         ("Enough hours to matter",
          f"at least {pipeline.MIN_HOURS_IMPACT:g} h a year "
          f"({pipeline.SETUP_MIN_HOURS:g} h for setup)",
@@ -145,8 +150,12 @@ def gates(stats, q=None):
         f"   (needs under {pipeline.ALPHA})",
         f"range {_fmt(ci_lo)} to {_fmt(ci_hi)}   (must not span 1.0)",
         f"off by {_honest(dev_pct, pipeline.MIN_EFFECT * 100, dev_ok)}%"
-        f"   (needs at least {pipeline.MIN_EFFECT:.0%})",
-        f"{hrs} h a year   (needs at least {min_h:g} h either way)",
+        # "≥" rather than "at least". These two sit in a narrow rail beside a
+        # figure that is the thing being read, and the words were longer than
+        # the numbers they qualified. One symbol covers the setup thresholds
+        # too: min_h is 5 h there and 20 h on run, from the same string.
+        f"   (needs ≥ {pipeline.MIN_EFFECT:.0%})",
+        f"{hrs} h a year   (needs ≥ {min_h:g} h either way)",
     ]
     details = [
         f"A hard floor, not a preference: with fewer than {min_n} work orders "

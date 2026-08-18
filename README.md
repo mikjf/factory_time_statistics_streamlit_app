@@ -49,8 +49,9 @@ inherit from a default.
 
 The analysis applies **six rules** in order, and a standard only changes if it
 passes all of them. So the six rules are the spine of the interface: on
-**Inspect** they fill the left rail with the selected unit's own figures, with
-the rule that stopped it marked.
+**Inspect**, "How this was decided" shows all six with the selected unit's own
+figures, directly under the verdict and above the chart, with the rule that
+stopped it marked `(STOPPED)`.
 
 That is what makes the *absence* of a recommendation explicable. "Why isn't my
 part on the list" is answered on screen — tested and it holds, or never enough
@@ -121,9 +122,15 @@ Colour carries meaning and is never decoration:
 | | |
 |---|---|
 | **green ✓** | the rule was satisfied |
-| **red ✕** | the rule that stopped this becoming an action |
-| **grey –** | also failed, but not the blocker |
+| **red ✕** | the rule was not |
 | **amber !** | passed everything, but large enough to want a human first |
+
+Where more than one rule fails, all of them are red and the **first** is marked
+`(STOPPED)`. That is not a display nicety: `recommend()` returns at the
+first failing condition, so the reason written into the update list is that rule
+and no other, and the page has to be able to point at it. Colour answers the
+question asked once per rule — did it pass — and the label answers the one asked
+once per unit.
 
 Every colour is paired with a symbol, because roughly one man in twelve cannot
 separate the green from the red.
@@ -198,7 +205,8 @@ reported: the two estimators can disagree, and nothing depends on it.
 ```
 guided/Overview.py               headline numbers, where the hours sit
 guided/pages/1_Review_queue.py   every standard proposed for change
-guided/pages/2_Inspect.py        one recommendation, with the six-rule rail
+guided/pages/2_Inspect.py        one recommendation: how it was decided,
+                                 then the evidence
 guided/pages/3_By_part.py        one part, changed and unchanged steps alike
 guided/pages/4_Not_standards.py  hours charged for work with no evidence
 guided/pages/5_How_to_read_it.py how to read a recommendation
@@ -211,7 +219,7 @@ h0app/data.py       cached workbook readers, keyed on file mtime
 h0app/evidence.py   per-work-order evidence for each of the four routes
 h0app/charts.py     the distribution chart and the rankings
 h0app/text.py       the six rules, and the shared prose
-h0app/ui.py         the visual language: colours, the rail, the funnel
+h0app/ui.py         the visual language: colours, the rule cards, the funnel
 ```
 
 Thresholds (`MIN_WO`, `MAD_K`, `TOKEN_HOURS`, the materiality gates) are

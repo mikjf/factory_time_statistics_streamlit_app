@@ -1,12 +1,17 @@
-"""One recommendation, opened up - with the six rules in the left rail.
+"""One recommendation, opened up.
 
-The rail is the point of this version. Everything the analysis does is a funnel
-of six rules, and a reader who cannot see which rule a unit failed has to take
-the verdict on trust. Here they never have to: the rail is filled in with this
-unit's own figures, the failing rule is marked, and the main area explains the
-consequence rather than repeating the numbers.
+Everything the analysis does is a funnel of six rules, and a reader who cannot
+see which rule a unit failed has to take the verdict on trust. Here they never
+have to: "How this was decided" carries all six with this unit's own figures and
+names the one that stopped it.
 
-Selection lives in the rail too, so the whole width belongs to the evidence.
+That block used to be a rail in the sidebar, and for a while the page carried
+both. The main area won: it is where the evidence is, it has the width for the
+figures, and a reader looking at a chart should not have to track a summary of
+it in the corner of their eye.
+
+The sidebar now does one thing - choose what to look at - so the whole width
+belongs to the unit.
 """
 
 import pathlib
@@ -50,33 +55,36 @@ def _idx(options, value, default=0):
 # ---- selection, in the rail -------------------------------------------------
 with st.sidebar:
     st.markdown("### What to look at")
-    choices = [RUN] + ([SETUP] if data.has_setup() else []) \
-        + ([LOAD] if data.has_load() else [])
+    # The two run analyses together, setup last: RUN_MASTER under PCS/HR and
+    # RUN under HRS/LOAD are the same field on the same routing line held in two
+    # different units, so they belong beside each other. Setup is a different
+    # field and a different question.
+    choices = [RUN] + ([LOAD] if data.has_load() else []) \
+        + ([SETUP] if data.has_setup() else [])
     kind = st.radio("Analysis", choices, index=_idx(choices, _kind(pre)),
                     help="Three analyses, three different kinds of standard. "
                          "They are never pooled.")
 
+    # ---- FAMILY FIRST, then the operations that family is routed through ----
+    # It used to be operation first, because the PCS/HR run analysis writes one
+    # workbook per operation and that workbook was the only way to know which
+    # families existed. data.run_index() removes that constraint - it reads all
+    # 47 once and caches on their mtimes - so the picker can now follow how the
+    # people using it think: my product line, then where in its routing.
+    #
+    # Setup and HRS/LOAD needed nothing: each already has a single rollup
+    # covering every operation.
     if kind == SETUP:
         universe = data.setup_book("01_FamilyRollup")
     elif kind == LOAD:
         universe = data.load_book("02_FamilyRollup")
     else:
-        universe = None
+        universe = data.run_index()
 
-    ops = (sorted(universe.OPERATION.unique()) if universe is not None
-           else data.operation_list())
-    operation = st.selectbox("Operation", ops,
-                             index=_idx(ops, pre.get("OPERATION")))
-
-    empty_op = False
-    if universe is None:
-        universe = data.all_units(operation)
-        empty_op = universe.empty
+    pairs = sorted({(f, p) for f, p in zip(universe.FAMILY, universe.PART_TYPE)})
+    empty_op = not pairs
 
     if not empty_op:
-        scoped = (universe[universe.OPERATION == operation]
-                  if "OPERATION" in universe.columns else universe)
-        pairs = sorted({(f, p) for f, p in zip(scoped.FAMILY, scoped.PART_TYPE)})
         # ADV / ANDV here too, so the picker and the subtitle it produces say
         # the same word. with_title=False: a selectbox option is plain text and
         # cannot carry a hover, and any markup would be shown literally.
@@ -93,9 +101,17 @@ with st.sidebar:
         chosen = st.selectbox("Family", labels, index=_idx(labels, want))
         family, part_type = pairs[labels.index(chosen)]
 
-        fam_rows = scoped[(scoped.FAMILY == family)
-                          & (scoped.PART_TYPE == part_type)]
-        seqs = sorted(int(s) for s in fam_rows[S].unique())
+        fam_rows = universe[(universe.FAMILY == family)
+                            & (universe.PART_TYPE == part_type)]
+        # Only the operations this family is actually routed through. The list
+        # was every operation in the plant; on a family with four steps, forty
+        # of the forty-eight led to an empty page.
+        ops = sorted(fam_rows.OPERATION.unique())
+        operation = st.selectbox("Operation", ops,
+                                 index=_idx(ops, pre.get("OPERATION")))
+
+        scoped = fam_rows[fam_rows.OPERATION == operation]
+        seqs = sorted(int(s) for s in scoped[S].unique())
         seq = st.selectbox("Routing step", seqs, index=_idx(seqs, pre.get("SEQ")),
                            help="The same operation can appear at several "
                                 "points of one routing and is a different job "
@@ -119,33 +135,25 @@ with st.sidebar:
             part_id = None if pick == "The family as a whole" else pick
 
 if empty_op:
-    # The rail must not simply vanish here. This is the moment its promise -
-    # "it always tells you where a unit stands" - is most load-bearing, because
-    # "nothing could be tested" is the single answer people are most likely to
-    # mistake for "the standard is fine".
-    with st.sidebar:
-        st.divider()
-        st.markdown("### Does it pass the six rules?")
-        ui.gate_rail(st, [{"passed": False, "name": "Enough work orders",
-                           "value": "nothing left to test"}]
-                     + [{"passed": False, "name": g, "value": "not reached"}
-                        for g in ["Consistently off the standard",
-                                  "Not a fluke of testing many at once",
-                                  "Sure of the direction",
-                                  "Big enough to be worth it",
-                                  "Enough hours to matter"]])
-        st.markdown(ui.chip("✕ no verdict is possible either way", ui.FAIL),
-                    unsafe_allow_html=True)
-        st.caption("Not the same as the standard being fine. There is no "
-                   "evidence here in either direction.")
-        st.divider()
-        ui.legend(st)
+    # WHAT THIS BRANCH MEANS CHANGED with the family-first picker. It used to
+    # fire when the chosen OPERATION had no testable unit - every work order a
+    # token booking - and it named that operation. Now the picker is built from
+    # the units themselves, so an operation in that state is simply never
+    # offered, and this fires only if an entire analysis has none: a workbook
+    # missing, or a pipeline run that produced nothing.
+    #
+    # It must not name `operation` any more. There is no operation selected at
+    # this point - the widget below the family never rendered - and the old
+    # message would have raised NameError on the one path it exists to handle.
     st.title("Inspect")
     st.warning(
-        f"**{operation}** produced no testable unit. Every work order in scope "
-        f"was closed with a token booking (≤ {pipeline.TOKEN_HOURS} h), which "
-        f"records that a ticket was closed rather than how long the job took. "
-        f"There is no duration in them to judge a standard against.",
+        f"**{kind}** has no units to inspect. Either its workbook has not been "
+        f"produced yet, or every work order in scope was closed with a token "
+        f"booking (≤ {pipeline.TOKEN_HOURS} h), which records that a ticket was "
+        f"closed rather than how long the job took.\n\n"
+        f"**This is not the same as the standards being fine.** None of the six "
+        f"rules could be applied, so there is no evidence here in either "
+        f"direction.",
         icon=":material/info:")
     st.page_link("pages/4_Not_standards.py",
                  label="See what that costs, on Not standards changes",
@@ -210,22 +218,17 @@ _r = stats.get("RATIO")
 needs_human = (kindof == "act" and _r is not None and pd.notna(_r)
                and (_r < pipeline.REVIEW_LO or _r > pipeline.REVIEW_HI))
 
-# ---- the rail ---------------------------------------------------------------
-with st.sidebar:
-    st.divider()
-    st.markdown("### Does it pass the six rules?")
-    blocker = ui.gate_rail(st, gates)
-    if needs_human:
-        st.markdown(ui.chip("! all six — but check this one by hand", ui.WARN),
-                    unsafe_allow_html=True)
-    elif kindof == "act":
-        st.markdown(ui.chip("✓ all six — change this standard", ui.PASS),
-                    unsafe_allow_html=True)
-    elif blocker is not None:
-        st.markdown(ui.chip(f"✕ stopped at rule {blocker + 1} — leave as is",
-                            ui.FAIL), unsafe_allow_html=True)
-    st.divider()
-    ui.legend(st)
+# ---- THE RAIL IS GONE, and with it the chip and the colour legend -----------
+# It was the point of this page when the main area repeated the numbers and
+# explained the consequence. It is not any more: "How this was decided" carries
+# the same six rules with the same figures, marks the blocker in words, and sits
+# above the fold; the banner above it states the outcome the chip used to; and
+# the legend now has three states a reader meets in the cards themselves.
+#
+# Three copies of the six rules on one screen was the thing to fix, and the rail
+# was the copy furthest from the evidence it describes. The sidebar keeps what
+# only it can do - choosing what to look at.
+blocker = next((i for i, g in enumerate(gates) if not g["passed"]), None)
 
 # ---- verdict ----------------------------------------------------------------
 field = {"SETUP_HRS": "SETUP_HRS",

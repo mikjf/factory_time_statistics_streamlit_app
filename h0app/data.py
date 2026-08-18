@@ -671,3 +671,40 @@ def all_units(operation):
     those are different answers.
     """
     return parts_book(operation, "05_AllUnits_WithEvidence")
+
+
+@st.cache_data(show_spinner="Indexing the per-operation workbooks...")
+def _run_index(key):
+    """Which family appears at which operation and step, across the run
+    analysis - the one thing the per-operation workbooks cannot answer alone.
+
+    Setup and HRS/LOAD each have a single rollup covering every operation, so
+    they need nothing like this. The PCS/HR run analysis writes one workbook per
+    operation, so a picker that starts from the FAMILY has no list to offer
+    until all of them have been read.
+
+    47 reads, about 12 seconds, cached on the workbooks' own mtimes - the same
+    trade operations() already makes for the summary sheets. Only the four key
+    columns are kept, so what is held afterwards is roughly a thousand rows.
+
+    Built from 05_AllUnits rather than from the extract: this sheet is exactly
+    what the page can go on to show. Taking the combinations from the parquet
+    instead would have offered families and steps that no unit exists for, and
+    the reader would meet an empty page having chosen from a valid-looking list.
+    """
+    frames = []
+    for op in operation_list():
+        try:
+            u = all_units(op)
+        except (FileNotFoundError, KeyError, ValueError):
+            continue
+        if u is None or u.empty:
+            continue           # an operation whose work orders were all tokens
+        frames.append(u[["FAMILY", "PART_TYPE", SEQ]].assign(OPERATION=op))
+    if not frames:
+        return pd.DataFrame(columns=["FAMILY", "PART_TYPE", SEQ, "OPERATION"])
+    return pd.concat(frames, ignore_index=True).drop_duplicates()
+
+
+def run_index():
+    return _run_index(paths.cache_key(paths.UPDATE_LIST))

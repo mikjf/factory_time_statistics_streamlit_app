@@ -135,6 +135,17 @@ CSS = """
 [data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) {
     background-color: rgba(221, 157, 61, .18) !important; }
 
+/* Streamlit reserves 6rem above the first element of every page to clear its
+   floating header. The header is 60px, so 36 of those 96 pixels were slack, and
+   the page title then added 20 more of its own padding on top of a 16px block
+   gap - 132px before the first word on a page whose first word says which unit
+   you are looking at.
+   4rem keeps 20px of clearance under the header, which the Deploy button sits
+   in, and gives back half a screen-inch on every page. Below 4rem the title
+   starts to tuck under that toolbar on a narrow window. */
+[data-testid="stMainBlockContainer"] { padding-top: 4rem; }
+[data-testid="stHeading"] h1 { padding-top: 0; }
+
 /* The line under a page title that says WHICH unit this is: part type, step,
    and whether one part or a whole family. It was st.caption - 14px at 60%
    opacity, the same treatment as a footnote under a chart - and it is not a
@@ -191,6 +202,10 @@ CSS = """
 .h0-rule-tight { padding:.55rem .7rem; gap:.28rem; }
 .h0-rule-tight .h0-rule-name { font-size:.92rem; }
 .h0-rule-val { font-size:.92rem; font-weight:600; }
+/* Rides on the rule's own name line, so it inherits the red rather than setting
+   it. Smaller and tracked out, so it reads as a stamp on the rule rather than
+   as part of what the rule is called. */
+.h0-rule-stop { font-size:.72rem; letter-spacing:.05em; }
 /* No margin-top:auto here. Pushing this to the foot of the card left a gap of a
    different size under every pill, so six boxes of identical height still read
    as six different layouts. The text follows the pill and the slack collects at
@@ -357,12 +372,21 @@ def rule_results(container, gates, per_row=2):
     cards = []
     for i, g in enumerate(gates):
         ok = g["passed"]
-        colour = PASS if ok else (FAIL if i == blocker else MUTE)
-        mark = "&#10003;" if ok else ("&#10005;" if i == blocker else "&ndash;")
+        colour = PASS if ok else FAIL
+        mark = "&#10003;" if ok else "&#10005;"
+        # INLINE, on the name, rather than a line of its own underneath. The
+        # separate line cost every one of the six cards a row of height - the
+        # grid sizes them all to the tallest - to mark one of them. Four
+        # characters on the end of the name buy the same thing for nothing.
+        #
+        # No colour of its own: the whole name line is already FAIL-red, since
+        # only a failing rule can be the blocker.
+        stop = (' <span class="h0-rule-stop">(STOPPED)</span>'
+                if i == blocker else "")
         cards.append(
             f'<div class="h0-rule h0-rule-tight">'
             f'<div class="h0-rule-name" style="color:{colour}">'
-            f'{mark} {i + 1}. {_e(g["name"])}</div>'
+            f'{mark} {i + 1}. {_e(g["name"])}{stop}</div>'
             f'<div class="h0-rule-val">{_e(g.get("value", ""))}</div>'
             f'</div>')
     container.markdown(
@@ -624,17 +648,25 @@ def chip(label, colour):
 def gate_rail(container, gates):
     """The six rules, with this unit's own figure against each.
 
-    Only the FIRST failure is marked as the blocker. The rest are still shown
-    with their real values rather than greyed out, because "it failed on the
-    hours floor by two hours" and "it failed on everything" are different
-    situations and a reviewer needs to tell them apart.
+    EVERY FAILURE IS RED; the first one carries "stopped here". Colour answers
+    the question a reader asks six times on this rail - did this rule pass - and
+    the label answers the one they ask once, which rule decided. It used to be
+    the other way round: red meant "the blocker" and a later failure went grey,
+    which spent the strongest signal on an ordinal fact and needed a third state
+    nobody could name on sight.
+
+    The blocker still has to be marked, and not as a nicety. h0_v2_analysis
+    .recommend() returns at the first failing condition, so the reason written
+    into the workbook - the line somebody reads on the update list - is that
+    rule and no other. A page that could not point at it would disagree with
+    its own deliverable.
     """
     blocker = next((i for i, g in enumerate(gates) if not g["passed"]), None)
     rows = []
     for i, g in enumerate(gates):
         ok = g["passed"]
-        colour = PASS if ok else (FAIL if i == blocker else MUTE)
-        mark = "&#10003;" if ok else ("&#10005;" if i == blocker else "&ndash;")
+        colour = PASS if ok else FAIL
+        mark = "&#10003;" if ok else "&#10005;"
         stop = (f'<div class="h0-stop" style="color:{FAIL}">stopped here</div>'
                 if i == blocker else "")
         rows.append(
@@ -736,13 +768,17 @@ def funnel(container, sections, scale_to=None):
 # hypothetical: it is the review flag, on 85 rows.
 #
 # (mark, colour, label, what it means on a unit)
+# THREE STATES, not four. There was a fourth - a grey dash for "failed, but
+# not the first to fail" - and a reader who met it had no way to guess what it
+# meant; the dash itself reads as "not applicable" when it meant "failed". Every
+# failure is red now, and the rule that decided is named in words on the rail
+# and on the cards rather than distinguished by hue.
 STATES = [
     ("✓", PASS, "rule passed", "this unit cleared it"),
-    ("✕", FAIL, "stopped here", "only the first failure is marked"),
+    ("✕", FAIL, "rule failed",
+     "the first one to fail is marked stopped here"),
     ("!", WARN, "needs a human before keying",
      "all rules passed but extreme, check"),
-    ("–", MUTE, "failed, but not the blocker",
-     "shown with its real value anyway"),
 ]
 
 
