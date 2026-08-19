@@ -359,12 +359,28 @@ with k[3].container(key="h0-inline-delta-hours"):
                    f"{pipeline.FY_LABEL} to the last booking in the extract. "
                    f"Positive means the jobs take longer than the master "
                    f"allows.")
-k[4].metric("Ratio", ui.fmt(stats.get("RATIO"), ".3f"),
-            help=f"Actual hours ÷ master hours, outliers removed, across "
-                 f"{ui.num(stats.get('N_COUNTED', 0))} counted work orders "
-                 f"({ui.num(len(rows))} in scope, "
-                 f"{ui.num(len(rows) - stats.get('N_COUNTED', 0))} excluded). "
-                 f"Above 1.0 the job takes longer than the master.")
+# HOW MUCH EVIDENCE, rather than the ratio that used to sit here. The ratio is
+# on this page five times over - the table below states it in both scales, rule
+# 4 gives its band, rule 5 restates it as a percentage, and the chart's whole
+# axis is it - while the weight of evidence behind it appeared nowhere in the
+# summary. "Is this based on enough?" is the first thing anyone asks of a
+# proposed change, and it was an expander away.
+#
+# N_COUNTED, the same figure and the same word as the chart's legend below
+# ("17 · counted"), so the two agree on sight. It is deliberately NOT the
+# "17 tested" of rule 1: tested is what entered the statistical test, counted is
+# what survived the outlier filter into the ratio, and on 40 of 150 sampled
+# units those differ. The tooltip therefore names all three stages, so a reader
+# who spots the gap against rule 1 finds it explained rather than contradicted.
+#
+# The label matches v1's Unit detail exactly - the same number under the same
+# words in both versions.
+k[4].metric("Work orders counted", ui.num(stats.get("N_COUNTED", 0)),
+            help=f"{ui.num(len(rows))} in scope, "
+                 f"{ui.num(stats.get('N_TESTED', 0))} tested, "
+                 f"{ui.num(stats.get('N_COUNTED', 0))} counted once outliers "
+                 f"were removed. The ratio is measured across the counted "
+                 f"ones.")
 # st.caption, not st.markdown. This sentence is a note about how to read the
 # two numbers above it, which is what every other caption on the page does; at
 # body weight it sat in the reading flow as though it were a finding of its own.
