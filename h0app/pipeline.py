@@ -51,6 +51,16 @@ setup_view.CACHE = _CACHE
 
 # ---- thresholds, taken from the scripts that applied them -------------------
 FY_START = analysis.FY_START
+
+# The window's NAME, derived from its start rather than written down, so it
+# cannot drift from the date the analysis actually filters on. Lives here beside
+# FY_START because three pages print it and a second copy is how "FY26" outlives
+# the year it referred to.
+#
+# ASSUMES THE FISCAL YEAR IS NAMED AFTER THE CALENDAR YEAR IT ENDS IN and opens
+# in the one before - true here, where 1 Oct 2025 opens FY26. A fiscal year
+# opening in January would need the +1 dropped.
+FY_LABEL = f"FY{(pd.Timestamp(FY_START).year + 1) % 100:02d}"
 MIN_WO = analysis.MIN_WO
 ALPHA = analysis.ALPHA
 MIN_EFFECT = analysis.MIN_EFFECT

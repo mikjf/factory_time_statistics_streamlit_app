@@ -36,6 +36,12 @@ freshness.guard()
 
 S = data.SEQ
 RUN, SETUP, LOAD = "Run — PCS/HR", "Setup", "Run — HRS/LOAD"
+# One phrase, two casings: WHOLE is a menu option and takes a capital, and
+# WHOLE_INLINE runs inside a sentence. Held here rather than written out at
+# each of the three places it appears, because the picker's value is compared
+# against it - a typo in one copy silently turns the family into a part.
+WHOLE = "Family as a whole"
+WHOLE_INLINE = "family as a whole"
 pre = st.session_state.get("unit") or {}
 
 
@@ -128,11 +134,14 @@ with st.sidebar:
             members = members[(members.FAMILY == family)
                               & (members.PART_TYPE == part_type)
                               & (members[S] == seq)]
-            opts = ["The family as a whole"] + sorted(
-                members.PART_ID.unique().tolist())
+            # "Family as a whole", not "The family as a whole". Under a label
+            # that already reads "Judged at", the article adds a word without
+            # adding a distinction - the alternatives are part numbers, and no
+            # one needs "the" to tell a family from one of those.
+            opts = [WHOLE] + sorted(members.PART_ID.unique().tolist())
             pick = st.selectbox("Judged at", opts,
                                 index=_idx(opts, pre.get("PART_ID")))
-            part_id = None if pick == "The family as a whole" else pick
+            part_id = None if pick == WHOLE else pick
 
 if empty_op:
     # WHAT THIS BRANCH MEANS CHANGED with the family-first picker. It used to
@@ -191,7 +200,7 @@ st.title(f"{family}")
 # this page does not already know.
 ui.subtitle(st, " · ".join([
     ui.part_tag(part_type),
-    f"part {part_id}" if part_id else "the family as a whole",
+    f"part {part_id}" if part_id else WHOLE_INLINE,
     str(operation),
     f"routing step {seq}"]))
 
@@ -294,11 +303,17 @@ if kindof == "act":
     # arithmetic sign, so a rate correctly coming DOWN prints red - a colour
     # meaning something other than what the legend says, in the one product
     # whose rule is that colour always carries meaning.
-    k[2].metric("Change it to", ui.fmt(w["suggested"]),
-                delta=(f"{(w['suggested'] / w['current'] - 1) * 100:+.1f}%"
-                       if pd.notna(w["suggested"]) and pd.notna(w["current"])
-                       and w["current"] else None),
-                delta_color="off")
+    #
+    # The key puts the change beside the value rather than under it - see the
+    # .st-key-h0-inline-delta rules in ui.py. It is a qualifier on the number,
+    # read in the same breath as it, and on its own line it took a line of the
+    # row and left this metric taller than the four beside it.
+    with k[2].container(key="h0-inline-delta-change"):
+        st.metric("Change it to", ui.fmt(w["suggested"]),
+                  delta=(f"{(w['suggested'] / w['current'] - 1) * 100:+.1f}%"
+                         if pd.notna(w["suggested"]) and pd.notna(w["current"])
+                         and w["current"] else None),
+                  delta_color="off")
 else:
     # No number here, and no apology for it either. "Measured" two columns left
     # now carries the arithmetic openly, so this metric no longer has to smuggle
@@ -306,9 +321,44 @@ else:
     k[2].metric("Change it to", "leave as is",
                 help="This unit did not clear all six rules, so no change is "
                      "proposed. What the evidence measured is beside it.")
-k[3].metric("Hours a year", ui.hrs(stats.get("HOURS_DELTA", 0)),
-            help="Actual minus master, over the fiscal year, for this unit. "
-                 "Positive means the job takes longer than the master allows.")
+# "Hours from FY26", not "Hours a year". The window is the fiscal year TO DATE -
+# it opens at FY_START and runs to the last labour ticket, which today is about
+# ten months - so "a year" invited a reader to treat a part-year total as an
+# annual one. The label is built from pipeline.FY_LABEL, itself derived from
+# FY_START, so it cannot outlive the year it names.
+_hd = stats.get("HOURS_DELTA", 0)
+# WHICH DIRECTION, in a word, in the slot Streamlit keeps for a delta. The sign
+# is on the number already, but a minus in front of hours is ambiguous until you
+# know whether hours going down is the jobs being quick or the standard being
+# cut - and it is the first, which is not obvious.
+#
+# It used to be our own chip in a block underneath, pulled up by a negative
+# margin matched to Streamlit's furniture by eye. As a real delta it IS that
+# furniture: the same element as the "+17.8%" two columns left, so the two can
+# no longer drift apart under a Streamlit upgrade. One word - "than the master"
+# is the only thing it could be measured against on a row whose other metrics
+# are called Standard now and Measured, and the pill it lines up with says
+# "+17.8%", not "+17.8% against the standard".
+#
+# delta_color is "off" here for the reason it is off there: this is a fact about
+# the pool, not a verdict, and green/red/amber are spoken for by the six rules.
+# The pill reads the PRINTED figure, not the raw one. Rounded to whole hours, a
+# delta of +0.34 prints "0 h" - and a pill saying "slower" beside a number
+# saying nothing happened is a contradiction the reader has to resolve. It is
+# not a rare shape either: across the unit sheets, 3'761 run units and 1'100
+# load units round to zero from a non-zero delta, against 515 and 18 that are
+# flat zero. Taking the direction off ui.hrs's own output rather than off _hd
+# makes the two agree by construction instead of by coincidence.
+_shown = ui.hrs(_hd, sign=True)
+with k[3].container(key="h0-inline-delta-hours"):
+    st.metric(f"Hours from {pipeline.FY_LABEL}", _shown,
+              delta=("slower" if _shown.startswith("+")
+                     else "faster" if _shown.startswith("-") else None),
+              delta_color="off",
+              help=f"Actual minus master for this unit, from the start of "
+                   f"{pipeline.FY_LABEL} to the last booking in the extract. "
+                   f"Positive means the jobs take longer than the master "
+                   f"allows.")
 k[4].metric("Ratio", ui.fmt(stats.get("RATIO"), ".3f"),
             help=f"Actual hours ÷ master hours, outliers removed, across "
                  f"{ui.num(stats.get('N_COUNTED', 0))} counted work orders "
@@ -433,7 +483,7 @@ with _tc:
         _key = "nothing"
 
     _at = (f"part **{part_id}**" if part_id else
-           "the family as a whole"
+           WHOLE_INLINE
            + (f" — {int(stats['N_PARTS'])} parts pooled"
               if stats.get("N_PARTS") else ""))
 
@@ -454,43 +504,50 @@ with _tc:
 st.divider()
 
 # ---- evidence ---------------------------------------------------------------
-c1, c2 = st.columns([1.35, 1])
+# FULL WIDTH. "What counted, and what did not" used to sit in a column beside
+# this one, listing each status with its count. The counts moved into the
+# chart's own legend - "15 · counted" - which is where the colours already are,
+# so the panel was a second reading of the same fact taking a third of the row.
+st.subheader("Every work order against its standard")
+st.caption("One dot per work order, actual hours against master. Left of the "
+           "line the job beat the master, right of it the job took longer. "
+           "Hover any dot for the work order behind it. The legend counts each "
+           "kind.")
+chart = charts.distribution(rows, stats, height=330)
+if chart is not None:
+    st.altair_chart(chart, width="stretch")
 
-with c1:
-    st.subheader("Every work order against its standard")
-    st.caption("One dot per work order, actual hours against master. Left of "
-               "the line the job beat the master, right of it the job took "
-               "longer. Hover any dot for the work order behind it.")
-    chart = charts.distribution(rows, stats, height=330)
-    if chart is not None:
-        st.altair_chart(chart, width="stretch")
-    with st.expander("Why the shaded band and the red line can disagree"):
-        st.markdown(charts.ci_caption(stats))
+# WHAT THE CHART CANNOT DRAW still has to be counted somewhere. A skipped setup
+# has no worked hours, so it has no ratio and no dot - it was in the old panel's
+# list and would otherwise have vanished with it. Same test the chart applies.
+_undrawn = rows[rows.RATIO.isna() | (rows.RATIO <= 0)]
+if len(_undrawn):
+    st.caption("Not on the chart, having no ratio to place: "
+               + ", ".join(f"**{n}** {s}"
+                           for s, n in _undrawn.STATUS.value_counts().items())
+               + ".")
 
-with c2:
-    st.subheader("What counted, and what did not")
-    counts = rows.STATUS.value_counts()
-    for status, n in counts.items():
-        colour = charts.COLOURS.get(status, ui.MUTE)
-        st.markdown(
-            ui.chip(f"{n} · {status}", colour), unsafe_allow_html=True)
-    if stats.get("BASIS") and stats["BASIS"] != "single master":
-        st.info(f"**{stats['BASIS']}** — the standard changed during the "
-                f"period, and work orders run under the superseded value "
-                f"describe a standard that no longer exists.",
-                icon=":material/history:")
-    # Gated on the verdict. Unconditional, this told a reader to "apply the
-    # ratio to each part's own value" on a screen whose banner said to leave
-    # the standard alone - and on a real action it repeated, in different
-    # words, the box already shown above the fold.
-    spread = stats.get("N_DISTINCT_CURRENT")
-    if spread is not None and pd.notna(spread) and int(spread) > 1 \
-            and kindof != "act":
-        st.caption(f"For information: the parts in this pool run "
-                   f"**{int(spread)} different current values**, so "
-                   f"'Standard now' is the hours-weighted blend rather than any "
-                   f"one stored figure. Nothing to apply — this unit is not "
-                   f"proposed for change.")
+with st.expander("Why the shaded band and the red line can disagree"):
+    st.markdown(charts.ci_caption(stats))
+
+if stats.get("BASIS") and stats["BASIS"] != "single master":
+    st.info(f"**{stats['BASIS']}** — the standard changed during the "
+            f"period, and work orders run under the superseded value "
+            f"describe a standard that no longer exists.",
+            icon=":material/history:")
+
+# Gated on the verdict. Unconditional, this told a reader to "apply the ratio to
+# each part's own value" on a screen whose banner said to leave the standard
+# alone - and on a real action it repeated, in different words, the box already
+# shown above the fold.
+spread = stats.get("N_DISTINCT_CURRENT")
+if spread is not None and pd.notna(spread) and int(spread) > 1 \
+        and kindof != "act":
+    st.caption(f"For information: the parts in this pool run "
+               f"**{int(spread)} different current values**, so "
+               f"'Standard now' is the hours-weighted blend rather than any "
+               f"one stored figure. Nothing to apply — this unit is not "
+               f"proposed for change.")
 
 st.divider()
 

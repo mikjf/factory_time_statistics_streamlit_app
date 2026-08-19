@@ -55,8 +55,9 @@ with st.sidebar:
 
 # ---- header -----------------------------------------------------------------
 st.title("Overview")
-st.caption("Where the master standards disagree with what the shop floor "
-           "actually books (real job durations), from FY26 onwards.")
+st.caption(f"Where the master standards disagree with what the shop floor "
+           f"actually books (real job durations), from {pipeline.FY_LABEL} "
+           f"onwards.")
 
 freshness.guard()
 

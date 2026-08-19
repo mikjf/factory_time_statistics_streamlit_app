@@ -146,6 +146,70 @@ CSS = """
 [data-testid="stMainBlockContainer"] { padding-top: 4rem; }
 [data-testid="stHeading"] h1 { padding-top: 0; }
 
+/* The help "?" beside a widget label, next to the label instead of adrift on
+   the far right. Streamlit wraps the icon in a spacer div set to flex:1, so on
+   a 260px selectbox the question mark landed 190px away from the word it
+   explains and read as belonging to the box below it rather than to the label.
+   Scoped to stWidgetLabel: st.metric already places its icon against the text,
+   and this must not move it. */
+[data-testid="stWidgetLabel"] > div:has([data-testid="stTooltipIcon"]) {
+    flex: 0 0 auto; margin-left: .375rem;
+}
+
+/* A metric whose delta reads beside its value rather than under it. Streamlit
+   stacks label / value / delta in one block column, which cost a whole line and
+   left a metric carrying a delta 27px taller than its neighbours - a row of
+   five sitting at two heights.
+   Laid out as a wrapping flex line, the label keeps a row of its own and the
+   value and the delta share the next one on a common baseline. Two consequences
+   worth having: every metric in the row is the same height again, and the
+   alignment of the two pills is now a fact of the layout rather than a negative
+   margin matched to Streamlit's furniture by eye. On a narrow window the delta
+   wraps back under the value instead of overflowing its column.
+   The pill sits ON the number's baseline: its bottom edge and the bottom of the
+   digits are the same line. Neither of the two alignments CSS offers by name
+   gives that. flex-end aligns the pill to the bottom of the value's LINE BOX,
+   which on a 36px Source Sans runs 1rem below the baseline, so the pill hung
+   low; baseline aligns the two texts' baselines, which drops the pill's own
+   background a descender lower still - and worse, a delta carrying an arrow is
+   a flex row whose first item is the SVG, and a flex container takes its
+   baseline from its first item, so the arrowed pill sat 3px off the other one:
+   the exact misalignment this whole change exists to remove.
+   So: flex-end, lifted by that 1rem of below-baseline leading. In rem because
+   Streamlit sizes the metric value in rem too, so the two scale together.
+   The delta's wrapper is display:contents rather than a box of its own - it
+   carries 4px under the pill that would otherwise have to be subtracted here,
+   and dissolving it keeps the arithmetic to one term.
+   OPT-IN, by st.container(key="h0-inline-delta-..."), which Streamlit renders
+   as a .st-key- class. Applied globally it would also catch "18 of 224" on the
+   review queue, where the delta is a denominator and belongs under the count it
+   qualifies. */
+[class*="st-key-h0-inline-delta"] [data-testid="stMetric"] > div {
+    display: flex; flex-wrap: wrap; align-items: flex-end; column-gap: .5rem;
+}
+[class*="st-key-h0-inline-delta"] [data-testid="stMetricLabel"] { flex: 0 0 100%; }
+[class*="st-key-h0-inline-delta"] [data-testid="stMetric"] > div
+    > div:has(> [data-testid="stMetricDelta"]) { display: contents; }
+[class*="st-key-h0-inline-delta"] [data-testid="stMetricDelta"] {
+    margin-bottom: 1rem;
+    /* Streamlit gives the pill 4px of left padding and 6px of right, which is
+       enough for a percentage flanked by an arrow and too tight for a word:
+       "faster" sat against both ends of its own background. Horizontal only -
+       growing it vertically would move the bottom edge off the baseline the
+       rule above puts it on.
+       .5rem and no more: a row of five metrics on a 1280px window gives each
+       column 146px, and value + gap + pill has to fit inside it. At .625rem
+       both pills tipped over and wrapped back under their value, which costs
+       the whole point of the change to buy 2px of air. */
+    padding-left: .5rem; padding-right: .5rem;
+}
+
+/* "faster" and "slower" are words, not arithmetic. Streamlit picks the delta
+   arrow from a leading minus, so both readings carry the same UP arrow - an
+   arrow pointing up beside the word "faster". The word already says the
+   direction; the arrow can only contradict it. */
+.st-key-h0-inline-delta-hours [data-testid="stMetricDelta"] svg { display: none; }
+
 /* The line under a page title that says WHICH unit this is: part type, step,
    and whether one part or a whole family. It was st.caption - 14px at 60%
    opacity, the same treatment as a footnote under a chart - and it is not a
@@ -861,10 +925,24 @@ def num(v, dec=0, dash="—"):
     return fmt(v, f",.{dec}f", dash)
 
 
-def hrs(v, dec=0, dash="—"):
-    """1'234 h."""
+def hrs(v, dec=0, dash="—", sign=False):
+    """1'234 h. With sign=True, a signed delta: +30 h as well as -45 h.
+
+    Only for numbers that are a difference. A total of 30 h is 30 h; a delta of
+    30 h is 30 h MORE than the master, and printed bare it reads as the total.
+    The sign is taken from the ROUNDED figure, so a delta that displays as 0
+    stays unsigned rather than claiming a direction it does not have - and a
+    small negative that rounds to nothing prints "0 h", not the "-0 h" that
+    plain formatting gives it. Callers can therefore read the direction off the
+    returned string and be certain it agrees with what the reader sees."""
     out = num(v, dec, dash)
-    return out if out == dash else f"{out} h"
+    if out == dash:
+        return dash
+    if float(out.replace("'", "")) == 0:
+        out = num(0, dec)
+    elif sign and float(out.replace("'", "")) > 0:
+        out = "+" + out
+    return f"{out} h"
 
 
 def swiss_grid(df, specs):

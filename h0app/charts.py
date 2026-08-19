@@ -92,7 +92,19 @@ def distribution(rows, stats, height=300, legend=True):
             lo, hi = min(lo, float(v)), max(hi, float(v))
     lo, hi = lo * 0.75, hi * 1.35
 
+    # ---- the legend counts what it labels ----------------------------------
+    # "15 · counted" rather than "counted", so the legend answers "how many of
+    # each" as well as "which colour is which". Inspect used to answer the first
+    # question in a column of its own beside the chart; the numbers belong on
+    # the colours they count.
+    #
+    # A separate field rather than rewriting STATUS: the tooltip, the evidence
+    # table and the reconciliation all read STATUS, and none of them wants a
+    # count glued to it.
     present = [s for s in evidence.EXCLUDED_FIRST if s in set(d.STATUS)]
+    counts = d.STATUS.value_counts()
+    d["LEGEND"] = d.STATUS.map(lambda s: f"{counts.get(s, 0)} · {s}")
+    labelled = [f"{counts[s]} · {s}" for s in present]
     layers = []
 
     # ---- the tooltip -------------------------------------------------------
@@ -198,8 +210,8 @@ def distribution(rows, stats, height=300, legend=True):
                                   grid=False)),
             y=alt.Y("JITTER:Q", axis=None,
                     scale=alt.Scale(domain=[-1.5, 1.5])),
-            color=alt.Color("STATUS:N",
-                            scale=alt.Scale(domain=present,
+            color=alt.Color("LEGEND:N",
+                            scale=alt.Scale(domain=labelled,
                                             range=[COLOURS[s] for s in present]),
                             # SOLID DOTS, matching ui.chart_key. Left alone,
                             # a Vega legend inherits the mark's own styling -

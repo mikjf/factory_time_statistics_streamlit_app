@@ -90,13 +90,10 @@ c[2].metric("Parts", ui.num(facts["parts"]))
 c[3].metric("Families", ui.num(facts["families"]))
 c[4].metric("Operations", ui.num(facts["operations"]))
 
-# Derived from FY_START rather than written down, so it cannot drift from the
-# date the analysis actually filters on. ASSUMES THE FISCAL YEAR IS NAMED AFTER
-# THE CALENDAR YEAR IT ENDS IN and opens in the one before - true here, where
-# 1 Oct 2025 opens FY26. A fiscal year that opened in January would need the
-# +1 dropped.
+# Derived from FY_START rather than written down - see pipeline.FY_LABEL, where
+# it now lives so that Inspect and the landing page print the same name.
 _fy = pd.Timestamp(pipeline.FY_START)
-FY_LABEL = f"FY{(_fy.year + 1) % 100:02d}"
+FY_LABEL = pipeline.FY_LABEL
 
 # The window is still stated by its dates as well as its name: bookings run from
 # the start of the fiscal year to the day the extract was taken, which is not

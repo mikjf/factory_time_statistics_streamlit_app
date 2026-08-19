@@ -182,7 +182,7 @@ duration. Inspect and "How to read it" both carry the mapping between them:
 | **measured** | 1.181 (+18.1%) | Run 8.47 PCS/HR (−15.3%) |
 | **95% band** | 1.067 – 1.244 | excludes 1.000 |
 | **to key** | | 8.47 — edit `RUN_MASTER` |
-| **judged at** | | one part, or the family as a whole |
+| **judged at** | | one part, or family as a whole |
 
 Read down either column and the correction directions are simply there: the
 ratio rises 18.1%, the rate falls 15.3%, one event. A duration moves the same

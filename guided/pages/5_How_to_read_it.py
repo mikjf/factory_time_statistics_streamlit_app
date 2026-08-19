@@ -259,7 +259,7 @@ if len(_ex_pool):
                         _at = f"part **{_ex.PART_ID}**"
                     else:
                         _np = _stats.get("N_PARTS")
-                        _at = ("the family as a whole"
+                        _at = ("family as a whole"
                                + (f" — {int(_np)} parts pooled" if _np else ""))
                     # LAST ROW, not the first. Both rows that carry no ratio now
                     # sit together at the foot, which leaves the ratio column
