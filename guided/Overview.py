@@ -114,7 +114,7 @@ st.divider()
 g1, g2 = st.columns(2)
 
 with g1:
-    st.subheader("Hours by labor ticket type and run type")
+    st.subheader("Hours by labour ticket type and run type")
     st.caption("What is actually being edited, and how much of the "
                "misstatement cancels out within each.")
     kind = np.where(acts.TARGET == "SETUP_HRS", "Setup",

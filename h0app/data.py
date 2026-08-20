@@ -408,10 +408,11 @@ def _run_funnel(key):
     nunique(WORK_ORDER) WITHIN an operation and summed across them - so a work
     order that meets the same operation at two sequences counts once, while the
     analysis tests it twice. That total (19,050) matches nothing else on the
-    page: not the ticket count above it, not the unit count below it.
+    page: not the booking-line count above it, not the unit count below it.
 
     to_wo_level is the real grain - one row per standard per work order - and it
-    lands within one row of the ticket count, so the funnel can open where the
+    lands within one row of the booking-line count, so the funnel can open where
+    the
     deduction table closed instead of silently changing what it counts.
     """
     df = pipeline.read_extract()
@@ -422,7 +423,10 @@ def _run_funnel(key):
             & (df.HOURS_WORKED > 0) & df.MASTER_OPS_ROWID.notna()]
     wo = pipeline.to_wo_level(sc)
     kept, tokens = pipeline.drop_token_bookings(wo)
-    return {"tickets": len(sc), "at_a_standard": len(wo),
+    # "lines", not "tickets": len(sc) counts EXTRACT ROWS, each already the sum
+    # of however many labour tickets the query folded into it. The old name is
+    # what put "PCS/HR run tickets" under a bar that counts rows.
+    return {"lines": len(sc), "at_a_standard": len(wo),
             "with_duration": len(kept), "tokens": len(tokens)}
 
 

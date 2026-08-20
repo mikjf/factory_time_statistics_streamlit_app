@@ -116,7 +116,7 @@ if nothing_to_judge:
 **This is not a clean bill of health.** It means the analysis has nothing to say
 about **{part}** in either direction, which usually comes down to one of:
 
-- every labour ticket was closed at or under {pipeline.TOKEN_HOURS} h — a ticket
+- every work order was closed at or under {pipeline.TOKEN_HOURS} h — an order
   closed rather than a job timed, with no duration inside it to judge
 - the steps it runs are rework, which carries no standard by design
 - its routing steps are no longer in the current master revision, so the work

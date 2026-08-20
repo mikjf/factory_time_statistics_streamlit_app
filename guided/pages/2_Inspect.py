@@ -653,7 +653,7 @@ st.divider()
 
 # ---- the rows ---------------------------------------------------------------
 st.subheader("The work orders behind this")
-st.caption("Every labour ticket in scope, including the ones that did not "
+st.caption("Every work order in scope, including the ones that did not "
            "count. This is the row-level data the conclusion was drawn from.")
 # evidence.table_cols, not every column: the frame also carries the chart
 # tooltip's pre-formatted strings, which are display text and would sort as

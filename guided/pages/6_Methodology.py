@@ -79,9 +79,13 @@ with st.sidebar:
 # ---- what is in it ----------------------------------------------------------
 c = st.columns(5)
 # NOT "labour tickets": one row is work order x routing step x Run/Setup x
-# resource, and the query sums the tickets inside each one. There are more
-# tickets than rows and the extract cannot say how many - the aggregation has
-# already happened by the time it reaches here.
+# resource, and the query sums the tickets inside each one. 76'113 rows carry
+# 120'570 tickets - 2.12x inside the run scope - so the two are nowhere
+# interchangeable.
+#
+# The extract CAN say how many: LT_ROWS carries the count and is non-null on
+# every row. Deliberately not published - nothing in the analysis tests at
+# ticket grain, so the column would be a number no threshold ever uses.
 c[0].metric("Labour booking lines", ui.num(facts["rows"]),
             help="One row per work order, routing step, run or setup, and "
                  "resource. Labour tickets are summed within each.")
@@ -143,19 +147,23 @@ st.markdown(
 # below it so the two read as one statement, and above the funnel because the
 # surviving total IS the funnel's first bar.
 #
-# Every ticket is counted against the FIRST rule it meets, so the column
+# Every booking line is counted against the FIRST rule it meets, so the column
 # subtracts down to the total instead of overshooting - see data.EXCLUSIONS
 # for why the order is what it is.
 st.subheader("What that leaves to analyse", anchor="leaves")
 st.caption("The scope rules above, counted — not the ones applied later inside "
            "an analysis, which act on what survives here and cannot be added "
-           "to the same column. Every ticket is charged to the first rule it "
-           "meets, so the column subtracts down to the total.")
+           "to the same column. Every booking line is charged to the first "
+           "rule it meets, so the column subtracts down to the total.")
 
 (n0, h0), rows, split, (n1, h1) = data.deduction()
 
-tbl = [{"": "Every labour ticket in the extract",
-        "Tickets": ui.num(n0), "Hours": ui.num(h0)}]
+# "Booking lines", not "Tickets" - the same word the metric above uses. Both
+# count ROWS, and a row is one work order at one step on one resource with its
+# tickets already summed inside it. "Tickets" understated the true count by
+# 2.12x on the run scope and contradicted this page's own metric.
+tbl = [{"": "Every booking line in the extract",
+        "Booking lines": ui.num(n0), "Hours": ui.num(h0)}]
 for label, n, h in rows:
     # A rule that catches nothing is dropped from the table rather than shown
     # at zero. The fiscal-year bound is the case: the query now applies it at
@@ -179,7 +187,7 @@ for label, n, h in rows:
     # "- Rework". The escape produces a literal ASCII hyphen, which is also the
     # character the number formatter puts on the values in the same row.
     tbl.append({"": f"\\- {label}",
-                "Tickets": ui.num(n),
+                "Booking lines": ui.num(n),
                 # Reversals carry negative hours, so removing them ADDS to the
                 # running total. Signed explicitly, because a "+" in a column
                 # of deductions is the one entry a reader will assume is a bug.
@@ -191,16 +199,17 @@ for label, n, h in rows:
 # Bold has to be applied per cell rather than to the row: st.table renders each
 # cell as its own markdown block, so there is no row-level markup to hang it on.
 tbl.append({"": "**Carried into the analysis**",
-            "Tickets": f"**{ui.num(n1)}**", "Hours": f"**{ui.num(h1)}**"})
+            "Booking lines": f"**{ui.num(n1)}**",
+            "Hours": f"**{ui.num(h1)}**"})
 
 st.table(pd.DataFrame(tbl).set_index(""))
-# Tickets first, hours second, so the sentence runs in the same order as the
+# Booking lines first, hours second, so the sentence runs in the same order as
 # columns above it. The bold stays on hours: that is the figure the rest of the
 # tool is denominated in.
 st.caption(
-    f"That is {n1 / n0:.0%} of the tickets in the window, and "
+    f"That is {n1 / n0:.0%} of the booking lines in the window, and "
     f"**{h1 / h0:.0%} of the hours** booked — the two differ because most of "
-    f"what is removed is many small tickets rather than many hours. Rows are "
+    f"what is removed is many small lines rather than many hours. Rows are "
     f"counted against the first rule they meet, so the column subtracts down to the "
     f"total; the rules overlap, and counted independently they would sum to "
     f"more than the extract holds.")
@@ -208,7 +217,7 @@ st.caption(
 st.subheader("Carried hours split per type", anchor="split")
 st.caption("Each is analysed separately, and the split is exhaustive — nothing "
            "carried in falls outside these three.")
-sp = [{"": label, "Tickets": ui.num(n), "Hours": ui.num(h)}
+sp = [{"": label, "Booking lines": ui.num(n), "Hours": ui.num(h)}
       for label, n, h in split]
 st.table(pd.DataFrame(sp).set_index(""))
 st.caption(
@@ -297,30 +306,31 @@ st.caption("Shown for `PCS/HR` run because it is the biggest of the three and "
 # however many work orders happened to run it. Drawn on a single scale the drop
 # read as ten thousand work orders being thrown away.
 #
-# COUNTED IN WORK ORDERS, NOT TICKETS, and the distinction is not pedantic here.
-# ops.WORK_ORDERS is the workbooks' "Work orders in scope", which is nunique per
-# operation - so a work order visiting ten operations counts ten times, and the
-# figure is really work-order x operation. Tickets for the same scope come to
-# 20,373, which is what the deduction table above reports on its Run PCS/HR row.
+# COUNTED IN WORK ORDERS, NOT BOOKING LINES, and the distinction is not pedantic
+# here. ops.WORK_ORDERS is the workbooks' "Work orders in scope", which is
+# nunique per operation - so a work order visiting ten operations counts ten
+# times, and the figure is really work-order x operation. Booking lines for the
+# same scope come to 20,373, which is what the deduction table above reports on
+# its Run PCS/HR row.
 ui.funnel(st, [
     # ui.funnel prepends "counted in", so the unit string must not repeat it
     ("What the shop floor booked", "work orders at one standard", [
         # Opens where the deduction table closed. It used to open on 19,050,
         # the workbooks' per-operation distinct work orders, which is a grain
-        # nothing else on the page uses - lower than the tickets above it for a
-        # reason no reader could infer.
+        # nothing else on the page uses - lower than the booking lines above
+        # it for a reason no reader could infer.
         # No backticks in a bar note - ui.funnel escapes them rather than
         # rendering markdown, so they come out as literal characters.
-        # The gap between the ticket count and this bar is explained only when
+        # The gap between the line count and this bar is explained only when
         # there IS one. Today it is a single row; it is not structurally always
         # one, and a note describing a difference of zero would send a reader
         # hunting for it.
         ("Carried into this analysis", fn["at_a_standard"],
-         f"the {ui.num(fn['tickets'])} PCS/HR run tickets above, one row per "
-         f"work order per standard"
-         + (f" (more tickets than rows means the same part, operation, "
+         f"the {ui.num(fn['lines'])} PCS/HR run booking lines above, one "
+         f"row per work order per standard"
+         + (f" (more lines than rows means the same part, operation, "
             f"sequence and work order ran on more than one machine)"
-            if fn["tickets"] > fn["at_a_standard"] else "")),
+            if fn["lines"] > fn["at_a_standard"] else "")),
         ("With a duration actually recorded",
          _booked,
          f"{ui.num(fn['tokens'])} were closed at ≤ "

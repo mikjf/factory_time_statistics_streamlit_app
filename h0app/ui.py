@@ -783,8 +783,8 @@ def funnel(container, sections, scale_to=None):
     something missing.
 
     SECTIONS EXIST BECAUSE THE UNIT CHANGES MIDWAY. The first stages count
-    labour tickets, the later ones count part x routing-step combinations, and
-    there is no conversion between them - one part-step is however many tickets
+    booking lines, the later ones count part x routing-step combinations, and
+    there is no conversion between them - one part-step is however many lines
     happened to run it. Drawn on one scale it read as ten thousand work orders
     being thrown away. Each section is now scaled to its own first bar and says
     what it is counting.

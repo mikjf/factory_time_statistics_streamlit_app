@@ -26,6 +26,13 @@ ui.verdict_banner(st, text.NOT_A_STANDARD, "caution",
                   text.NOT_A_STANDARDS_CHANGE)
 freshness.guard()
 
+# The three findings, named once. Every place that prints one of them - the
+# rail's cost rows, the radio, the heading over the body - reads these, so the
+# rail and the selector cannot end up calling the same finding two things.
+MICRO = "Work orders with micro durations"
+SETUPS = "Setups charged but not performed"
+LOADS = "Runs with multiple loads"
+
 S = data.SEQ
 tok = data.update_list("07_TokenBookings")
 skip = data.setup_book("03_SkipRate") if data.has_setup() else None
@@ -39,14 +46,11 @@ with st.sidebar:
     #
     # The labels are the tab names, so the rail and the tab bar name the same
     # three findings in the same words.
-    rows = [("Work orders with micro duration",
-             ui.hrs(tok.STANDARD_CHARGED.sum()))]
+    rows = [(MICRO, ui.hrs(tok.STANDARD_CHARGED.sum()))]
     if skip is not None:
-        rows.append(("Setups charged but not performed",
-                     ui.hrs(skip.STANDARD_CHARGED_SKIPPED.sum())))
+        rows.append((SETUPS, ui.hrs(skip.STANDARD_CHARGED_SKIPPED.sum())))
     if gap is not None:
-        rows.append(("Runs with multiple loads",
-                     ui.hrs(gap.OVER_RESERVED_HOURS.sum())))
+        rows.append((LOADS, ui.hrs(gap.OVER_RESERVED_HOURS.sum())))
     ui.kv(st, "What this costs", rows)
 
 # ---- the selector, in the rail ---------------------------------------------
@@ -62,10 +66,6 @@ with st.sidebar:
 #
 # An analysis whose workbook was not produced is left out of the options rather
 # than offered and then apologised for.
-MICRO = "Work orders with micro duration"
-SETUPS = "Setups charged but not performed"
-LOADS = "Runs with multiple loads"
-
 with st.sidebar:
     st.divider()
     ui.side_title(st, "What to look at")
@@ -79,7 +79,10 @@ with st.sidebar:
     if choice == MICRO:
         fam = st.multiselect("Family", sorted(tok.FAMILY.unique()),
                              placeholder="all families")
-        only = st.toggle("Only steps left untestable")
+        # "below the floor", not "left untestable": this returns all 119,
+        # both the steps the tokens cost and the ones that were too small
+        # anyway. The two metrics above say which is which.
+        only = st.toggle("Only steps below the floor")
     elif choice == SETUPS:
         fam = st.multiselect("Family", sorted(skip.FAMILY.unique()),
                              placeholder="all families", key="skipfam")
@@ -96,15 +99,47 @@ if choice == MICRO:
     # came for the size of it had to scroll past all of it to reach three
     # figures. Heading, figures, explanation, evidence - the order Inspect
     # already uses.
-    c = st.columns(3)
-    c[0].metric("Work orders", ui.num(tok.WO_TOKEN.sum()))
-    c[1].metric("Standard charged", ui.hrs(tok.STANDARD_CHARGED.sum()))
-    c[2].metric("Steps left untestable",
-                ui.num(tok.BELOW_FLOOR_AFTER.sum()))
+    # COUNTS FIRST, THE COST LAST, on both of the three-figure rows. The two
+    # counts say how much of the analysis this touches; the hours say what it
+    # is worth, and that is the figure a reader carries away, so it ends the
+    # line rather than being buried in the middle of it.
+    # BELOW_FLOOR_AFTER SPLIT IN TWO, because one label was doing two jobs.
+    # It marks every step left under MIN_WO once tokens are dropped - 119 of
+    # them - and "left untestable" claims the tokens caused that. True of 50:
+    # they carried six or more work orders and fell short only after the drop.
+    # The other 69 had fewer than six to begin with, so they were never
+    # testable and the guard changed nothing about them.
+    #
+    # Shown as a pair rather than one number with a caveat: side by side the
+    # two say what happened, and they sum to what the floor filter returns, so
+    # no figure on this screen contradicts another.
+    #
+    # EVERY FIGURE COMES FROM THE FILTERED FRAME, which is why the filter runs
+    # before them. They used to be plant-wide while the table below was not, so
+    # narrowing to one family left four numbers describing 346 steps above a
+    # table showing three. The standing totals are in the rail under "What this
+    # costs", which is the right place for a number that never moves.
+    d = tok[tok.FAMILY.isin(fam)] if fam else tok
+    if only:
+        d = d[d.BELOW_FLOOR_AFTER]
+    _cost = d[(d.WO_ALL >= pipeline.MIN_WO) & d.BELOW_FLOOR_AFTER]
+    _small = d[(d.WO_ALL < pipeline.MIN_WO) & d.BELOW_FLOOR_AFTER]
+    c = st.columns(4)
+    c[0].metric("Work orders", ui.num(d.WO_TOKEN.sum()))
+    c[1].metric("Steps the tokens cost", ui.num(len(_cost)),
+                help=f"They carried {pipeline.MIN_WO} or more work orders and "
+                     f"fewer than {pipeline.MIN_WO} real ones once the tokens "
+                     f"were dropped. Without the guard these would have been "
+                     f"tested — on the tokens.")
+    c[2].metric("Steps too small anyway", ui.num(len(_small)),
+                help=f"Fewer than {pipeline.MIN_WO} work orders before the "
+                     f"drop, so no standard could be judged here in any case. "
+                     f"The tokens are still charging hours against them.")
+    c[3].metric("Standard charged", ui.hrs(d.STANDARD_CHARGED.sum()))
     st.markdown(f"""
-A few thousand labour tickets carry a flat hundredth of an hour whatever the
-quantity — one piece or five hundred, the same 0.01 h. That is a ticket closed
-to move the order along, not a measurement, so anything at or under
+A few thousand work orders carry a flat hundredth of an hour whatever the
+quantity — one piece or five hundred, the same 0.01 h. That is an order closed
+to move it along, not a measurement, so anything at or under
 **{pipeline.TOKEN_HOURS} h** is dropped before testing.
 
 They are not merely noise. Where they are the majority of a pool they *become*
@@ -118,9 +153,6 @@ no evidence they were performed. `BELOW_FLOOR_AFTER` marks the steps where
 dropping them left too little to judge the standard at all — those standards may
 be badly wrong and this analysis will never say so.
 """)
-    d = tok[tok.FAMILY.isin(fam)] if fam else tok
-    if only:
-        d = d[d.BELOW_FLOOR_AFTER]
     # TOKEN_RATE is deliberately absent from the Styler: it drives a
     # ProgressColumn, which needs the raw number to size its bar.
     st.dataframe(ui.swiss_grid(d, {"PARTS": ",.0f", "WO_ALL": ",.0f",
@@ -139,11 +171,16 @@ be badly wrong and this analysis will never say so.
                        icon=":material/download:", key="dl_tok")
 
 elif choice == SETUPS:
+    # Filtered first, for the reason above: these describe the table, not the
+    # plant.
+    d2 = skip[skip.FAMILY.isin(fam)] if fam else skip
+    if rt:
+        d2 = d2[d2.RUN_TYPE.isin(rt)]
     c = st.columns(3)
-    c[0].metric("Steps", ui.num(len(skip)))
-    c[1].metric("Charged for setups never performed",
-                ui.hrs(skip.STANDARD_CHARGED_SKIPPED.sum()))
-    c[2].metric("Work orders skipped", ui.num(skip.WO_SKIPPED.sum()))
+    c[0].metric("Work orders skipped", ui.num(d2.WO_SKIPPED.sum()))
+    c[1].metric("Steps", ui.num(len(d2)))
+    c[2].metric("Charged for setups never performed",
+                ui.hrs(d2.STANDARD_CHARGED_SKIPPED.sum()))
     st.markdown(f"""
 When several work orders of one family run back to back on one machine, only the
 first needs a full setup. That is normal and correct — but the ERP charges
@@ -170,9 +207,15 @@ against a floor of {pipeline.SETUP_MIN}. Untestable, but not unreportable.
     # the 00_Summary row the workbook and the README already quote, so the
     # three cannot drift apart. The banner at the top of this page quotes
     # the same figure. Printed only when the two actually differ.
+    #
+    # ONLY WHILE NOTHING IS FILTERED. The figure above now follows the rail, so
+    # under a family or a run type it is that selection's total - and comparing
+    # one family's hours against the plant's 591 h would read as though the
+    # family were missing the difference. Unfiltered, the two are the same two
+    # numbers this sentence has always compared.
     _all = data.skip_hours_total()
     _shown = float(skip.STANDARD_CHARGED_SKIPPED.sum())
-    if abs(_all - _shown) >= 0.5:
+    if not fam and not rt and abs(_all - _shown) >= 0.5:
         st.caption(
             f"The table below lists only steps with "
             f"{pipeline.SETUP_MIN}+ work orders, so the figure "
@@ -181,9 +224,6 @@ against a floor of {pipeline.SETUP_MIN}. Untestable, but not unreportable.
             f"**{ui.hrs(_all)}** was charged for setups never "
             f"performed — {ui.hrs(_all - _shown)} of it in steps that "
             f"do not appear here.")
-    d2 = skip[skip.FAMILY.isin(fam)] if fam else skip
-    if rt:
-        d2 = d2[d2.RUN_TYPE.isin(rt)]
     st.dataframe(ui.swiss_grid(
         d2, {"PARTS": ",.0f", "WO_ALL": ",.0f", "WO_SKIPPED": ",.0f",
              "WO_REAL": ",.0f", "SETUP_HRS_CURRENT": ",.3f",
@@ -202,7 +242,7 @@ against a floor of {pipeline.SETUP_MIN}. Untestable, but not unreportable.
                        icon=":material/download:", key="dl_skip")
 
 else:
-    st.metric("Reserved and not used",
+    st.metric("Allowed and not used",
               ui.hrs(gap.OVER_RESERVED_HOURS.sum()))
     st.markdown("""
 `HRS/LOAD` charges `CEILING(quantity ÷ load size) × RUN`. A job of 1,048 pieces
