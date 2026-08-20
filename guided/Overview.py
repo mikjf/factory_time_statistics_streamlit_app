@@ -234,10 +234,10 @@ NAV = [
      "pages/1_Review_queue.py", "Open the queue"),
     # Every caption kept to two lines at full width. A third line on one card
     # pushes all six taller, because they share a height by design.
-    ("flag", "Not standards changes",
+    ("flag", "Additional findings",
      "Hours reserved and costed for work with no evidence it happened — a "
      "booking and routing question.",
-     "pages/4_Not_standards.py", "See the findings"),
+     "pages/4_Additional_findings.py", "See the findings"),
     ("query_stats", "Inspect",
      "The six rules with real figures, every work order behind it, and where "
      "each sits. **Use this when you disagree.**",

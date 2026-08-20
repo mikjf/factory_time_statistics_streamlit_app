@@ -340,9 +340,27 @@ CANNOT_TELL = """
   reason.
 """
 
+# TWO CONSTANTS, because the two versions need different halves. The guided
+# page puts the warning in a banner headline and the description under it; the
+# flat version has no headline and prints both in one st.warning. Held apart so
+# neither page has to say the same thing twice - which the long single string
+# did on the guided page, where the headline and the text's first sentence were
+# the same sentence.
+NOT_A_STANDARD = "Nothing here is a standard to key in"
+
+# WHAT UNITES THE THREE, and WHEN it happened - which is the one thing neither
+# the sidebar (three costs) nor the tab bar (three names) says.
+#
+# "In scope" is precise, not decoration. All three are counted from rows that
+# already passed every scope rule the analysis applies - the fiscal-year window,
+# rework out, HOURS_MASTER and HOURS_WORKED above zero, MASTER_OPS_ROWID still
+# present. Only then are they excluded, as evidence.TOKEN, evidence.SKIPPED and
+# evidence.MULTILOAD. So the hours are real hours the analysis saw and could not
+# test, not a tally of everything the extract contains.
+#
+# It is also why none of it is a standards edit: the master is not in question,
+# the work behind it never entered a test.
 NOT_A_STANDARDS_CHANGE = (
-    "Nothing on this page is a standards change. These are the hours the "
-    "schedule reserved and the costing charged for work with no evidence it was "
-    "performed, and capacity reserved and not used. They are routing and "
-    "booking-discipline questions, and they go to different people."
+    "Routing and booking-discipline questions. These rows are all in scope for "
+    "the analysis, and were excluded before any standard was tested."
 )

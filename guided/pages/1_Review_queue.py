@@ -30,7 +30,7 @@ S = data.SEQ
 
 # ---- filters, in the rail ---------------------------------------------------
 with st.sidebar:
-    st.markdown("### Narrow it down")
+    ui.side_title(st, "Narrow it down")
 
     def multi(label, col, key=None):
         vals = sorted(acts[col].dropna().unique().tolist())

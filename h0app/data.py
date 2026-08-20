@@ -115,6 +115,30 @@ def operation_list():
     return operation_summaries().OPERATION.tolist()
 
 
+def skip_hours_total():
+    """Hours charged for setups never performed, ACROSS EVERY STEP.
+
+    03_SkipRate lists only steps with SETUP_MIN or more work orders, so summing
+    it comes up short - 540 h against a true 591 h on the current extract. The
+    whole figure is the one 00_Summary carries, which is also what the README
+    and the workbook quote, so reading it rather than recomputing keeps the
+    three in step.
+
+    Falls back to the sheet's own sum if that summary row is ever renamed, so a
+    changed label degrades to a smaller number rather than to an exception.
+    """
+    skip = setup_book("03_SkipRate")
+    try:
+        sm = setup_book("00_Summary")
+        row = sm[sm.METRIC.astype(str).str.strip()
+                 == "Standard charged for setups never performed"]
+        if len(row):
+            return float(row.HOURS.iloc[0])
+    except (FileNotFoundError, KeyError, ValueError):
+        pass
+    return float(skip.STANDARD_CHARGED_SKIPPED.sum())
+
+
 def actions():
     """01_Actions, with the review flag recomputed.
 

@@ -63,7 +63,7 @@ evidence to say — instead of by whoever built the analysis.
 | **Review queue** | Every standard proposed for change, filterable |
 | **Inspect** | One recommendation opened up: how it was decided, the work orders behind it, and where each sits against the master |
 | **By part** | Everything proposed for one part — and every step examined and left alone, with the reason |
-| **Not standards changes** | Hours charged for work with no evidence it happened. Real, but a routing and booking question |
+| **Additional findings** | Hours charged for work with no evidence it happened. Real, but a routing and booking question |
 | **How to read it** | How to read a recommendation, worked through one real unit |
 | **Methodology** | The method, and what the numbers are computed over |
 
@@ -208,7 +208,7 @@ guided/pages/1_Review_queue.py   every standard proposed for change
 guided/pages/2_Inspect.py        one recommendation: how it was decided,
                                  then the evidence
 guided/pages/3_By_part.py        one part, changed and unchanged steps alike
-guided/pages/4_Not_standards.py  hours charged for work with no evidence
+guided/pages/4_Additional_findings.py  hours charged for work with no evidence
 guided/pages/5_How_to_read_it.py how to read a recommendation
 guided/pages/6_Methodology.py    the method, and what it is computed over
 

@@ -60,7 +60,7 @@ def _idx(options, value, default=0):
 
 # ---- selection, in the rail -------------------------------------------------
 with st.sidebar:
-    st.markdown("### What to look at")
+    ui.side_title(st, "What to look at")
     # The two run analyses together, setup last: RUN_MASTER under PCS/HR and
     # RUN under HRS/LOAD are the same field on the same routing line held in two
     # different units, so they belong beside each other. Setup is a different
@@ -86,6 +86,56 @@ with st.sidebar:
         universe = data.load_book("02_FamilyRollup")
     else:
         universe = data.run_index()
+
+    # ---- ONLY WHAT CHANGES -------------------------------------------------
+    # 224 of 12'866 units carry a proposed change. Unfiltered, the four pickers
+    # below offer some 1'220 combinations for the run analysis alone, and 98% of
+    # them land on "leave this standard alone" or "not enough evidence" - which
+    # is the honest answer for those units and useless as a way to find the ones
+    # that need keying in.
+    #
+    # OFF BY DEFAULT. Inspect is also the page somebody opens to ask why THEIR
+    # part is not on the list, and a filter that hid it would answer by making
+    # the question unaskable. It is also where Review queue lands, and that
+    # arrives with a unit already chosen.
+    #
+    # Sourced from 01_Actions, which is the update list's own record of what is
+    # proposed - the same sheet Review queue reads and the same cache. Deriving
+    # it instead from each unit's verdict would mean reading five different
+    # verdict columns across five workbooks to reproduce a list that already
+    # exists.
+    only_changes = st.toggle(
+        "Only where a change is proposed", value=False,
+        help="Hides every unit the six rules held or could not judge, so the "
+             "pickers below offer only the standards this analysis proposes "
+             "editing.")
+    act_keys = act_parts = act_fams = None
+    if only_changes:
+        _a = data.actions()
+        _a = _a[(_a.TARGET == "SETUP_HRS") if kind == SETUP
+                else ((_a.TARGET == "RUN")
+                      & (_a.RUN_TYPE == ("HRS/LOAD" if kind == LOAD
+                                         else "PCS/HR")))]
+        # int() on the sequence: 01_Actions and the rollups agree on the column
+        # name, not always on whether it arrived as 2500 or 2500.0, and a tuple
+        # key compares those unequal.
+        def _key(f, p, o, q):
+            return (f, p, o, int(q))
+        act_keys = {_key(f, p, o, q) for f, p, o, q
+                    in zip(_a.FAMILY, _a.PART_TYPE, _a.OPERATION, _a[S])}
+        # Which LEVEL is proposed matters for "Judged at": a family can hold
+        # while one of its parts changes, and the point of the filter is to
+        # offer the level that actually changed.
+        act_parts = {_key(f, p, o, q) + (pid,) for f, p, o, q, pid
+                     in zip(_a.FAMILY, _a.PART_TYPE, _a.OPERATION, _a[S],
+                            _a.PART_ID) if pd.notna(pid)}
+        act_fams = {_key(f, p, o, q) for f, p, o, q, lvl
+                    in zip(_a.FAMILY, _a.PART_TYPE, _a.OPERATION, _a[S],
+                           _a.LEVEL) if str(lvl).upper() == "FAMILY"}
+        universe = universe[[
+            _key(f, p, o, q) in act_keys for f, p, o, q
+            in zip(universe.FAMILY, universe.PART_TYPE, universe.OPERATION,
+                   universe[S])]]
 
     pairs = sorted({(f, p) for f, p in zip(universe.FAMILY, universe.PART_TYPE)})
     empty_op = not pairs
@@ -138,7 +188,17 @@ with st.sidebar:
             # that already reads "Judged at", the article adds a word without
             # adding a distinction - the alternatives are part numbers, and no
             # one needs "the" to tell a family from one of those.
-            opts = [WHOLE] + sorted(members.PART_ID.unique().tolist())
+            parts = sorted(members.PART_ID.unique().tolist())
+            opts = [WHOLE] + parts
+            # With the filter on, this picker offers the LEVELS that changed,
+            # not every level that exists. A family that holds while one of its
+            # parts is corrected would otherwise open on the family and show
+            # "leave this standard alone" - the filter having promised the
+            # opposite. Both levels can change, and then both are offered.
+            if only_changes:
+                _k = (family, part_type, operation, int(seq))
+                opts = ([WHOLE] if _k in (act_fams or ()) else [])                     + [x for x in parts if _k + (x,) in (act_parts or ())]
+                opts = opts or [WHOLE]
             pick = st.selectbox("Judged at", opts,
                                 index=_idx(opts, pre.get("PART_ID")))
             part_id = None if pick == WHOLE else pick
@@ -164,8 +224,8 @@ if empty_op:
         f"rules could be applied, so there is no evidence here in either "
         f"direction.",
         icon=":material/info:")
-    st.page_link("pages/4_Not_standards.py",
-                 label="See what that costs, on Not standards changes",
+    st.page_link("pages/4_Additional_findings.py",
+                 label="See what that costs, on Additional findings",
                  icon=":material/arrow_forward:")
     st.stop()
 
@@ -321,7 +381,14 @@ else:
     k[2].metric("Change it to", "leave as is",
                 help="This unit did not clear all six rules, so no change is "
                      "proposed. What the evidence measured is beside it.")
-# "Hours from FY26", not "Hours a year". The window is the fiscal year TO DATE -
+# "Hours since FY26 start", not "Hours a year" and not "Hours from FY26". The
+# window opens at FY_START and never closes - there is no upper bound anywhere
+# in the pipeline - so once FY27 bookings arrive this figure will span two
+# fiscal years. "from FY26" reads as BELONGING TO FY26 and would quietly become
+# false on 1 Oct 2026; "since FY26 start" says where the window opens and
+# stays true however far past it the extract runs.
+#
+# The window is the fiscal year TO DATE -
 # it opens at FY_START and runs to the last labour ticket, which today is about
 # ten months - so "a year" invited a reader to treat a part-year total as an
 # annual one. The label is built from pipeline.FY_LABEL, itself derived from
@@ -351,7 +418,7 @@ _hd = stats.get("HOURS_DELTA", 0)
 # makes the two agree by construction instead of by coincidence.
 _shown = ui.hrs(_hd, sign=True)
 with k[3].container(key="h0-inline-delta-hours"):
-    st.metric(f"Hours from {pipeline.FY_LABEL}", _shown,
+    st.metric(f"Hours since {pipeline.FY_LABEL} start", _shown,
               delta=("slower" if _shown.startswith("+")
                      else "faster" if _shown.startswith("-") else None),
               delta_color="off",
@@ -588,15 +655,17 @@ st.divider()
 st.subheader("The work orders behind this")
 st.caption("Every labour ticket in scope, including the ones that did not "
            "count. This is the row-level data the conclusion was drawn from.")
-# evidence.ROWS, not every column: the frame also carries the pre-formatted
-# strings the chart tooltip needs, which are display text and would sort as text
-# in a column. The CSV below takes the same eight, so the download keeps
-# matching what is on screen.
-show = rows[evidence.ROWS].copy()
+# evidence.table_cols, not every column: the frame also carries the chart
+# tooltip's pre-formatted strings, which are display text and would sort as
+# text in a column. The list is route-aware, so setup no longer draws a PIECES
+# column it has no quantities for, and PCS/HR gains the achieved rate.
+_cols = evidence.table_cols(_mk)
+show = rows[_cols].copy()
 show["LAST_DATE"] = pd.to_datetime(show.LAST_DATE, errors="coerce")
 st.dataframe(
     ui.swiss_grid(show, {"TOTAL_QTY": ",.0f", "HOURS_MASTER": ",.4f",
-                         "HOURS_WORKED": ",.4f", "RATIO": ",.3f"}),
+                         "HOURS_WORKED": ",.4f", "RATIO": ",.3f",
+                         "ACHIEVED_N": ",.2f"}),
     hide_index=True, width="stretch", height=380,
     column_config={
         "WORK_ORDER": st.column_config.TextColumn("WORK ORDER"),
@@ -608,15 +677,48 @@ st.dataframe(
         "HOURS_MASTER": st.column_config.NumberColumn("MASTER h"),
         "HOURS_WORKED": st.column_config.NumberColumn("ACTUAL h"),
         "RATIO": st.column_config.NumberColumn("ACTUAL ÷ MASTER"),
+        # The unit in the header, the way MASTER h and ACTUAL h carry theirs,
+        # so the cells stay numbers and sort like numbers.
+        "ACHIEVED_N": st.column_config.NumberColumn(
+            f"ACHIEVED {evidence.UNITS[_mk][1]}"),
         "STATUS": st.column_config.TextColumn("COUNTED?", width="large"),
     })
 
-tag = "_".join(str(x) for x in [operation, family, part_type, seq,
+# THE DOWNLOAD CARRIES MORE THAN THE SCREEN, which is a deliberate break from
+# how this page worked before. Family, part type, operation and standard are one
+# value each on screen - the title says all four already - but a CSV opened next
+# week, or two of them concatenated in Excel, has no title above it. STANDARD
+# comes per row, so a work order that ran under a superseded value exports the
+# value it actually ran under rather than today's.
+dl = show.copy()
+dl.insert(0, "STANDARD", rows["STANDARD"])
+# SEQUENCE and OPERATION as two columns, not the hover's "2500 S CALIB.SBAVARE".
+# That string is right for a tooltip, where it reads as one address the way a
+# routing is spoken - and wrong for a spreadsheet, where a step glued to a name
+# cannot be sorted, filtered or pivoted on either half. Split, SEQUENCE stays a
+# number and lines up with the column of the same name in the workbooks.
+dl.insert(0, "OPERATION", operation)
+dl.insert(0, "SEQUENCE", seq)
+dl.insert(0, "PART_TYPE", part_type)
+dl.insert(0, "FAMILY", family)
+# NAMED FOR THE PAGE, then for the unit. Every download in the tool now starts
+# with the page that produced it, so a folder of them sorts by where they came
+# from and a colleague can be told where to go back to.
+#
+# ui.part_tag for the part type: "ARTICOLO_NON_DI_VENDITA" is 23 characters
+# carrying one bit, and ADV/ANDV is what the subtitle and the Overview rankings
+# already say. One mapping, so the filename uses the word the page uses.
+tag = "_".join(str(x) for x in [operation, family,
+                                ui.part_tag(part_type, with_title=False), seq,
                                 part_id or "family"])
 st.download_button("Download these work orders as CSV",
-                   show.to_csv(index=False).encode("utf-8"),
-                   file_name=f"h0_evidence_{pipeline.slug(tag)}.csv",
+                   dl.to_csv(index=False).encode("utf-8"),
+                   file_name=f"h0_inspect_{pipeline.slug(tag)}.csv",
                    mime="text/csv", icon=":material/download:")
+st.caption("The download adds family, part type, routing step, operation and "
+           "the standard as columns — one value each here, but the only "
+           "way to tell rows apart once two of these files sit in the same "
+           "spreadsheet.")
 
 # Last on the page, deliberately - see the note where the six explained rule
 # cards used to be. It is the way out of a finished page, and it is the one

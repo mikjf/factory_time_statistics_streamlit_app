@@ -297,8 +297,20 @@ CSS = """
    on .h0-kv-title the two sides were built from different elements - 8px one
    side, 5.6px the other - and the rule sat 2px off centre. Symmetric now
    whatever the font metrics do. */
-.h0-kv-title { font-size:.82rem; font-weight:700; opacity:.9;
-               margin:0 0 .3rem; }
+/* .9375rem, up from .82rem. At .82 the heading was SMALLER than the rail it
+   heads - Streamlit's widget labels are 14px - so on Inspect, Review queue and
+   By part, whose rails are made of widgets, "What to look at" read as a caption
+   over its own controls rather than as their heading. 15px clears the 14px
+   labels and the 13.12px kv rows while staying well under the 18px h3 that
+   side_title was written to replace.
+   ONE RULE FOR ALL EIGHT BLOCKS - every sidebar heading in the app arrives
+   here, either through side_title or through kv, so the sizes cannot drift
+   apart again.
+   .9375rem (15px) after trying 1rem: 16px reads as body text set bold, which
+   competes with the rail rather than heading it. 15px sits clear of the 14px
+   widget labels without becoming a second voice. */
+.h0-kv-title { font-size:.9375rem; font-weight:700; opacity:.9;
+               margin:0 0 .35rem; }
 /* Small print in a sidebar. st.caption renders at 14px, the h3 a heading would
    use renders at 18px, and the rail below at 15.2 - four sizes in one column,
    none of them the .82rem the key/value blocks settled on. */

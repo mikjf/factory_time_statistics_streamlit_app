@@ -31,7 +31,7 @@ edits = data.edits()
 parts = sorted(edits.PART_ID.dropna().unique().tolist())
 
 with st.sidebar:
-    st.markdown("### Find a part")
+    ui.side_title(st, "Find a part")
     mode = st.radio("Search", ["Parts with a proposed change", "Any part number"])
     if mode.startswith("Parts with"):
         part = st.selectbox(f"{ui.num(len(parts))} parts", parts)
@@ -69,7 +69,7 @@ nothing_to_judge = in_extract and mine.empty and steps.empty
 
 with st.sidebar:
     st.divider()
-    st.markdown("### What we found")
+    ui.side_title(st, "What we found")
     if unknown:
         st.error("No labour ticket in this extract carries this part number.",
                  icon=":material/search_off:")
@@ -125,7 +125,7 @@ about **{part}** in either direction, which usually comes down to one of:
 Its standards may be badly wrong and this analysis will never say so. **Not
 standards changes** carries what that costs across the whole extract.
 """)
-    st.page_link("pages/4_Not_standards.py",
+    st.page_link("pages/4_Additional_findings.py",
                  label="See the hours charged for work with no evidence",
                  icon=":material/arrow_forward:")
     st.stop()
@@ -228,5 +228,5 @@ if jump != "—":
                  icon=":material/query_stats:")
 st.download_button("Download this part's steps as CSV",
                    steps[cols].to_csv(index=False).encode("utf-8"),
-                   file_name=f"h0_part_{pipeline.slug(part)}.csv",
+                   file_name=f"h0_by_part_{pipeline.slug(part)}.csv",
                    mime="text/csv", icon=":material/download:")

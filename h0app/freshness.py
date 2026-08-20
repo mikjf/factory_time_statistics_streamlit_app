@@ -73,6 +73,57 @@ def _window_problems():
              f"the same setting and have to be changed together.")]
 
 
+# THE WINDOW HAS NO UPPER BOUND. Every scope filter in the pipeline is
+# `LAST_TRANSACTION_DATE >= FY_START` and nothing closes it, by design - so the
+# span grows with every extract and will cross a year on the first pull taken
+# after 1 Oct 2026.
+#
+# That is fine for the six rules, which only gain sample. It is not fine for
+# MIN_HOURS_IMPACT, which is an ABSOLUTE 20 h: over 10 months it selects units
+# worth 23 h a year, over 18 months units worth 13 h, over 24 months units worth
+# 10 h. Nothing on the floor changes and the bar halves, so each rerun proposes
+# more actions than the last and nobody can say why.
+#
+# Thirteen months rather than twelve, so an extract that lands a few weeks into
+# the new fiscal year does not fire it on its first day.
+WINDOW_LONG_MONTHS = 13
+DAYS_PER_MONTH = 30.44
+
+
+def _window_length_problem():
+    """Warn once the span is long enough that the hours gate has drifted.
+
+    A tripwire, not a fix. The remedy is a decision about the pipeline -
+    annualise HOURS_DELTA against the span, or close the window - and both
+    change which units qualify, so neither belongs in a viewer. What belongs
+    here is making sure the day it starts to matter is not a day nobody
+    noticed.
+    """
+    try:
+        from . import data, pipeline
+        first, last = data.extract_span()
+    except Exception:
+        return []
+    if last is None or pd.isna(last):
+        return []
+    fy = pd.Timestamp(pipeline.FY_START)
+    months = (last - fy).days / DAYS_PER_MONTH
+    if months < WINDOW_LONG_MONTHS:
+        return []
+    effective = pipeline.MIN_HOURS_IMPACT * 12 / months
+    return [("warn",
+             f"**The window is now {months:.1f} months, and the materiality "
+             f"gate has drifted with it.** Bookings run from "
+             f"{fy:%d %b %Y} to {last:%d %b %Y}, and no filter closes the "
+             f"window at a year. `MIN_HOURS_IMPACT` is an absolute "
+             f"{pipeline.MIN_HOURS_IMPACT} h, so over this span it now selects "
+             f"units worth about {effective:.0f} h a year rather than "
+             f"{pipeline.MIN_HOURS_IMPACT} h — the bar falls as the window "
+             f"grows, and each rerun will propose more actions than the last "
+             f"without anything having changed on the floor. Decide whether to "
+             f"annualise the gate before relying on the next update list.")]
+
+
 def problems():
     """Every ordering violation, worst first. Empty means the chain is sound."""
     out = []
@@ -104,6 +155,7 @@ def problems():
             "`python h0_v2_update_list.py`."))
 
     out += _window_problems()
+    out += _window_length_problem()
 
     for wb in (paths.SETUP, paths.LOAD):
         if paths.mtime(wb) is None:

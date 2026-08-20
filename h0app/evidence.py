@@ -64,7 +64,40 @@ ROWS = ["WORK_ORDER", "PART_ID", "LAST_DATE", "TOTAL_QTY", "HOURS_MASTER",
 # demonstration in the tool of why a rate DIVIDES where a duration multiplies:
 # the standard falls from 10 to 8.5 pieces an hour exactly when the ratio rises
 # above 1.
-TIP = ["OP_TXT", "STANDARD", "LOADS", "MASTER_TXT", "ACTUAL_TXT", "ACHIEVED"]
+TIP = ["OP_TXT", "STANDARD", "LOADS", "MASTER_TXT", "ACTUAL_TXT", "ACHIEVED",
+       "ACHIEVED_N"]
+
+
+def table_cols(kind):
+    """The evidence table's columns for one route.
+
+    ROWS was one list for all four routes, which meant every setup unit drew a
+    PIECES column with nothing in it - setup rows carry no quantity, so the
+    column was 100% empty on every setup unit in the tool.
+
+    ACHIEVED_N joins it on PCS/HR only, for the reason the tooltip's ACHIEVED
+    line is PCS/HR only: on HRS/LOAD every tested work order is single-load, so
+    hours per load IS hours worked, and on setup the standard is already a
+    duration. On both, the column would restate ACTUAL h.
+    """
+    cols = ["WORK_ORDER", "PART_ID", "LAST_DATE"]
+    if kind != K_SETUP:
+        cols.append("TOTAL_QTY")
+    cols += ["HOURS_MASTER", "HOURS_WORKED", "RATIO"]
+    if kind == K_PCSHR:
+        cols.append("ACHIEVED_N")
+    cols.append("STATUS")
+    return cols
+
+
+# Prepended to the CSV, never shown on screen. Each is ONE value repeated down
+# the table, so on a page that names the unit in its title they are three
+# columns of width for no discrimination - but a downloaded file has left that
+# title behind, and two exports concatenated in Excel are indistinguishable
+# without them. STANDARD is taken per row rather than as a constant so a work
+# order that ran under a superseded value exports the value it actually ran
+# under.
+CSV_LEAD = ["FAMILY", "PART_TYPE", "OPERATION", "STANDARD"]
 
 # Which unit the standard is held in. Passed explicitly by each route rather
 # than sniffed from the columns present: the load frame carries RUN_MASTER and
@@ -179,6 +212,7 @@ def _standard_and_achieved(out, kind):
     """
     out["LOADS"] = None
     out["ACHIEVED"] = None
+    out["ACHIEVED_N"] = np.nan
 
     # The hours carry their unit in the VALUE, not in the label - "master" /
     # "6.00 h" rather than "master h" / "6.00". Every other line on the hover
@@ -203,6 +237,10 @@ def _standard_and_achieved(out, kind):
         ach = out.TOTAL_QTY / out.HOURS_WORKED.replace(0, np.nan)
         out["ACHIEVED"] = ach.map(
             lambda v: f"{num(v)} {UNITS[kind][1]}" if num(v) else None)
+        # The same figure as a NUMBER, for the table. A column of
+        # "190.87 PCS/HR" strings sorts as text, which puts 90 above 190 and
+        # gives no sign that the order is wrong.
+        out["ACHIEVED_N"] = ach
 
     elif kind == K_LOAD:
         out["STANDARD"] = out.RUN_MASTER.map(

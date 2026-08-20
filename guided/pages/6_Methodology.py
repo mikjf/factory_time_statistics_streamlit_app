@@ -572,7 +572,8 @@ with st.expander("Every operation examined, and what came out of it — "
         f"per route and level it was judged on.")
     st.download_button("Download this coverage table as CSV",
                        cov.to_csv(index=False).encode("utf-8"),
-                       file_name="h0_operation_coverage.csv", mime="text/csv",
+                       file_name="h0_methodology_operations_examined.csv",
+                       mime="text/csv",
                        icon=":material/download:")
 
 st.divider()
