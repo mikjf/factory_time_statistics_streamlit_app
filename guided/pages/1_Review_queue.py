@@ -107,31 +107,32 @@ event = st.dataframe(
     hide_index=True, width="stretch", height=430,
     on_select="rerun", selection_mode="single-row",
     column_config={
-        "FAMILY": st.column_config.TextColumn(width="medium"),
-        "PART_TYPE": st.column_config.TextColumn("TYPE", width="small"),
-        S: st.column_config.NumberColumn("SEQ", format="%d"),
+        "FAMILY": st.column_config.TextColumn("Family", width="medium"),
+        "PART_TYPE": st.column_config.TextColumn("Part type",
+                                                 width="small"),
+        S: st.column_config.NumberColumn("Step", format="%d"),
         "LEVEL": st.column_config.TextColumn(
-            "JUDGED AT", help="PART = this part had enough work orders on its "
+            "Judged at", help="PART = this part had enough work orders on its "
                               "own. FAMILY = it did not, but its family pooled "
                               "enough."),
-        "PART_ID": st.column_config.TextColumn("APPLIES TO", width="medium"),
-        "TARGET": st.column_config.TextColumn("FIELD"),
+        "PART_ID": st.column_config.TextColumn("Applies to", width="medium"),
+        "TARGET": st.column_config.TextColumn("Field"),
         "N_WO": st.column_config.NumberColumn(
-            "WORK ORDERS", help="How much evidence the figure rests on"),
+            "Work orders", help="How much evidence the figure rests on"),
         # No `format` on these: the Styler above owns the display, and a
         # NumberColumn format would override it and put the commas back.
-        "CURRENT_VALUE": st.column_config.NumberColumn("NOW"),
-        "SUGGESTED_VALUE": st.column_config.NumberColumn("PROPOSED"),
-        "CHANGE_PCT": st.column_config.NumberColumn("CHANGE %"),
+        "CURRENT_VALUE": st.column_config.NumberColumn("Now"),
+        "SUGGESTED_VALUE": st.column_config.NumberColumn("Proposed"),
+        "CHANGE_PCT": st.column_config.NumberColumn("Change %"),
         "HOURS_DELTA": st.column_config.NumberColumn(
-            "HOURS A YEAR",
+            "Hours a year",
             help="Actual minus master. Positive = the job takes longer than "
                  "the master allows."),
-        "NEEDS_REVIEW": st.column_config.CheckboxColumn("CHECK?"),
-        "RATIO": st.column_config.NumberColumn(),
-        "CI95_LOW_PER_WO": st.column_config.NumberColumn("CI LOW"),
-        "CI95_HIGH_PER_WO": st.column_config.NumberColumn("CI HIGH"),
-        "HOW_TO_APPLY": st.column_config.TextColumn(width="large"),
+        "NEEDS_REVIEW": st.column_config.CheckboxColumn("Check?"),
+        "RATIO": st.column_config.NumberColumn("Ratio"),
+        "CI95_LOW_PER_WO": st.column_config.NumberColumn("CI low"),
+        "CI95_HIGH_PER_WO": st.column_config.NumberColumn("CI high"),
+        "HOW_TO_APPLY": st.column_config.TextColumn("How to apply", width="large"),
     })
 
 rows = event.selection["rows"] if event and event.selection else []

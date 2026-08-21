@@ -147,19 +147,22 @@ else:
              "RATIO": ",.3f", "EVIDENCE_N": ",.0f"}),
         hide_index=True, width="stretch",
         column_config={
-            S: st.column_config.NumberColumn("SEQ", format="%d"),
-            "TARGET_COLUMN": st.column_config.TextColumn("FIELD"),
+            "OPERATION": st.column_config.TextColumn("Operation"),
+            S: st.column_config.NumberColumn("Step", format="%d"),
+            "TARGET_COLUMN": st.column_config.TextColumn("Field"),
+            "RUN_TYPE": st.column_config.TextColumn("Run type"),
             "ROUTE": st.column_config.TextColumn(
-                "JUDGED AT", help="PART = this part had enough evidence alone. "
+                "Judged at", help="PART = this part had enough evidence alone. "
                                   "FAMILY = its family supplied the evidence."),
-            "CURRENT": st.column_config.NumberColumn("NOW"),
-            "RECOMMENDED": st.column_config.NumberColumn("PROPOSED"),
-            "CHANGE": st.column_config.NumberColumn("CHANGE %"),
-            "RATIO": st.column_config.NumberColumn(),
-            "EVIDENCE_N": st.column_config.NumberColumn("WORK ORDERS"),
+            "CURRENT": st.column_config.NumberColumn("Now"),
+            "RECOMMENDED": st.column_config.NumberColumn("Proposed"),
+            "CHANGE": st.column_config.NumberColumn("Change %"),
+            "BASIS": st.column_config.TextColumn("Basis"),
+            "RATIO": st.column_config.NumberColumn("Ratio"),
+            "EVIDENCE_N": st.column_config.NumberColumn("Work orders"),
             # Left ungrouped on purpose - a routing row id is an identifier,
             # not a quantity, and 1'234'567 invites reading it as one.
-            "MASTER_OPS_ROWID": st.column_config.NumberColumn("ROUTING ROW",
+            "MASTER_OPS_ROWID": st.column_config.NumberColumn("Routing row",
                                                               format="%d"),
         })
     if (~mine.ROWID_FOUND.fillna(False)).any():
@@ -198,17 +201,18 @@ st.dataframe(
          "RUN_MASTER_SUGGESTED": ",.2f"}),
     hide_index=True, width="stretch",
     column_config={
-        S: st.column_config.NumberColumn("SEQ", format="%d"),
-        "PART_DESCRIPTION": st.column_config.TextColumn("DESCRIPTION",
+        S: st.column_config.NumberColumn("Step", format="%d"),
+        "OPERATION": st.column_config.TextColumn("Operation"),
+        "PART_DESCRIPTION": st.column_config.TextColumn("Description",
                                                         width="medium"),
-        "N_WORK_ORDERS": st.column_config.NumberColumn("WORK ORDERS"),
-        "HOURS_MASTER": st.column_config.NumberColumn("MASTER h"),
-        "HOURS_WORKED": st.column_config.NumberColumn("ACTUAL h"),
+        "N_WORK_ORDERS": st.column_config.NumberColumn("Work orders"),
+        "HOURS_MASTER": st.column_config.NumberColumn("Master h"),
+        "HOURS_WORKED": st.column_config.NumberColumn("Actual h"),
         "HOURS_DELTA": st.column_config.NumberColumn("Δ h"),
-        "RATIO_OUTLIERS_REMOVED": st.column_config.NumberColumn("RATIO"),
-        "RUN_MASTER_CURRENT": st.column_config.NumberColumn("NOW"),
-        "RUN_MASTER_SUGGESTED": st.column_config.NumberColumn("PROPOSED"),
-        "RECOMMENDATION": st.column_config.TextColumn("VERDICT", width="medium"),
+        "RATIO_OUTLIERS_REMOVED": st.column_config.NumberColumn("Ratio"),
+        "RUN_MASTER_CURRENT": st.column_config.NumberColumn("Now"),
+        "RUN_MASTER_SUGGESTED": st.column_config.NumberColumn("Proposed"),
+        "RECOMMENDATION": st.column_config.TextColumn("Verdict", width="medium"),
     })
 jump = st.selectbox(
     "Open one of these in Inspect", ["—"] + [

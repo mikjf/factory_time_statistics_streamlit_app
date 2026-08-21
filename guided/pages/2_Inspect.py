@@ -668,20 +668,21 @@ st.dataframe(
                          "ACHIEVED_N": ",.2f"}),
     hide_index=True, width="stretch", height=380,
     column_config={
-        "WORK_ORDER": st.column_config.TextColumn("WORK ORDER"),
-        "LAST_DATE": st.column_config.DateColumn("LAST BOOKED",
+        "WORK_ORDER": st.column_config.TextColumn("Work order"),
+        "PART_ID": st.column_config.TextColumn("Part"),
+        "LAST_DATE": st.column_config.DateColumn("Last booked",
                                                  format="YYYY-MM-DD"),
         # No `format` on the numeric columns - the Styler owns the display and
         # a NumberColumn format would override it back to commas.
-        "TOTAL_QTY": st.column_config.NumberColumn("PIECES"),
-        "HOURS_MASTER": st.column_config.NumberColumn("MASTER h"),
-        "HOURS_WORKED": st.column_config.NumberColumn("ACTUAL h"),
-        "RATIO": st.column_config.NumberColumn("ACTUAL ÷ MASTER"),
+        "TOTAL_QTY": st.column_config.NumberColumn("Pieces"),
+        "HOURS_MASTER": st.column_config.NumberColumn("Master h"),
+        "HOURS_WORKED": st.column_config.NumberColumn("Actual h"),
+        "RATIO": st.column_config.NumberColumn("Actual ÷ master"),
         # The unit in the header, the way MASTER h and ACTUAL h carry theirs,
         # so the cells stay numbers and sort like numbers.
         "ACHIEVED_N": st.column_config.NumberColumn(
-            f"ACHIEVED {evidence.UNITS[_mk][1]}"),
-        "STATUS": st.column_config.TextColumn("COUNTED?", width="large"),
+            f"Achieved {evidence.UNITS[_mk][1]}"),
+        "STATUS": st.column_config.TextColumn("Counted?", width="large"),
     })
 
 # THE DOWNLOAD CARRIES MORE THAN THE SCREEN, which is a deliberate break from
