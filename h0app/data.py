@@ -139,6 +139,92 @@ def skip_hours_total():
     return float(skip.STANDARD_CHARGED_SKIPPED.sum())
 
 
+# ---- the multi-load gap ----------------------------------------------------
+# RECOMPUTED, NOT READ, and it is the only finding on that page that has to be.
+# 04_MultiLoadGap is four rows, one per operation, and 05_Evidence holds the
+# SINGLE-load steps only - the multi-load population never reaches a sheet at
+# part level. A Family filter has nothing to filter on unless the frame is
+# rebuilt here.
+#
+# load_view.load() only reads the parquet; see the note at the top of
+# pipeline.py on which of the pipeline's loaders are safe to call.
+
+
+@st.cache_data(show_spinner=False)
+def _multi(key):
+    return _norm(pipeline.load_view.load()[1])
+
+
+def multi_load_rows():
+    """One row per multi-load work order at one routing step - 557 of them.
+
+    The frame the tiles count off. A work order is distinct here even where it
+    appears at two sequences, so counting it once is possible; on any
+    aggregate, including 04_MultiLoadGap, it is not.
+    """
+    return _multi(paths.cache_key(paths.CACHE))
+
+
+def multi_loads(frame=None):
+    """Multi-load work orders at the grain the other two findings use.
+
+    FAMILY x PART_TYPE x SEQUENCE x OPERATION.
+
+    NO STEPS COLUMN, because at this grain there could not be one worth having:
+    a work order meets a given operation at a given sequence at most once, so a
+    per-row step count and a per-row work-order count are the same number on
+    every row. The two only part company ABOVE the row - 258 distinct work
+    orders across 557 step-rows - which is why the figures over the table are
+    counted off multi_load_rows() and not summed out of this.
+
+    Pass an already-filtered multi_load_rows() to keep this table and the
+    figures above it describing the same set.
+    """
+    m = multi_load_rows() if frame is None else frame
+    g = (m.groupby(["FAMILY", "PART_TYPE", SEQ, "OPERATION"], dropna=False)
+          .agg(PARTS=("PART_ID", "nunique"),
+               WORK_ORDERS=("WORK_ORDER", "nunique"),
+               MEDIAN_LOADS=("LOADS_CHARGED", "median"),
+               MAX_LOADS=("LOADS_CHARGED", "max"),
+               LOADS=("LOADS_CHARGED", "sum"),
+               HOURS_MASTER=("HOURS_MASTER", "sum"),
+               HOURS_WORKED=("HOURS_WORKED", "sum"))
+          .reset_index())
+    # RUN DERIVED, NOT CARRIED. RUN_MASTER is a per-part field and a row can
+    # hold several parts: 92 of the 96 rows have one value, 4 have two (a
+    # family running some parts at 0.33 h a basket and others at 0.66). Taking
+    # hours over loads gives the exact RUN wherever there is only one and a
+    # load-weighted average where there is not - and either way it is the
+    # number that multiplies back up to the totals beside it, which a median
+    # or a "mixed" placeholder would not.
+    g["RUN_EFF"] = g.HOURS_MASTER / g.LOADS
+    g["MASTER_PER_WO"] = g.HOURS_MASTER / g.WORK_ORDERS
+    g["OVER_RESERVED_HOURS"] = g.HOURS_MASTER - g.HOURS_WORKED
+    g["RATIO"] = g.HOURS_WORKED / g.HOURS_MASTER
+    return g.sort_values("OVER_RESERVED_HOURS", ascending=False)
+
+
+@st.cache_data(show_spinner=False)
+def _multi_facts(key):
+    one, multi = pipeline.load_view.load()
+    n1, nm = len(one), len(multi)
+    return {"RATIO_ONE": float(one.HOURS_WORKED.sum() / one.HOURS_MASTER.sum()),
+            "RATIO_MULTI": float(multi.HOURS_WORKED.sum()
+                                 / multi.HOURS_MASTER.sum()),
+            "STEPS_ONE": n1, "STEPS_MULTI": nm,
+            "SHARE_ONE": n1 / (n1 + nm) if n1 + nm else float("nan")}
+
+
+def multi_load_facts():
+    """The two pooled ratios the explanation on that page quotes.
+
+    Hardcoded until now, and they had drifted: the text said single load ran at
+    0.96 - "the standard is roughly right" - against a live 1.119, which is not
+    the same claim nor even the same direction. Read them instead.
+    """
+    return _multi_facts(paths.cache_key(paths.CACHE))
+
+
 def actions():
     """01_Actions, with the review flag recomputed.
 

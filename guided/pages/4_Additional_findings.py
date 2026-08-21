@@ -72,9 +72,7 @@ with st.sidebar:
     choices = [MICRO] + ([SETUPS] if skip is not None else [])         + ([LOADS] if gap is not None else [])
     choice = st.radio("Finding", choices, label_visibility="collapsed")
 
-    # The filters for the chosen finding, and nothing else. "Runs with multiple
-    # loads" is four rows of one column each and carries none - a filter over
-    # four rows is furniture.
+    # The filters for the chosen finding, and nothing else.
     fam = op = rt = None
 
     def _pickers(frame, key):
@@ -95,6 +93,13 @@ with st.sidebar:
         fam, op = _pickers(skip, "skip")
         rt = st.multiselect("Run type", sorted(skip.RUN_TYPE.unique()),
                             placeholder="both")
+    else:
+        # This finding used to carry no filters, on the grounds that
+        # 04_MultiLoadGap is four rows. That was a fact about the sheet rather
+        # than about the finding: rebuilt at the grain the other two use it is
+        # 96 rows over 30 families, and the one family carrying 46% of the
+        # hours could not be isolated. See data.multi_loads.
+        fam, op = _pickers(data.multi_load_rows(), "gap")
 
 # The title and the banner above never change - they are true of all three -
 # so the section heading is what says which finding is on screen.
@@ -151,11 +156,9 @@ if choice == MICRO:
     st.markdown(f"""
 Micro durations refer to bookings at or under **{pipeline.TOKEN_HOURS} h**.
 These are work orders closed to move them along, not a measurement, so they are
-dropped before any standard is tested.
-
-**`STANDARD_CHARGED`** is the number to look at. It is what those work orders
-carried: hours the schedule reserved and the costing charged against jobs with
-no evidence they were performed.
+dropped before any standard is tested. `STANDARD_CHARGED` is the number to
+look at. It is what those work orders carried: hours the schedule reserved and
+the costing charged against jobs with no evidence they were performed.
 """)
 
     # THE COLUMNS ON SCREEN, NAMED. Everything here used to render its raw
@@ -198,8 +201,10 @@ no evidence they were performed.
                      "PART_TYPE": st.column_config.TextColumn("Part type",
                                                               width="small"),
                      S: st.column_config.NumberColumn("Step", format="%d"),
-                     "OPERATION": st.column_config.TextColumn("Operation"),
-                     "RUN_TYPE_MASTER": st.column_config.TextColumn("Run type"),
+                     "OPERATION": st.column_config.TextColumn(
+                         "Operation", width="medium"),
+                     "RUN_TYPE_MASTER": st.column_config.TextColumn(
+                         "Run type", width="small"),
                      "PARTS": st.column_config.NumberColumn("Parts"),
                      "WO_ALL": st.column_config.NumberColumn("Work orders"),
                      "WO_TOKEN": st.column_config.NumberColumn("Micro"),
@@ -227,27 +232,52 @@ elif choice == SETUPS:
         d2 = d2[d2.OPERATION.isin(op)]
     if rt:
         d2 = d2[d2.RUN_TYPE.isin(rt)]
-    c = st.columns(3)
-    c[0].metric("Work orders skipped", ui.num(d2.WO_SKIPPED.sum()))
-    c[1].metric("Steps", ui.num(len(d2)))
-    c[2].metric("Charged for setups never performed",
-                ui.hrs(d2.STANDARD_CHARGED_SKIPPED.sum()))
+    # FOUR FIGURES, the same shape as micro durations, and "Work orders" means
+    # the same thing in both: the ones with the issue. There it is the 1'579
+    # booked at or under the cut; here it is the 1'893 whose setup did not
+    # happen. A reader who learns the word on one section keeps it on the next.
+    #
+    # CHARGED, ALL IS LAST, deliberately apart from the three beside it. Those
+    # three describe the skipped work orders; this one spans every work order
+    # at these steps, and it is here only as the denominator that gives 540 h a
+    # size - one setup hour in five. Sitting between them it read as another
+    # figure about the 1'893.
+    c = st.columns(4)
+    c[0].metric("Work orders", ui.num(d2.WO_SKIPPED.sum()),
+                help=f"Setup tickets booked at or under {pipeline.SKIP_CUT} h, "
+                     f"which means the setup did not happen. A work order with "
+                     f"no setup ticket at all cannot be counted either way.")
+    c[1].metric("Steps", ui.num(len(d2)),
+                help="Every family, part type and routing step with a setup "
+                     "standard here. Not all of them have a skip.")
+    # THE UNFILTERED TOTAL LIVES HERE NOW. 03_SkipRate lists only steps with
+    # SETUP_MIN or more work orders, so this figure is 540 h against a true
+    # 591 h - and the paragraph that used to say so has gone. Without it the
+    # page under-reports the finding by 51 h with nothing on screen admitting
+    # it, so the caveat moves to the tooltip on the number it qualifies.
+    _all = data.skip_hours_total()
+    _shown = float(skip.STANDARD_CHARGED_SKIPPED.sum())
+    _short = (f" The table lists only steps with {pipeline.SETUP_MIN}+ work "
+              f"orders, so this is short of the whole picture: across every "
+              f"step, including those too small to list, {ui.hrs(_all)} was "
+              f"charged for setups never performed."
+              if abs(_all - _shown) >= 0.5 else "")
+    c[2].metric("Standard skipped",
+                ui.hrs(d2.STANDARD_CHARGED_SKIPPED.sum()),
+                help="Setup hours charged on work orders where no setup took "
+                     "place." + _short)
+    c[3].metric("Out of total standard",
+                ui.hrs(d2.STANDARD_CHARGED_ALL_WO.sum()),
+                help="Setup hours charged across every work order at these "
+                     "steps, performed or not — what the figure beside it is "
+                     "a share of.")
     st.markdown(f"""
-When several work orders of one family run back to back on one machine, only the
-first needs a full setup. That is normal and correct — but the ERP charges
-`SETUP_HRS` on **every** work order whether a setup happened or not, so a family
-skipping half its setups reserves roughly double the setup time it consumes.
-
-A setup booked at or under **{pipeline.SKIP_CUT} h** did not happen. The booked
-distribution has a clean gap there — the 20th percentile is 0.010 and the 25th
-is 0.070 — so where in that gap the cut sits changes nothing.
-
-This is the only view covering **both** run types. Skipping is a counting
-question, so it needs no test and no minimum sample: HRS/LOAD setup carries a
-standard on one operation only, with three performed setups in the whole year
-against a floor of {pipeline.SETUP_MIN}. Untestable, but not unreportable.
+Charged but not performed refers to bookings at or under **{pipeline.SKIP_CUT} h**.
+That may be normal and correct: when several work orders of one family run back
+to back on one machine, only the first needs a full setup. The standard in the
+ERP charges `SETUP_HRS` on **every** work order whether a setup happened or
+not.
 """)
-
     # 03_SkipRate is filtered to pools with SETUP_MIN or more work orders,
     # so the figure above is SHORT of the true total - and the README and
     # the workbook both quote the unfiltered one. Two numbers for the same
@@ -264,21 +294,17 @@ against a floor of {pipeline.SETUP_MIN}. Untestable, but not unreportable.
     # one family's hours against the plant's 591 h would read as though the
     # family were missing the difference. Unfiltered, the two are the same two
     # numbers this sentence has always compared.
-    _all = data.skip_hours_total()
-    _shown = float(skip.STANDARD_CHARGED_SKIPPED.sum())
-    if not fam and not op and not rt and abs(_all - _shown) >= 0.5:
-        st.caption(
-            f"The table below lists only steps with "
-            f"{pipeline.SETUP_MIN}+ work orders, so the figure "
-            f"above is short of the whole picture. Across every step, "
-            f"including those too small to list, "
-            f"**{ui.hrs(_all)}** was charged for setups never "
-            f"performed — {ui.hrs(_all - _shown)} of it in steps that "
-            f"do not appear here.")
     # Same shape as the micro-durations table: identity, then the work orders,
     # then what it cost. SECTION is dropped - it is the plant area, which none
     # of the other tables carry and nothing on this page refers to.
-    _show2 = ["FAMILY", "PART_TYPE", S, "OPERATION", "RUN_TYPE", "PARTS",
+    # RUN_TYPE IS FILTERABLE BUT NOT SHOWN. It separates two regimes - HRS/LOAD
+    # setups are skipped on 638 of 641 work orders against 26% for PCS/HR - but
+    # that is one operation, S RICOTTURA, where a furnace load carries many work
+    # orders and one setup serves all of them. The page makes nothing of the
+    # distinction, so on screen the column reads "PCS/HR" on 240 of 279 rows.
+    # It stays in the rail, where isolating the 39 HRS/LOAD steps is one click,
+    # and in the CSV.
+    _show2 = ["FAMILY", "PART_TYPE", S, "OPERATION", "PARTS",
               "WO_ALL", "WO_SKIPPED", "WO_REAL", "SKIP_RATE",
               "SETUP_HRS_CURRENT", "STANDARD_CHARGED_SKIPPED",
               "STANDARD_CHARGED_ALL_WO"]
@@ -287,95 +313,233 @@ against a floor of {pipeline.SETUP_MIN}. Untestable, but not unreportable.
         lambda v: ui.part_tag(v, with_title=False))
     _t2["SKIP_RATE"] = _t2.SKIP_RATE * 100          # see the note above
     st.dataframe(ui.swiss_grid(
+        # ALL THREE HOUR COLUMNS AT TWO DECIMALS, which is what the ERP holds
+        # and what the sibling table already uses.
+        #
+        # The charged pair was at one decimal and losing real figures - 41 and
+        # 73 of their values carry a second decimal, so 0.17 and 2.25 were
+        # printing as 0.2 and 2.3.
+        #
+        # SETUP_HRS was at three and showing nothing for it: the only values
+        # are 0.2, 0.25, 0.5, 0.5001, 1.0, 2.0001 and 4.0, and at three
+        # decimals 0.5001 renders as "0.500" - identical to a plain 0.5. Those
+        # .0001s are ERP rounding artefacts, not a measurement to a thousandth.
         _t2, {"PARTS": ",.0f", "WO_ALL": ",.0f", "WO_SKIPPED": ",.0f",
-              "WO_REAL": ",.0f", "SETUP_HRS_CURRENT": ",.3f",
-              "STANDARD_CHARGED_SKIPPED": ",.1f",
-              "STANDARD_CHARGED_ALL_WO": ",.1f"}),
+              "WO_REAL": ",.0f", "SETUP_HRS_CURRENT": ",.2f",
+              "STANDARD_CHARGED_SKIPPED": ",.2f",
+              "STANDARD_CHARGED_ALL_WO": ",.2f"}),
                  hide_index=True, width="stretch", height=380,
                  column_config={
-                     "FAMILY": st.column_config.TextColumn("Family",
-                                                           width="medium"),
+                     # No width: Streamlit sizes the column to its contents,
+                     # which here runs to 42 characters. The five numeric
+                     # columns are pinned below, so what this takes comes out
+                     # of the ones still on stretch rather than out of them.
+                     "FAMILY": st.column_config.TextColumn("Family"),
                      "PART_TYPE": st.column_config.TextColumn("Part type",
                                                               width="small"),
                      S: st.column_config.NumberColumn("Step", format="%d"),
-                     "OPERATION": st.column_config.TextColumn("Operation"),
-                     "RUN_TYPE": st.column_config.TextColumn("Run type"),
+                     "OPERATION": st.column_config.TextColumn(
+                         "Operation", width="medium"),
                      "PARTS": st.column_config.NumberColumn("Parts"),
                      "WO_ALL": st.column_config.NumberColumn("Work orders"),
                      "WO_SKIPPED": st.column_config.NumberColumn("Skipped"),
-                     "WO_REAL": st.column_config.NumberColumn("Performed"),
+                     # PIXEL WIDTHS on these two. Left to width="stretch" the
+                     # surplus went to the last column - "Total h" ended up
+                     # 200px wide for a value like 24.5 - while "Performed"
+                     # truncated to "Perforn" and the skip bar was squeezed to
+                     # half the width of the same bar on micro durations.
+                     "WO_REAL": st.column_config.NumberColumn("Performed",
+                                                              width=95),
                      "SKIP_RATE": st.column_config.ProgressColumn(
                          "Skip rate", min_value=0, max_value=100,
-                         format="%.0f%%"),
+                         format="%.0f%%", width=150),
                      "SETUP_HRS_CURRENT": st.column_config.NumberColumn(
-                         "Setup h", help="SETUP_HRS as the routing holds it."),
+                         "Setup h", width=95,
+                         help="SETUP_HRS as the routing holds it."),
+                     # Short headers on purpose - see the note below the
+                     # table config. The tiles above carry the full wording.
                      "STANDARD_CHARGED_SKIPPED": st.column_config.NumberColumn(
-                         "Charged, skipped h",
+                         "Skipped h", width=95,
                          help="Setup hours charged on work orders where no "
                               "setup happened."),
                      "STANDARD_CHARGED_ALL_WO": st.column_config.NumberColumn(
-                         "Charged, all h",
+                         "Total h", width=95,
                          help="Setup hours charged across every work order at "
                               "this step, performed or not."),
                  })
     st.download_button("Download as CSV",
                        d2.to_csv(index=False).encode("utf-8"),
-                       file_name="h0_additional_findings_setups_not_performed.csv", mime="text/csv",
+                       file_name=("h0_additional_findings_setups_not_"
+                                  "performed.csv"), mime="text/csv",
                        icon=":material/download:", key="dl_skip")
+    st.caption("The download carries every column of the source sheet, "
+               "including the ones not shown here.")
 
 else:
-    st.metric("Allowed and not used",
-              ui.hrs(gap.OVER_RESERVED_HOURS.sum()))
-    st.markdown("""
-`HRS/LOAD` charges `CEILING(quantity ÷ load size) × RUN`. A job of 1,048 pieces
-against a load size of 500 is charged three full machine cycles whatever the
-last basket holds.
+    # Rebuilt at family grain rather than read off 04_MultiLoadGap, so the two
+    # pickers in the rail have something to pick. data.multi_loads carries the
+    # reason the sheet cannot serve this.
+    d3r = data.multi_load_rows()
+    if fam:
+        d3r = d3r[d3r.FAMILY.isin(fam)]
+    if op:
+        d3r = d3r[d3r.OPERATION.isin(op)]
+    d3 = data.multi_loads(d3r)
 
-The model assumes the second basket costs the same as the first, and it does
-not. Over the fiscal year single-load work orders run at a ratio of about 0.96 —
-the standard is roughly right — while multi-load work orders run at about 0.57,
-charged nearly double what they take.
+    # FOUR FIGURES, the same shape as the two sections above: two counts, the
+    # finding in hours, and the whole it came out of. "Work orders" means here
+    # what it means there - the ones with the issue.
+    #
+    # IT IS NOT THE SUM OF 04_MultiLoadGap's WORK_ORDERS COLUMN. That sheet is
+    # per operation, and 84 work orders meet two HRS/LOAD operations, so the
+    # column sums to 342 against 258 distinct. Counting a work order once is
+    # the only reading that survives the family filter as well.
+    c = st.columns(4)
+    c[0].metric("Work orders", ui.num(d3r.WORK_ORDER.nunique()),
+                help="Work orders whose master charged for more than one load.")
+    c[1].metric("Steps", ui.num(len(d3r)),
+                help="One work order at one routing step. A work order meeting "
+                     "the same operation at two sequences counts twice, which "
+                     "is why this runs ahead of the count beside it.")
+    c[2].metric("Standard allowed but not used",
+                ui.hrs((d3r.HOURS_MASTER - d3r.HOURS_WORKED).sum()),
+                help="Master hours minus hours worked: capacity the schedule "
+                     "reserved and the costing charged, and nobody used.")
+    # THE DENOMINATOR, and the tile that moves most under the pickers. Left off,
+    # 1'032 h could be a fiftieth of the exposure or half of it; it is a third.
+    # And the share is flat only in aggregate - the worst family loses 53% of
+    # what it is charged, while another with MORE work orders loses 21%, which
+    # an absolute figure alone hides completely.
+    # SAME LABEL AS THE SETUPS SECTION, because it is the same idea: the whole
+    # the figure beside it is a share of. The scope differs - there it widens
+    # to every work order at the step, here it stays inside the multi-load
+    # population - which is what the tooltips are for.
+    c[3].metric("Out of total standard", ui.hrs(d3r.HOURS_MASTER.sum()),
+                help="Master hours across every multi-load work order at these "
+                     "steps — what the figure beside it is a share of.")
 
-No single multiplier fixes both. Fitting hours against load count puts the
-marginal load anywhere from 0% to 156% of `RUN` depending on the operation, so
-one corrected `RUN` cannot serve both regimes: tighten it to the pooled figure
-and the single-load jobs that were already right get squeezed. Multi-load work
-orders are therefore **excluded from the test and reported here**.
-
-`MARGINAL_LOAD_B` is what a second load actually costs in hours;
-`MARGINAL_AS_PCT_OF_RUN` compares that with what the standard charges for one.
+    # EVERY FIGURE IN THIS TEXT IS READ, NOT WRITTEN DOWN. It used to quote
+    # 0.96 against 0.57 and a marginal load "from 0% to 156%". The live
+    # workbook says 1.119, 0.647 and 1% to 118% - and 0.96 carried the clause
+    # "the standard is roughly right", which at 1.119 is not merely stale but
+    # backwards. Hardcoding a figure next to a tile that reads its own is how
+    # a page ends up arguing with itself.
+    f = data.multi_load_facts()
+    # THE DIRECTION WORD IS DERIVED, NOT TYPED. "12% more" and "35% less" are
+    # the point of saying it this way, and they are also exactly the clause
+    # that went stale before: the page called the standard "roughly right"
+    # long after the figure behind it had crossed 1.0. Read the sign off the
+    # number and the sentence cannot contradict the table under it.
+    _p1 = abs(f["RATIO_ONE"] - 1) * 100
+    _w1 = "more" if f["RATIO_ONE"] >= 1 else "less"
+    _p2 = abs(f["RATIO_MULTI"] - 1) * 100
+    _w2 = "more" if f["RATIO_MULTI"] >= 1 else "less"
+    st.markdown(f"""
+`HRS/LOAD` charges `CEILING(quantity ÷ load size) × RUN`. A job of 510 pieces
+against a load size of 500 is charged two full machine cycles. One-basket jobs
+take about **{_p1:.0f}% {_w1}** time than the standard allows; jobs needing
+several take about **{_p2:.0f}% {_w2}** (ratios of {f["RATIO_ONE"]:.3f} and
+{f["RATIO_MULTI"]:.3f}). Correcting `RUN` cannot fix both at once, so multi-load
+work orders are excluded from the test and reported here.
 """)
-    # Four rows, one per operation - no family here, so identity is the
-    # operation alone.
+
+    # The columns on screen, named - same pattern as the two sections above.
+    # THE STANDARD ITSELF IS ON THE ROW NOW. Without RUN and what one work
+    # order was charged, one family's three steps at a single operation look
+    # like the same finding at three sizes; with them they are visibly one
+    # standard at 12 h a basket, one at 5 and one at 2, and only the first two
+    # are too generous - the third runs OVER. Recovering that meant dividing
+    # Master h by work orders and again by loads, which is not reading a table.
+    _show3 = ["FAMILY", "PART_TYPE", S, "OPERATION", "PARTS", "WORK_ORDERS",
+              "RUN_EFF", "MEDIAN_LOADS", "MAX_LOADS", "MASTER_PER_WO",
+              "HOURS_MASTER", "HOURS_WORKED", "OVER_RESERVED_HOURS", "RATIO"]
+    _t3 = d3[_show3].copy()
+    _t3["PART_TYPE"] = _t3.PART_TYPE.map(
+        lambda v: ui.part_tag(v, with_title=False))
     st.dataframe(ui.swiss_grid(
-        gap, {"WORK_ORDERS": ",.0f", "STEPS": ",.0f", "PARTS": ",.0f",
-              "HOURS_MASTER": ",.0f", "HOURS_WORKED": ",.0f",
-              "OVER_RESERVED_HOURS": ",.0f", "RATIO": ",.3f"}),
+        # The two per-unit hour columns at two decimals and the three totals
+        # at one: RUN runs down to 0.33 h a basket, where the second decimal
+        # is the value, while a total of 648.0 h carries no information past
+        # the first. Same split the micro-durations tiles already use.
+        _t3, {"PARTS": ",.0f", "WORK_ORDERS": ",.0f", "RUN_EFF": ",.2f",
+              "MEDIAN_LOADS": ",.0f", "MAX_LOADS": ",.0f",
+              "MASTER_PER_WO": ",.2f",
+              "HOURS_MASTER": ",.1f", "HOURS_WORKED": ",.1f",
+              "OVER_RESERVED_HOURS": ",.1f", "RATIO": ",.3f"}),
+        hide_index=True, width="stretch", height=380,
+        column_config={
+            "FAMILY": st.column_config.TextColumn("Family"),
+            "PART_TYPE": st.column_config.TextColumn("Part type",
+                                                     width="small"),
+            S: st.column_config.NumberColumn("Step", format="%d"),
+            "OPERATION": st.column_config.TextColumn("Operation",
+                                                     width="medium"),
+            "PARTS": st.column_config.NumberColumn("Parts", width=80),
+            # Sums to 557 rather than to the 258 in the tile above: a work
+            # order at three sequences is three rows here and one there.
+            "WORK_ORDERS": st.column_config.NumberColumn(
+                "Work orders", width=110,
+                help="Multi-load work orders at this step. A work order "
+                     "meeting the same operation at another sequence is "
+                     "counted again on that row, so this column sums to more "
+                     "than the figure above."),
+            "RUN_EFF": st.column_config.NumberColumn(
+                "Run h/load", width=105,
+                help="RUN as the routing holds it: hours for one basket. On "
+                     "the few rows whose parts carry different values it is "
+                     "the load-weighted average."),
+            "MEDIAN_LOADS": st.column_config.NumberColumn("Loads, median",
+                                                          width=120),
+            "MAX_LOADS": st.column_config.NumberColumn("Loads, max", width=100),
+            "MASTER_PER_WO": st.column_config.NumberColumn(
+                "Master h/WO", width=110,
+                help="What one work order was charged: Run h/load times the "
+                     "baskets the master counted."),
+            "HOURS_MASTER": st.column_config.NumberColumn("Total master h",
+                                                          width=125),
+            "HOURS_WORKED": st.column_config.NumberColumn("Total actual h",
+                                                          width=125),
+            "OVER_RESERVED_HOURS": st.column_config.NumberColumn(
+                "Total unused h", width=125),
+            "RATIO": st.column_config.NumberColumn("Actual ÷ master",
+                                                   width=130),
+        })
+    st.download_button("Download as CSV",
+                       d3r.to_csv(index=False).encode("utf-8"),
+                       file_name="h0_additional_findings_multiple_loads.csv",
+                       mime="text/csv",
+                       icon=":material/download:", key="dl_gap")
+    st.caption("The download is one row per work order rather than the "
+               "summary above it, and carries the part, the quantity and the "
+               "load size behind every line.")
+
+    # THE FIT STAYS PER OPERATION, on its own below, and does not follow the
+    # Family picker. It is one straight line through both regimes of a whole
+    # operation, so there is no family-level version of it to show - repeated
+    # down 96 rows it would read as 96 measurements rather than as four.
+    st.markdown("#### What a second load actually costs")
+    st.caption("Fitted per operation, so this table answers to the Operation "
+               "picker only. `Fixed h` is the part of the job that does not "
+               "repeat per load.")
+    _fit = gap[gap.OPERATION.isin(op)] if op else gap
+    st.dataframe(ui.swiss_grid(
+        _fit[["OPERATION", "FIXED_HOURS_A", "MARGINAL_LOAD_B",
+              "MARGINAL_AS_PCT_OF_RUN"]],
+        {"FIXED_HOURS_A": ",.2f", "MARGINAL_LOAD_B": ",.2f",
+         "MARGINAL_AS_PCT_OF_RUN": ",.1%"}),
         hide_index=True, width="stretch",
         column_config={
-            "OPERATION": st.column_config.TextColumn("Operation"),
-            "WORK_ORDERS": st.column_config.NumberColumn("Work orders"),
-            "STEPS": st.column_config.NumberColumn("Steps"),
-            "PARTS": st.column_config.NumberColumn("Parts"),
-            "MEDIAN_LOADS": st.column_config.NumberColumn("Loads, median"),
-            "MAX_LOADS": st.column_config.NumberColumn("Loads, max"),
-            "HOURS_MASTER": st.column_config.NumberColumn("Master h"),
-            "HOURS_WORKED": st.column_config.NumberColumn("Actual h"),
-            "OVER_RESERVED_HOURS": st.column_config.NumberColumn(
-                "Allowed, not used h"),
-            "RATIO": st.column_config.NumberColumn("Actual ÷ master"),
+            "OPERATION": st.column_config.TextColumn("Operation",
+                                                     width="medium"),
             "FIXED_HOURS_A": st.column_config.NumberColumn(
-                "Fixed h", help="The part of the job that does not repeat per "
-                                "load - fitted, not stored."),
+                "Fixed h", width=95,
+                help="The part of the job that does not repeat per load — "
+                     "fitted, not stored."),
             "MARGINAL_LOAD_B": st.column_config.NumberColumn(
-                "Per extra load h",
+                "Per extra load h", width=140,
                 help="What a second load actually costs in hours."),
             "MARGINAL_AS_PCT_OF_RUN": st.column_config.NumberColumn(
-                "As % of RUN",
+                "As % of RUN", width=120,
                 help="That marginal load against what the standard charges "
                      "for one."),
         })
-    st.download_button("Download as CSV",
-                       gap.to_csv(index=False).encode("utf-8"),
-                       file_name="h0_additional_findings_multiple_loads.csv", mime="text/csv",
-                       icon=":material/download:", key="dl_gap")

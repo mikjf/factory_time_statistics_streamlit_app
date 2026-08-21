@@ -530,7 +530,7 @@ def load(operation, family, part_type, seq, part_id=None):
 
     Only single-load work orders are tested. The standard assumes a second
     basket costs the same as the first and it does not - over the year the
-    multi-load population runs at a ratio of 0.574 against 0.961 for single
+    multi-load population runs at a ratio of 0.647 against 1.119 for single
     load - so those rows appear here as excluded rather than as evidence.
     """
     lv = pipeline.load_view
