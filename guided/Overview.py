@@ -77,19 +77,30 @@ c[1].metric("Distinct parts affected", ui.num(edits.PART_ID.nunique()),
             help="Parts have multiple operations and each one could need an "
                  "edit.")
 c[2].metric("Operations rows to edit", ui.num(len(edits)),
+            # Also runs ahead of distinct ERP routing rows, not just of parts:
+            # 39 rows share a MASTER_OPS_ROWID with another row here, because
+            # that one physical row needs both RUN and SETUP_HRS edited - two
+            # field edits, one row in the ERP, counted twice in this tile.
             help="Higher than distinct parts affected as each part has "
-                 "multiple operations.")
+                 "multiple operations and can have run and/or setup "
+                 "edited.")
 c[3].metric("Absolute misstated hours",
             ui.hrs(total.HOURS_DELTA_ABSOLUTE),
             # "per standard" pins the absolute to the right level. Without it,
-            # "absolute hours delta" reads as the absolute of each work order's
-            # delta, which is a different and much larger number - taken over
-            # every in-scope work order it comes to 24,622 h against the 10,966
-            # here - because it counts ordinary job-to-job variation as
-            # misstatement. Within one standard the deltas cancel; across
-            # standards they do not.
-            help="Total absolute hours delta (actual − master) per standard, "
-                 "of standards to review only.")
+            # "absolute hours delta" reads as the absolute of each work
+            # order's delta - a different and larger number, because it would
+            # count ordinary job-to-job variation as misstatement. Within one
+            # standard the deltas cancel; across standards they do not.
+            #
+            # NO COMPARISON NUMBER HERE ANYMORE. This comment used to quote
+            # the flat total as 24,622 h against 10,966 h here - already
+            # stale, since the tile now reads 10,826 h and nothing recomputes
+            # the flat side live. A specific number nobody keeps current is
+            # worse than none; see the same lesson on data.multi_load_facts.
+            help="The difference between actual and master, summed across "
+                 "every time the routing was performed — then taken as an "
+                 "absolute value once per standard, so different standards "
+                 "never cancel each other out.")
 
 st.divider()
 
@@ -156,12 +167,16 @@ with g2:
     # RUN ONLY, like the two panels below it. Setup is judged on a different
     # population against a different floor, so folding it into a ranking that
     # gets compared against run hours quietly changes what the ranking means.
-    op_run = data.run_gross_by_operation()
+    # PCS/HR + HRS/LOAD merged in for the tooltip only - S SABBIARE mixes both
+    # despite sitting outside the top ten, so the split is shown on every bar
+    # rather than assumed single-valued. See data._by_type.
+    op_run = data.run_gross_by_operation().merge(
+        data.run_gross_by_operation_by_type(), on="OPERATION", how="left")
     share = 100 * op_run.nlargest(10, "GROSS_HOURS").GROSS_HOURS.sum() \
         / op_run.GROSS_HOURS.sum()
     st.subheader("By operation")
-    st.caption(f"Run only. Which process. The top ten carry {share:.0f}% of "
-               f"every misstated run hour.")
+    st.caption(f"`Run PCS/HR` and `Run HRS/LOAD` only. Which process. The "
+               f"top ten carry {share:.0f}% of every misstated run hour.")
     st.altair_chart(charts.operation_bar(op_run), width="stretch")
 
 g3, g4 = st.columns(2)
@@ -171,10 +186,12 @@ with g3:
     # ADV / ANDV are expanded here because this is the one caption that already
     # tells the reader the two rows exist. Abbreviating them on the axis bought
     # space and cost meaning; nothing else on the page maps them.
-    st.caption("Run only. Which product line. Semi-finished (ANDV) and "
-               "finished (ADV) are separate rows (different jobs).")
-    st.altair_chart(charts.family_misstated_bar(data.run_gross_by_family()),
-                    width="stretch")
+    st.caption("`Run PCS/HR` and `Run HRS/LOAD` only. Which product line. "
+               "Semi-finished (ANDV) and finished (ADV) are separate.")
+    fam_run = data.run_gross_by_family().merge(
+        data.run_gross_by_family_by_type(), on=["FAMILY", "PART_TYPE"],
+        how="left")
+    st.altair_chart(charts.family_misstated_bar(fam_run), width="stretch")
 
 with g4:
     wrong = data.most_wrong_families(charts.PCT_FLOOR_H)
@@ -195,10 +212,10 @@ with g4:
     # - that container's opacity would wash both blues to 60% and pull them
     # toward each other. See ui.caption_line.
     ui.caption_line(st, (
-        "Run only. "
-        + ui.tinted("How much of this family's master time is wrong?",
+        "`Run PCS/HR` and `Run HRS/LOAD` only. "
+        + ui.tinted("How much of this family's time is wrong?",
                     charts.MISSTATED) + " "
-        + ui.tinted("How bad are the ones we flagged to change?",
+        + ui.tinted("How bad are the ones flagged to change?",
                     charts.MISSTATED_LIGHT)))
     st.altair_chart(charts.most_wrong_bar(wrong), width="stretch")
 
@@ -211,65 +228,5 @@ st.info(
     icon=":material/functions:")
 
 st.divider()
-
-# ---- where to go ------------------------------------------------------------
-# ONE st.columns(3) HOLDING TWO CARDS EACH, not two rows of three. It renders
-# identically - 1 2 3 above 4 5 6 - but puts all six in a single flex row, so
-# the three columns stretch to a common height and the cards inside them can
-# divide it equally. As two separate rows they sized to their own text and came
-# out 188, 233, 188 / 262, 210, 210.
-#
-# The alternative was a min-height in rem, which is the same fix written down as
-# a guess: it holds until somebody edits a caption.
-#
-# Not rendered as raw HTML like ui.rule_cards() either, because each card holds
-# an st.page_link. A plain <a> would navigate by full page load instead of
-# Streamlit's client-side routing, which on a page that reads workbooks is a
-# second of blank screen for a cosmetic gain.
-st.subheader("Where to go")
-NAV = [
-    ("checklist", "Review queue",
-     "Every standard proposed for change. Filter to your family or your "
-     "operation, see what it is worth, pick one.",
-     "pages/1_Review_queue.py", "Open the queue"),
-    # Every caption kept to two lines at full width. A third line on one card
-    # pushes all six taller, because they share a height by design.
-    ("flag", "Additional findings",
-     "Hours reserved and costed for work with no evidence it happened — a "
-     "booking and routing question.",
-     "pages/4_Additional_findings.py", "See the findings"),
-    ("query_stats", "Inspect",
-     "The six rules with real figures, every work order behind it, and where "
-     "each sits. **Use this when you disagree.**",
-     "pages/2_Inspect.py", "Inspect a unit"),
-    # The two explaining pages, named for the difference between them. They were
-    # "How it works" and "Dataset", which described neither: the second had
-    # grown into the method walkthrough while the first held what you need to
-    # read a single recommendation.
-    ("school", "How to read it",
-     "The two directions of correction, part versus family, and what this "
-     "cannot tell you.",
-     "pages/5_How_to_read_it.py", "Read one"),
-    ("qr_code", "By part",
-     "Everything proposed for one part — and every step of it that was "
-     "examined and left alone, with the reason.",
-     "pages/3_By_part.py", "Look a part up"),
-    ("database", "Methodology",
-     "Every labour ticket the ERP recorded, every rule applied to it, down to "
-     "these recommendations.",
-     "pages/6_Methodology.py", "Follow it through"),
-]
-ui.equal_cards(st, min_height="10rem")
-_cols = st.columns(3)
-# Column-major: the list above is ordered so column 1 holds cards 1 and 2,
-# column 2 holds 3 and 4, and so on - which reads across as 1 2 3 / 4 5 6.
-for _i, (_icon, _name, _why, _page, _label) in enumerate(NAV):
-    with _cols[_i // 2]:
-        with st.container(border=True):
-            st.markdown(f"#### :material/{_icon}: {_name}")
-            st.caption(_why)
-            st.page_link(_page, label=_label, icon=":material/arrow_forward:")
-
-st.divider()
 st.caption("Read-only. This tool opens no file for writing anywhere in the "
-           "project; downloads go to your browser.")
+           "project. Downloads go to your browser.")

@@ -361,6 +361,33 @@ def run_gross_by_family():
             .ABS.sum().rename(columns={"ABS": "GROSS_HOURS"}))
 
 
+def _by_type(keys):
+    """PCS/HR and HRS/LOAD as two columns instead of one row each.
+
+    For the chart tooltips only - run_gross_by_operation/family stay at one
+    row per bar, which is what sets its height and its rank. S SABBIARE mixes
+    both run types (45 h HRS/LOAD, 55 h PCS/HR) despite sitting outside the
+    operation top ten today, so a single run-type label per bar would be
+    correct now and silently wrong the moment it grows into it - the split is
+    shown regardless of whether a given row actually mixes.
+    """
+    g = (_run_actions().groupby(keys + ["RUN_TYPE"], as_index=False)
+         .ABS.sum().rename(columns={"ABS": "GROSS_HOURS"}))
+    p = (g.pivot(index=keys, columns="RUN_TYPE", values="GROSS_HOURS")
+          .reindex(columns=["PCS/HR", "HRS/LOAD"], fill_value=0)
+          .fillna(0))
+    p.columns = ["PCSHR_HOURS", "HRSLOAD_HOURS"]
+    return p.reset_index()
+
+
+def run_gross_by_operation_by_type():
+    return _by_type(["OPERATION"])
+
+
+def run_gross_by_family_by_type():
+    return _by_type(["FAMILY", "PART_TYPE"])
+
+
 def most_wrong_families(floor_h, top=10):
     """Run misstatement as a share of the family's master run hours.
 

@@ -397,6 +397,17 @@ def _family_label(d):
     return d.FAMILY + "  (" + _part_tag(d.PART_TYPE) + ")"
 
 
+def _split_txt(hours, total):
+    """"1'154 (100%)" - the split value plus its share of the row's total.
+
+    Shared by operation_bar and family_misstated_bar so the two tooltips stay
+    identical in shape, the same reason PCSHR_TXT/HRSLOAD_TXT exist on both.
+    """
+    return [f"{ui.fmt(h, ',.0f')} ({100 * h / t:.0f}%)" if t else
+            f"{ui.fmt(h, ',.0f')} (0%)"
+            for h, t in zip(hours, total)]
+
+
 def operation_bar(d, top=10):
     """Which process holds the misstated run time.
 
@@ -405,16 +416,55 @@ def operation_bar(d, top=10):
     quarter - so this is the more actionable of the two cuts and the one a
     process owner reads.
     """
-    return _bar(d.nlargest(top, "GROSS_HOURS"), "OPERATION", "GROSS_HOURS",
-                HOURS_AXIS, name="operation")
+    # SHORT TOOLTIP TITLE, separate from the axis title. HOURS_AXIS is fine on
+    # the axis - it has its own line - but _bar's default tooltip reuses
+    # whatever title it is given, and at 36 characters that ran past the
+    # tooltip box's width. most_wrong_bar already builds its own short tooltip
+    # labels for the same reason; this matches its wording.
+    #
+    # _VALUE_TXT, not a Vega format spec on GROSS_HOURS - _bar builds that
+    # pre-formatted string field internally so the tooltip gets the Swiss
+    # apostrophe (Vega tooltips have no locale hook, unlike axis labelExpr).
+    #
+    # THE RUN TYPE GOES ON THE LABEL, not a third tooltip row. Every operation
+    # except S SABBIARE carries exactly one run type - family_misstated_bar's
+    # PCS/HR-vs-HRS/LOAD split earns its keep there because 6 of its top 10
+    # families genuinely mix, but here it would show "100% / 0%" on 9 of 10
+    # bars. Vega cannot vary a tooltip's title per row, only its value, so the
+    # type is baked into the label text instead - which can vary - leaving the
+    # tooltip itself just "operation" and "misstated hours" beside it.
+    #
+    # "(mixed)" IS HONEST, NOT A GUESS. S SABBIARE runs 55 h PCS/HR against
+    # 45 h HRS/LOAD - close enough that tagging it either way would be a coin
+    # flip stated as fact. It sits outside today's top ten, but the tag has to
+    # be right the day it is not.
+    d10 = d.nlargest(top, "GROSS_HOURS").copy()
+    kind = np.select(
+        [d10.PCSHR_HOURS.gt(0) & d10.HRSLOAD_HOURS.gt(0),
+         d10.HRSLOAD_HOURS.gt(0)],
+        ["mixed", "HRS/LOAD"], default="PCS/HR")
+    d10["LABEL"] = d10.OPERATION + " (" + kind + ")"
+    return _bar(d10, "LABEL", "GROSS_HOURS", HOURS_AXIS,
+                tooltip=[alt.Tooltip("LABEL:N", title="operation"),
+                        alt.Tooltip("_VALUE_TXT:N", title="misstated hours")])
 
 
 def family_misstated_bar(d, top=10):
     """Which product line holds the most misstated run time."""
     d = d.copy()
     d["LABEL"] = _family_label(d)
-    return _bar(d.nlargest(top, "GROSS_HOURS"), "LABEL", "GROSS_HOURS",
-                HOURS_AXIS)
+    # Same short-tooltip / _VALUE_TXT / PCS/HR-HRS/LOAD split reasoning as
+    # operation_bar above.
+    d10 = d.nlargest(top, "GROSS_HOURS").copy()
+    d10["PCSHR_TXT"] = _split_txt(d10.PCSHR_HOURS, d10.GROSS_HOURS)
+    d10["HRSLOAD_TXT"] = _split_txt(d10.HRSLOAD_HOURS, d10.GROSS_HOURS)
+    return _bar(d10, "LABEL", "GROSS_HOURS", HOURS_AXIS,
+                tooltip=[alt.Tooltip("LABEL:N", title="family"),
+                        alt.Tooltip("_VALUE_TXT:N", title="misstated hours"),
+                        alt.Tooltip("PCSHR_TXT:N",
+                                    title="misstated hours run PCS/HR"),
+                        alt.Tooltip("HRSLOAD_TXT:N",
+                                    title="misstated hours run HRS/LOAD")])
 
 
 def most_wrong_bar(d):

@@ -310,7 +310,7 @@ st.caption("Shown for `PCS/HR` run because it is the biggest of the three and "
 # here. ops.WORK_ORDERS is the workbooks' "Work orders in scope", which is
 # nunique per operation - so a work order visiting ten operations counts ten
 # times, and the figure is really work-order x operation. Booking lines for the
-# same scope come to 20,373, which is what the deduction table above reports on
+# same scope come to 20,618, which is what the deduction table above reports on
 # its Run PCS/HR row.
 ui.funnel(st, [
     # ui.funnel prepends "counted in", so the unit string must not repeat it
@@ -362,7 +362,7 @@ ui.rule_cards(st, text.rules())
 st.divider()
 
 # ---- the funnel, second half ------------------------------------------------
-# Reopens on the same 8,656 the first half closed on, so the drop to 603 stays
+# Reopens on the same 8,749 the first half closed on, so the drop to 607 stays
 # visible. Repeating the number is the join.
 # The unit goes in this heading and NOT in step 1's. Every bar here is one
 # part x sequence x operation. Step 1 crosses from work orders to standards, so
@@ -393,11 +393,11 @@ ui.funnel(st, [
          f"at least {pipeline.MIN_EFFECT:.0%} off and "
          f"{pipeline.MIN_HOURS_IMPACT:g} h a year"),
     ]),
-], scale_to=fn["at_a_standard"])   # same scale as the first half, so 8'656
+], scale_to=fn["at_a_standard"])   # same scale as the first half, so 8'749
                                    # is drawn the same width in both
 # WAS ARITHMETICALLY FALSE. It read "those 59 plus setup's and HRS/LOAD's own
 # share give 230 decisions" - 59 + 44 + 21 is 124. The 59 is the PART-LEVEL
-# path only, which is what these workbooks count; the other 106 PCS/HR run
+# path only, which is what these workbooks count; the other 107 PCS/HR run
 # decisions come from the family path, where a part too thin to judge alone is
 # pooled with its family at the same step. That path is not in this funnel at
 # all, and it produces nearly twice as many decisions as the one that is.
@@ -415,14 +415,14 @@ st.divider()
 
 # ---- the funnel, third half -------------------------------------------------
 # The route the part-level funnel never showed, and it produces most of the
-# decisions - 106 against 59. A part too thin to judge alone is pooled with its
+# decisions - 107 against 59. A part too thin to judge alone is pooled with its
 # family at the same step and the pool is judged instead, which is the whole
 # reason the analysis has two levels.
 #
-# SCALED TO 20,372 LIKE THE OTHER TWO. The unit differs - a family pool is
+# SCALED TO 20,618 LIKE THE OTHER TWO. The unit differs - a family pool is
 # neither a work order nor a standard - but steps 2 and 3 are parallel routes
-# whose outputs get added together, 59 + 106, so they have to be measurable
-# against each other. On its own scale this funnel drew 106 at 9% while step 2
+# whose outputs get added together, 59 + 107, so they have to be measurable
+# against each other. On its own scale this funnel drew 107 at 9% while step 2
 # drew 59 at 0.3%, which read as the family route being thirty times the size
 # of the part route rather than roughly twice.
 ff = data.family_funnel()
