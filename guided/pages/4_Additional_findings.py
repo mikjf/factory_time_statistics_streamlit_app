@@ -201,8 +201,8 @@ the costing charged against jobs with no evidence they were performed.
                      "PART_TYPE": st.column_config.TextColumn("Part type",
                                                               width="small"),
                      S: st.column_config.NumberColumn("Step", format="%d"),
-                     "OPERATION": st.column_config.TextColumn(
-                         "Operation", width="medium"),
+                     # No width - sized to content, same as Family beside it.
+                     "OPERATION": st.column_config.TextColumn("Operation"),
                      "RUN_TYPE_MASTER": st.column_config.TextColumn(
                          "Run type", width="small"),
                      "PARTS": st.column_config.NumberColumn("Parts"),
@@ -338,8 +338,8 @@ not.
                      "PART_TYPE": st.column_config.TextColumn("Part type",
                                                               width="small"),
                      S: st.column_config.NumberColumn("Step", format="%d"),
-                     "OPERATION": st.column_config.TextColumn(
-                         "Operation", width="medium"),
+                     # No width - sized to content, same as Family above.
+                     "OPERATION": st.column_config.TextColumn("Operation"),
                      "PARTS": st.column_config.NumberColumn("Parts"),
                      "WO_ALL": st.column_config.NumberColumn("Work orders"),
                      "WO_SKIPPED": st.column_config.NumberColumn("Skipped"),
@@ -353,19 +353,35 @@ not.
                      "SKIP_RATE": st.column_config.ProgressColumn(
                          "Skip rate", min_value=0, max_value=100,
                          format="%.0f%%", width=150),
+                     # THE THREE HOUR COLUMNS DO NOT MULTIPLY OUT, on about
+                     # half the rows, and the tooltips say why: Setup h comes
+                     # from correctly-staffed tickets only, while the other two
+                     # sum every ticket, mismatched crews included. A crew that
+                     # does not match the routing gets excluded from "what the
+                     # standard is" but stays in "what got charged" - which is
+                     # the right call (skip_rate has to count what the ERP
+                     # charged whether or not the standard describes it), but
+                     # it means Setup h x Work orders can run above or below
+                     # Total h.
                      "SETUP_HRS_CURRENT": st.column_config.NumberColumn(
                          "Setup h", width=95,
-                         help="SETUP_HRS as the routing holds it."),
+                         help="SETUP_HRS as the routing holds it, taken only "
+                              "from tickets whose crew matched the routing. "
+                              "Skipped h and Total h count every ticket "
+                              "regardless, so this will not always multiply "
+                              "out to either."),
                      # Short headers on purpose - see the note below the
                      # table config. The tiles above carry the full wording.
                      "STANDARD_CHARGED_SKIPPED": st.column_config.NumberColumn(
                          "Skipped h", width=95,
                          help="Setup hours charged on work orders where no "
-                              "setup happened."),
+                              "setup happened — every such ticket, including "
+                              "any whose crew did not match the routing."),
                      "STANDARD_CHARGED_ALL_WO": st.column_config.NumberColumn(
                          "Total h", width=95,
                          help="Setup hours charged across every work order at "
-                              "this step, performed or not."),
+                              "this step, performed or not — including any "
+                              "whose crew did not match the routing."),
                  })
     st.download_button("Download as CSV",
                        d2.to_csv(index=False).encode("utf-8"),
@@ -444,63 +460,94 @@ work orders are excluded from the test and reported here.
 """)
 
     # The columns on screen, named - same pattern as the two sections above.
-    # THE STANDARD ITSELF IS ON THE ROW NOW. Without RUN and what one work
-    # order was charged, one family's three steps at a single operation look
-    # like the same finding at three sizes; with them they are visibly one
-    # standard at 12 h a basket, one at 5 and one at 2, and only the first two
-    # are too generous - the third runs OVER. Recovering that meant dividing
-    # Master h by work orders and again by loads, which is not reading a table.
-    _show3 = ["FAMILY", "PART_TYPE", S, "OPERATION", "PARTS", "WORK_ORDERS",
-              "RUN_EFF", "MEDIAN_LOADS", "MAX_LOADS", "MASTER_PER_WO",
-              "HOURS_MASTER", "HOURS_WORKED", "OVER_RESERVED_HOURS", "RATIO"]
+    #
+    # PART GRAIN, NOT FAMILY. A family row could pool parts that basket
+    # differently: one step showed "Loads, median 9 / max 14" because two
+    # parts basket at 40 pieces and two at 25, and another pooled parts at
+    # 0.33 h a basket with parts at 0.66. RUN_MASTER and LOAD_SIZE are
+    # per-part routing fields, so at this grain every row carries exactly one
+    # of each - 0 of 240 rows mix either - and both are read straight off the
+    # part rather than averaged.
+    #
+    # THE STANDARD ITSELF IS ON THE ROW. One family's three steps at a single
+    # operation used to look like the same finding at three sizes; HRS/LOAD
+    # shows them as one standard at 12 h a basket, one at 5 and one at 2 - and
+    # only the first two are too generous, the third runs OVER.
+    # TWO COLUMNS DROPPED FROM SCREEN, kept in the CSV's raw work-order rows
+    # (recomputable there from LOADS_CHARGED and HOURS_MASTER): Loads, max and
+    # Avg master h/WO answer "how big is this job", not "why is it
+    # over-charged".
+    #
+    # TOTAL ACTUAL H STAYS, unlike the first pass at this cut. Actual ÷ master
+    # names both HOURS_MASTER and HOURS_WORKED in its own header - the same
+    # reasoning 2_Inspect.py's evidence table gives for that header - so
+    # hiding one of the two named columns broke the thing the header promises:
+    # reading the formula off the row without a tooltip.
+    _show3 = ["FAMILY", "PART_TYPE", "PART_ID", S, "OPERATION", "WORK_ORDERS",
+              "RUN_EFF", "LOAD_SIZE", "MEDIAN_LOADS", "HOURS_WORKED",
+              "OVER_RESERVED_HOURS", "HOURS_MASTER", "RATIO"]
     _t3 = d3[_show3].copy()
     _t3["PART_TYPE"] = _t3.PART_TYPE.map(
         lambda v: ui.part_tag(v, with_title=False))
     st.dataframe(ui.swiss_grid(
-        # The two per-unit hour columns at two decimals and the three totals
-        # at one: RUN runs down to 0.33 h a basket, where the second decimal
-        # is the value, while a total of 648.0 h carries no information past
-        # the first. Same split the micro-durations tiles already use.
-        _t3, {"PARTS": ",.0f", "WORK_ORDERS": ",.0f", "RUN_EFF": ",.2f",
-              "MEDIAN_LOADS": ",.0f", "MAX_LOADS": ",.0f",
-              "MASTER_PER_WO": ",.2f",
-              "HOURS_MASTER": ",.1f", "HOURS_WORKED": ",.1f",
-              "OVER_RESERVED_HOURS": ",.1f", "RATIO": ",.3f"}),
+        # Every hour column at two decimals, ratio at three - the same split
+        # the setups table uses. LOAD_SIZE and the load count are piece and
+        # basket counts, not hours, so they stay whole numbers.
+        _t3, {"WORK_ORDERS": ",.0f", "RUN_EFF": ",.2f", "LOAD_SIZE": ",.0f",
+              "MEDIAN_LOADS": ",.0f", "HOURS_MASTER": ",.2f",
+              "HOURS_WORKED": ",.2f",
+              "OVER_RESERVED_HOURS": ",.2f", "RATIO": ",.3f"}),
         hide_index=True, width="stretch", height=380,
         column_config={
             "FAMILY": st.column_config.TextColumn("Family"),
             "PART_TYPE": st.column_config.TextColumn("Part type",
                                                      width="small"),
             S: st.column_config.NumberColumn("Step", format="%d"),
-            "OPERATION": st.column_config.TextColumn("Operation",
-                                                     width="medium"),
-            "PARTS": st.column_config.NumberColumn("Parts", width=80),
+            # No width - sized to content, same as Family. Only 4 operations
+            # appear on this page and their names run from 13 to 16
+            # characters, so a fixed width was either cramped on the long
+            # ones or wasted space on the short ones.
+            "OPERATION": st.column_config.TextColumn("Operation"),
+            "PART_ID": st.column_config.TextColumn("Part", width=130),
             # Sums to 557 rather than to the 258 in the tile above: a work
             # order at three sequences is three rows here and one there.
             "WORK_ORDERS": st.column_config.NumberColumn(
-                "Work orders", width=110,
-                help="Multi-load work orders at this step. A work order "
-                     "meeting the same operation at another sequence is "
-                     "counted again on that row, so this column sums to more "
-                     "than the figure above."),
+                "Work orders",
+                help="Multi-load work orders for this part at this step. A "
+                     "work order meeting the same operation at another "
+                     "sequence is counted again on that row, so this column "
+                     "sums to more than the figure above."),
+            # HRS/LOAD IN FULL CAPS, not house-styled, because it is a value
+            # the app never re-cases anywhere else - RUN_TYPE_MASTER holds it
+            # verbatim, and 2_Inspect.py's own tab labels write "Run — PCS/HR"
+            # / "Run — HRS/LOAD" rather than lowercasing it. Setup h and
+            # Master h translate ERP FIELD NAMES into house style; this is an
+            # ERP VALUE, treated the way every other appearance of it is.
             "RUN_EFF": st.column_config.NumberColumn(
-                "Run h/load", width=105,
-                help="RUN as the routing holds it: hours for one basket. On "
-                     "the few rows whose parts carry different values it is "
-                     "the load-weighted average."),
-            "MEDIAN_LOADS": st.column_config.NumberColumn("Loads, median",
-                                                          width=120),
-            "MAX_LOADS": st.column_config.NumberColumn("Loads, max", width=100),
-            "MASTER_PER_WO": st.column_config.NumberColumn(
-                "Master h/WO", width=110,
-                help="What one work order was charged: Run h/load times the "
-                     "baskets the master counted."),
+                "HRS/LOAD", width=100,
+                help="RUN as the routing holds it: hours for one load of "
+                     "this part."),
+            "LOAD_SIZE": st.column_config.NumberColumn(
+                "Load size",
+                help="Pieces of this part that fit in one basket - a "
+                     "physical fact about the part and the machine, not a "
+                     "measurement this analysis can move."),
+            # STILL VARIES, even with one part per row: Load size is fixed
+            # but the order quantity is not, so CEILING(quantity ÷ load size)
+            # moves work order to work order for the same part - 39 of 240
+            # parts see it vary, from 3 loads on a 65-piece order to 14 on a
+            # 330-piece one at load size 25. Loads, max is in the CSV for
+            # whoever wants the largest single order rather than the middle.
+            "MEDIAN_LOADS": st.column_config.NumberColumn(
+                "Loads median",
+                help="Baskets charged per work order for this part - varies "
+                     "with the order quantity, not with the part."),
             "HOURS_MASTER": st.column_config.NumberColumn("Total master h",
-                                                          width=125),
+                                                          width=100),
             "HOURS_WORKED": st.column_config.NumberColumn("Total actual h",
-                                                          width=125),
+                                                          width=100),
             "OVER_RESERVED_HOURS": st.column_config.NumberColumn(
-                "Total unused h", width=125),
+                "Total unused h", width=100),
             "RATIO": st.column_config.NumberColumn("Actual ÷ master",
                                                    width=130),
         })
@@ -517,29 +564,65 @@ work orders are excluded from the test and reported here.
     # Family picker. It is one straight line through both regimes of a whole
     # operation, so there is no family-level version of it to show - repeated
     # down 96 rows it would read as 96 measurements rather than as four.
-    st.markdown("#### What a second load actually costs")
-    st.caption("Fitted per operation, so this table answers to the Operation "
-               "picker only. `Fixed h` is the part of the job that does not "
-               "repeat per load.")
+    #
+    # DIVIDER + SUBHEADER, not a raw markdown heading - the pattern every
+    # other secondary section in the app uses (2_Inspect.py three times,
+    # 3_By_part.py once). A bare "#### " here was the one place that skipped
+    # it, which is also why it read smaller than every other section title.
+    st.divider()
+    st.subheader("What a second load actually costs")
+    # THE METHOD, STATED, not just one of its outputs named. This used to say
+    # only what Fixed h was and left the fit itself unexplained.
+    st.caption("Each row fits a line built through a regression:\n\n"
+               "`worked hours = fixed amount (intercept) + per-basket "
+               "amount (slope) × additional baskets`\n\n"
+               "through every work order at that operation, single-load and "
+               "multi-load together - filtered by the Operation picker only, "
+               "not Family. `Fixed h` is what a single basket costs; the "
+               "slope is added once for every basket after that.")
+    # RUN H AND ACTUAL ÷ MASTER ADDED, so the two right-hand columns stop
+    # asking to be trusted. RATIO was already sitting unused in 04_MultiLoadGap
+    # - no new computation, just widening the column list. RUN itself is not
+    # stored there, only the percentage against it, so it is read fresh from
+    # the parquet rather than back-derived from two already-rounded sheet
+    # columns, which would drift from what MARGINAL_AS_PCT_OF_RUN actually used.
     _fit = gap[gap.OPERATION.isin(op)] if op else gap
+    _fit = _fit.merge(data.run_by_operation().rename("RUN_MEDIAN"),
+                      on="OPERATION", how="left")
+    # FIXED_HOURS_A, RECAST. 04_MultiLoadGap stores the raw regression
+    # intercept - the line's value at ZERO baskets, which no work order ever
+    # has, and which came out negative for S RICOTTURA (-0.69 h). Adding the
+    # slope shifts the same line to read its value at ONE basket instead: an
+    # algebraically exact rewrite (worked = a + b×loads = (a+b) +
+    # b×(loads-1)), not a different fit. S RICOTTURA becomes 1.67 h - a real
+    # basket cost instead of a math artifact needing its own footnote.
+    _fit["ONE_BASKET_H"] = _fit.FIXED_HOURS_A + _fit.MARGINAL_LOAD_B
     st.dataframe(ui.swiss_grid(
-        _fit[["OPERATION", "FIXED_HOURS_A", "MARGINAL_LOAD_B",
-              "MARGINAL_AS_PCT_OF_RUN"]],
-        {"FIXED_HOURS_A": ",.2f", "MARGINAL_LOAD_B": ",.2f",
-         "MARGINAL_AS_PCT_OF_RUN": ",.1%"}),
+        _fit[["OPERATION", "RUN_MEDIAN", "ONE_BASKET_H", "MARGINAL_LOAD_B",
+              "MARGINAL_AS_PCT_OF_RUN", "RATIO"]],
+        {"RUN_MEDIAN": ",.2f", "ONE_BASKET_H": ",.2f",
+         "MARGINAL_LOAD_B": ",.2f", "MARGINAL_AS_PCT_OF_RUN": ",.1%",
+         "RATIO": ",.3f"}),
         hide_index=True, width="stretch",
         column_config={
-            "OPERATION": st.column_config.TextColumn("Operation",
-                                                     width="medium"),
-            "FIXED_HOURS_A": st.column_config.NumberColumn(
-                "Fixed h", width=95,
-                help="The part of the job that does not repeat per load — "
-                     "fitted, not stored."),
+            # No width - sized to content, same as the table above it.
+            "OPERATION": st.column_config.TextColumn("Operation"),
+            "RUN_MEDIAN": st.column_config.NumberColumn(
+                "HRS/LOAD median", width=140,
+                help="Median RUN among this operation's multi-load parts - "
+                     "what As % of HRS/LOAD median is measured against."),
+            "ONE_BASKET_H": st.column_config.NumberColumn(
+                "Fixed h (intercept + first basket)", width=270,
+                help="What this line predicts the first basket costs - the "
+                     "intercept, shifted from zero baskets to one."),
             "MARGINAL_LOAD_B": st.column_config.NumberColumn(
-                "Per extra load h", width=140,
+                "Per extra load h (slope = per additional basket)", width=310,
                 help="What a second load actually costs in hours."),
             "MARGINAL_AS_PCT_OF_RUN": st.column_config.NumberColumn(
-                "As % of RUN", width=120,
-                help="That marginal load against what the standard charges "
-                     "for one."),
+                "As % of HRS/LOAD median", width=190,
+                help="Per extra load h against HRS/LOAD median beside it."),
+            "RATIO": st.column_config.NumberColumn(
+                "Actual ÷ master", width=130,
+                help="Multi-load work orders only, for this operation: "
+                     "actual hours over master hours."),
         })

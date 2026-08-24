@@ -166,38 +166,35 @@ def multi_load_rows():
 
 
 def multi_loads(frame=None):
-    """Multi-load work orders at the grain the other two findings use.
+    """Multi-load work orders at PART grain - one row, one standard.
 
-    FAMILY x PART_TYPE x SEQUENCE x OPERATION.
+    FAMILY x PART_TYPE x SEQUENCE x OPERATION x PART_ID. Started as the family
+    grain the other two findings use, and that pooled parts that do not share
+    a load size: one row could show `Loads, median 9 / max 14` because two
+    parts basket at 40 pieces and two at 25, the family average hiding the
+    physical fact that explains the row. RUN_MASTER and LOAD_SIZE are per-part
+    routing fields, so at part grain every row carries exactly one of each -
+    confirmed on the current extract, 0 of 240 rows mix either.
 
-    NO STEPS COLUMN, because at this grain there could not be one worth having:
-    a work order meets a given operation at a given sequence at most once, so a
-    per-row step count and a per-row work-order count are the same number on
-    every row. The two only part company ABOVE the row - 258 distinct work
-    orders across 557 step-rows - which is why the figures over the table are
-    counted off multi_load_rows() and not summed out of this.
+    That makes RUN_EFF and LOAD_SIZE plain `"first"` rather than a fitted
+    average: there is one value to take. MEDIAN_LOADS / MAX_LOADS stay
+    meaningful too - 39 of 240 parts still see their own load count vary
+    across their own work orders, from quantity alone.
 
     Pass an already-filtered multi_load_rows() to keep this table and the
     figures above it describing the same set.
     """
     m = multi_load_rows() if frame is None else frame
-    g = (m.groupby(["FAMILY", "PART_TYPE", SEQ, "OPERATION"], dropna=False)
-          .agg(PARTS=("PART_ID", "nunique"),
-               WORK_ORDERS=("WORK_ORDER", "nunique"),
+    g = (m.groupby(["FAMILY", "PART_TYPE", SEQ, "OPERATION", "PART_ID"],
+                   dropna=False)
+          .agg(WORK_ORDERS=("WORK_ORDER", "nunique"),
+               RUN_EFF=("RUN_MASTER", "first"),
+               LOAD_SIZE=("LOAD_SIZE", "first"),
                MEDIAN_LOADS=("LOADS_CHARGED", "median"),
                MAX_LOADS=("LOADS_CHARGED", "max"),
-               LOADS=("LOADS_CHARGED", "sum"),
                HOURS_MASTER=("HOURS_MASTER", "sum"),
                HOURS_WORKED=("HOURS_WORKED", "sum"))
           .reset_index())
-    # RUN DERIVED, NOT CARRIED. RUN_MASTER is a per-part field and a row can
-    # hold several parts: 92 of the 96 rows have one value, 4 have two (a
-    # family running some parts at 0.33 h a basket and others at 0.66). Taking
-    # hours over loads gives the exact RUN wherever there is only one and a
-    # load-weighted average where there is not - and either way it is the
-    # number that multiplies back up to the totals beside it, which a median
-    # or a "mixed" placeholder would not.
-    g["RUN_EFF"] = g.HOURS_MASTER / g.LOADS
     g["MASTER_PER_WO"] = g.HOURS_MASTER / g.WORK_ORDERS
     g["OVER_RESERVED_HOURS"] = g.HOURS_MASTER - g.HOURS_WORKED
     g["RATIO"] = g.HOURS_WORKED / g.HOURS_MASTER
@@ -223,6 +220,24 @@ def multi_load_facts():
     the same claim nor even the same direction. Read them instead.
     """
     return _multi_facts(paths.cache_key(paths.CACHE))
+
+
+@st.cache_data(show_spinner=False)
+def _run_by_operation(key):
+    _, multi = pipeline.load_view.load()
+    return multi.groupby("OPERATION").RUN_MASTER.median()
+
+
+def run_by_operation():
+    """RUN's median among each operation's multi-load parts.
+
+    04_MultiLoadGap stores MARGINAL_AS_PCT_OF_RUN but not the RUN it was taken
+    against, so the percentage there is not independently checkable. This is
+    the same median h0_v2_load_view.py's own fit loop divides by - g.RUN_MASTER
+    .median() inside multi.groupby("OPERATION") - read fresh rather than
+    back-derived from two already-rounded sheet columns, which would drift.
+    """
+    return _run_by_operation(paths.cache_key(paths.CACHE))
 
 
 def actions():
