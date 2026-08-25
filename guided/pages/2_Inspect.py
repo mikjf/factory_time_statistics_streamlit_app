@@ -36,12 +36,11 @@ freshness.guard()
 
 S = data.SEQ
 RUN, SETUP, LOAD = "Run — PCS/HR", "Setup", "Run — HRS/LOAD"
-# One phrase, two casings: WHOLE is a menu option and takes a capital, and
-# WHOLE_INLINE runs inside a sentence. Held here rather than written out at
-# each of the three places it appears, because the picker's value is compared
-# against it - a typo in one copy silently turns the family into a part.
-WHOLE = "Family as a whole"
-WHOLE_INLINE = "family as a whole"
+# One phrase, two casings - see ui. It moved there when the Review queue's
+# Applies to column needed the same words: that column compacts the workbook's
+# "all parts of this family" down to this phrase, so the two pages have to agree
+# on it, and the picker below compares its value against WHOLE by string.
+WHOLE, WHOLE_INLINE = ui.WHOLE, ui.WHOLE_INLINE
 pre = st.session_state.get("unit") or {}
 
 
@@ -61,10 +60,39 @@ def _idx(options, value, default=0):
 # ---- selection, in the rail -------------------------------------------------
 with st.sidebar:
     ui.side_title(st, "What to look at")
-    # The two run analyses together, setup last: RUN_MASTER under PCS/HR and
-    # RUN under HRS/LOAD are the same field on the same routing line held in two
-    # different units, so they belong beside each other. Setup is a different
-    # field and a different question.
+
+    # ---- ONLY WHAT CHANGES -------------------------------------------------
+    # 224 of 12'866 units carry a proposed change. Unfiltered, the four pickers
+    # below offer some 1'220 combinations for the run analysis alone, and 98% of
+    # them land on "leave this standard alone" or "not enough evidence" - which
+    # is the honest answer for those units and useless as a way to find the ones
+    # that need keying in.
+    #
+    # FIRST IN THE RAIL, above the analysis it does not itself filter. It is the
+    # bigger fork: this decides whether the rail offers 224 units or 12'866, and
+    # the radio then navigates inside whichever of those was chosen. It sat
+    # between the radio and the pickers, which is exactly the boundary of what it
+    # affects and reads as belonging to neither.
+    #
+    # OFF BY DEFAULT. Inspect is also the page somebody opens to ask why THEIR
+    # part is not on the list, and a filter that hid it would answer by making
+    # the question unaskable. It is also where Review queue lands, and that
+    # arrives with a unit already chosen.
+    #
+    # Sourced from 01_Actions, which is the update list's own record of what is
+    # proposed - the same sheet Review queue reads and the same cache. Deriving
+    # it instead from each unit's verdict would mean reading five different
+    # verdict columns across five workbooks to reproduce a list that already
+    # exists.
+    only_changes = st.toggle(
+        "Only where a change is proposed", value=False,
+        help="Hides every unit the six rules held or could not judge, so the "
+             "pickers below offer only the standards this analysis proposes "
+             "editing.")
+
+    # The two run analyses together, setup last: both edit RUN on the same
+    # routing line, one holding a rate and one a duration, so they belong beside
+    # each other. Setup is a different field and a different question.
     choices = [RUN] + ([LOAD] if data.has_load() else []) \
         + ([SETUP] if data.has_setup() else [])
     kind = st.radio("Analysis", choices, index=_idx(choices, _kind(pre)),
@@ -87,28 +115,11 @@ with st.sidebar:
     else:
         universe = data.run_index()
 
-    # ---- ONLY WHAT CHANGES -------------------------------------------------
-    # 224 of 12'866 units carry a proposed change. Unfiltered, the four pickers
-    # below offer some 1'220 combinations for the run analysis alone, and 98% of
-    # them land on "leave this standard alone" or "not enough evidence" - which
-    # is the honest answer for those units and useless as a way to find the ones
-    # that need keying in.
-    #
-    # OFF BY DEFAULT. Inspect is also the page somebody opens to ask why THEIR
-    # part is not on the list, and a filter that hid it would answer by making
-    # the question unaskable. It is also where Review queue lands, and that
-    # arrives with a unit already chosen.
-    #
-    # Sourced from 01_Actions, which is the update list's own record of what is
-    # proposed - the same sheet Review queue reads and the same cache. Deriving
-    # it instead from each unit's verdict would mean reading five different
-    # verdict columns across five workbooks to reproduce a list that already
-    # exists.
-    only_changes = st.toggle(
-        "Only where a change is proposed", value=False,
-        help="Hides every unit the six rules held or could not judge, so the "
-             "pickers below offer only the standards this analysis proposes "
-             "editing.")
+    # Applying the toggle declared at the top of the rail. It is read here
+    # rather than there because it filters `universe`, which only exists once
+    # the analysis is known - a widget's value is available the moment it is
+    # declared, so where it renders and where it is used need not be the same
+    # place.
     act_keys = act_parts = act_fams = None
     if only_changes:
         _a = data.actions()
@@ -274,6 +285,28 @@ w = evidence.verdict_for(target, run_type, operation, family, part_type, seq,
 gates = text.gates(stats, w["q"])
 kindof = evidence.outcome(w["verdict"], stats)
 
+# THE VALUE TO KEY IS NOT ALWAYS THIS UNIT'S OWN. verdict_for reads the unit
+# sheets, whose SUGGESTED column is what this part's evidence points to; the
+# execution sheets carry RM_RECOMMENDED, which is what the pipeline says to
+# apply, and on 13 part-level PCS/HR units the two differ by up to 9%. See
+# data.actions.
+#
+# The old value is kept as _own, because on those units it is still worth
+# showing: it is what this part measured, and the gap between it and the value
+# to key IS the reason the recommendation came from the family.
+#
+# Only an action carries a row here, which is exactly when "Change it to"
+# renders a number - a held or untestable unit shows "leave as is" and never
+# reads w["suggested"].
+_own = w["suggested"]
+_act = data.action_row(target, run_type, operation, family, part_type, seq,
+                       part_id)
+if _act is not None and pd.notna(_act.TO_KEY):
+    w["suggested"] = float(_act.TO_KEY)
+_from_family = (_act is not None and pd.notna(_own)
+                and pd.notna(w["suggested"])
+                and abs(float(_own) - float(w["suggested"])) > 0.101)
+
 # Does the queue flag this one for a human? The band is on the RATIO, not on
 # the percentage change, because the change is asymmetric - a rate that
 # quadruples reads +300% while one cut to a quarter reads -75% and can never
@@ -300,9 +333,11 @@ needs_human = (kindof == "act" and _r is not None and pd.notna(_r)
 blocker = next((i for i, g in enumerate(gates) if not g["passed"]), None)
 
 # ---- verdict ----------------------------------------------------------------
-field = {"SETUP_HRS": "SETUP_HRS",
-         "RUN": "RUN (hours per load)" if run_type == "HRS/LOAD"
-                else "RUN_MASTER (pieces per hour)"}[target]
+# ui.field_name, not a mapping written out here. The Review queue needs the same
+# TARGET + RUN_TYPE -> ERP column translation to name what a row edits, and two
+# copies of it is how one page ends up saying RUN where the other says
+# RUN_MASTER - for the same row.
+field = ui.field_name(target, run_type, unit=True)
 
 headline = {
     "act": (f"Change this standard — but check it first" if needs_human
@@ -440,8 +475,8 @@ with k[3].container(key="h0-inline-delta-hours"):
 # units those differ. The tooltip therefore names all three stages, so a reader
 # who spots the gap against rule 1 finds it explained rather than contradicted.
 #
-# The label matches v1's Unit detail exactly - the same number under the same
-# words in both versions.
+# "Work orders counted", not "n" or "evidence" - the words a reader meets in the
+# chart legend below and in the tooltip's own breakdown.
 k[4].metric("Work orders counted", ui.num(stats.get("N_COUNTED", 0)),
             help=f"{ui.num(len(rows))} in scope, "
                  f"{ui.num(stats.get('N_TESTED', 0))} tested, "
@@ -451,9 +486,26 @@ k[4].metric("Work orders counted", ui.num(stats.get("N_COUNTED", 0)),
 # st.caption, not st.markdown. This sentence is a note about how to read the
 # two numbers above it, which is what every other caption on the page does; at
 # body weight it sat in the reading flow as though it were a finding of its own.
-# The v1 page has always rendered it as a caption - the guided one was the odd
-# man out.
+# A caption is what every other note-about-the-numbers on this page is.
 st.caption(ui.direction_note(target, run_type))
+
+# WHY "CHANGE IT TO" IS NOT WHAT THIS PART MEASURED. On these units the rail
+# says a part number and the metrics show a measured value the recommendation
+# does not match, with nothing on screen accounting for the difference - which
+# reads as a fault rather than as a decision. Both figures are named so the
+# reader can see the size of the gap, and the reason is the workbook's own.
+#
+# An st.info rather than a caption: it is not a note about how to read the
+# numbers above it, it is a fact about which of two numbers to key.
+if _from_family:
+    st.info(
+        f"**The value to key is the family's, not this part's.** This part "
+        f"measured **{ui.fmt(_own)}**, but its family's ratio falls inside "
+        f"the part's own 95% band — the two are not statistically "
+        f"distinguishable, so a separate standard for this part would "
+        f"preserve sampling noise rather than a real process difference. "
+        f"The workbook records the basis as *{_act.TO_KEY_BASIS}*.",
+        icon=":material/group:")
 
 # Some family actions carry no single value to key in, because the family
 # runs several different current standards. Those rows say "divide each part's

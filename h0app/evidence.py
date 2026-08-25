@@ -90,15 +90,6 @@ def table_cols(kind):
     return cols
 
 
-# Prepended to the CSV, never shown on screen. Each is ONE value repeated down
-# the table, so on a page that names the unit in its title they are three
-# columns of width for no discrimination - but a downloaded file has left that
-# title behind, and two exports concatenated in Excel are indistinguishable
-# without them. STANDARD is taken per row rather than as a constant so a work
-# order that ran under a superseded value exports the value it actually ran
-# under.
-CSV_LEAD = ["FAMILY", "PART_TYPE", "OPERATION", "STANDARD"]
-
 # Which unit the standard is held in. Passed explicitly by each route rather
 # than sniffed from the columns present: the load frame carries RUN_MASTER and
 # TOTAL_QTY exactly like the PCS/HR frame does, so column-sniffing would put

@@ -34,7 +34,7 @@ def _honest(v, threshold, passed, at_least=True, specs=(".1f", ".2f", ".3f",
     the threshold as the real one.
 
     Landing exactly ON the threshold counts as contradicting it. 5.2 h printed
-    as "5 h a year" beside "needs at least 5 h" and a tick reads as a coin-flip
+    as "5 h" beside "needs at least 5 h" and a tick reads as a coin-flip
     called in our favour, which is the same loss of confidence by a different
     route - so a figure only stops gaining decimals once it is visibly clear of
     the line, unless it truly sits on it.
@@ -99,8 +99,19 @@ def rules():
          f"at least {pipeline.MIN_EFFECT:.0%} off",
          "Churn. Avoids re-keying a standard that does not have relevant "
          "impact."),
+        # NO "A YEAR" ON THE HOURS RULE. The window opens at FY_START and never
+        # closes, so it is the fiscal year TO DATE - about ten months on this
+        # extract - and "a year" invited reading a part-year total as an annual
+        # one. Inspect's metric and the Review queue's column were corrected for
+        # this; the six rules were missed, which put the same wrong word back on
+        # screen wherever they show their figures.
+        #
+        # Dropped rather than replaced with the window: a bare "at least 20 h"
+        # makes no claim about a period, so it cannot be wrong the way "a year"
+        # was, and the window belongs to the page rather than to one pill. This
+        # is already the longest of the six requirement chips.
         ("Enough hours to matter",
-         f"at least {pipeline.MIN_HOURS_IMPACT:g} h a year "
+         f"at least {pipeline.MIN_HOURS_IMPACT:g} h "
          f"({pipeline.SETUP_MIN_HOURS:g} h for setup)",
          "Corrections that are right and do not matter."),
     ]
@@ -155,7 +166,8 @@ def gates(stats, q=None):
         # the numbers they qualified. One symbol covers the setup thresholds
         # too: min_h is 5 h there and 20 h on run, from the same string.
         f"   (needs ≥ {pipeline.MIN_EFFECT:.0%})",
-        f"{hrs} h a year   (needs ≥ {min_h:g} h either way)",
+        # "a year" gone here too - same reason as on the rule above.
+        f"{hrs} h   (needs ≥ {min_h:g} h either way)",
     ]
     details = [
         f"A hard floor, not a preference: with fewer than {min_n} work orders "
@@ -176,11 +188,18 @@ def gates(stats, q=None):
         "far off the best single estimate looks.",
         "Real but small differences are not worth the churn of re-keying a "
         "standard across every part of a family.",
-        "Actual minus master over the year. The gate is on the size of the "
-        "miss, not its direction — the sign is kept so it matches the metric "
-        "beside it. Below the threshold the correction is right and does not "
-        "matter enough to be worth making.",
+        "Actual minus master across the window the analysis covers. The gate "
+        "is on the size of the miss, not its direction — the sign is kept so "
+        "it matches the metric beside it. Below the threshold the correction "
+        "is right and does not matter enough to be worth making.",
     ]
+    # NOTHING RENDERS `details`. The six paragraphs above are built on every
+    # call and returned under the "detail" key, and no page reads that key -
+    # rule_cards takes its sentence from rules(), rule_results shows name and
+    # value only, and the rail that did show them is gone. Left in place rather
+    # than deleted because the contract of this function is shared and the
+    # content is worth having if a page ever wants it, but it is dead weight
+    # today and should not be trusted to be current.
     passed = [num(n) and n >= min_n, p_ok, q_ok, excludes_one, dev_ok, hrs_ok]
     return [{"passed": bool(p), "name": nm, "value": v, "detail": d}
             for p, (nm, _, _), v, d in zip(passed, rules(), values, details)]
@@ -235,15 +254,13 @@ WHAT_IS_EXCLUDED_LATER = """
 | Setups run by a different crew than planned — *setup* | `SETUP_HRS` is one elapsed value for the crew the routing plans for. A different crew size is not used as evidence about the standard. |
 """
 
-# Split into three so a page can take the piece it needs. The guided app's
-# "How to read it" wants only the correction directions: Methodology now answers
-# "where the numbers come from" at length, and gross-versus-net is stated on the
-# landing page and again in Methodology's reconciliation column. The v1 flat
-# Method page still renders all three, which is why they stay here rather than
-# being deleted.
+# Split so a page can take the piece it needs. "How to read it" wants only the
+# correction directions; Methodology answers "where the numbers come from" at
+# length. A third piece, GROSS_NOT_NET, went with the flat version that was the
+# last thing rendering it - gross-versus-net is stated on the landing page and
+# again in Methodology's reconciliation column.
 # The date is derived from FY_START, not written. "This fiscal year" was vague
-# on the page that carries the dates in its own caption and unanchored on the v1
-# Method page, which renders this at the very top with nothing above it.
+# on the page that carries the dates in its own caption.
 #
 # Day taken off the Timestamp rather than formatted with %-d, which is a glibc
 # extension and raises ValueError on Windows.
@@ -266,8 +283,7 @@ _FY_LONG = f"{_FY.day} {_FY:%B %Y}"
 # The closing paragraph no longer spells out part x routing step / family x
 # routing step: the Methodology page now opens "What counts as one pool"
 # directly below with exactly that, and said twice in two vocabularies it read
-# as two different rules. NOTE the v1 flat Method page has no such block, so it
-# loses the detail - acceptable only because v1 is being retired.
+# as two different rules.
 WHERE_FROM = f"""
 ### Where the numbers come from
 
@@ -300,25 +316,14 @@ TWO_DIRECTIONS = """
 This is the one thing that must not be got backwards, because getting it wrong
 produces plausible numbers that are wrong in **both** directions at once.
 
-- **PCS/HR** — `RUN_MASTER` is a *rate*, pieces per hour. Hours = quantity ÷ rate,
+- **PCS/HR** — `RUN` holds a *rate*, pieces per hour. Hours = quantity ÷ rate,
   so the correction **divides**: a job taking 25% longer means the rate comes down.
 - **`SETUP_HRS`, and `RUN` under HRS/LOAD** — both are *durations*. The correction
   **multiplies**: a job taking 25% longer means the allowance goes up.
+
+`RUN` is one ERP column holding both, so the run type is what says which kind of
+number is in it. The extract aliases it to `RUN_MASTER`; the ERP calls it `RUN`.
 """
-
-GROSS_NOT_NET = """
-### Gross, not net
-
-An operation whose families are half too fast and half too slow is not half
-right. It is wrong twice. Netting hides exactly that, and across this analysis
-the gross and net figures differ by nearly an order of magnitude. Every total
-here is gross — the sum of the absolute misstatement — with net shown beside it
-only to show how much cancels. The landing page states both, computed.
-"""
-
-# What the v1 flat Method page renders: all three, in the order they were
-# written. Composed rather than copied, so editing a section moves both apps.
-HOW_IT_WORKS = WHERE_FROM + TWO_DIRECTIONS + GROSS_NOT_NET
 
 CANNOT_TELL = """
 - **Whether a standard is *fair*.** It measures actual against master. If a step
@@ -340,12 +345,53 @@ CANNOT_TELL = """
   reason.
 """
 
-# TWO CONSTANTS, because the two versions need different halves. The guided
-# page puts the warning in a banner headline and the description under it; the
-# flat version has no headline and prints both in one st.warning. Held apart so
-# neither page has to say the same thing twice - which the long single string
-# did on the guided page, where the headline and the text's first sentence were
-# the same sentence.
+# The tooltip on the "Absolute misstated hours" tile. ONE STRING, because
+# Overview and the Review queue show the same figure under the same label, and
+# an explanation carried by one of them only reads as the other meaning
+# something else.
+#
+# "once per standard" is what pins the absolute to the right level. Without it,
+# "absolute hours delta" reads as the absolute of each work order's delta - a
+# different and larger number, because it would count ordinary job-to-job
+# variation as misstatement. Within one standard the deltas cancel; across
+# standards they do not.
+#
+# NO COMPARISON NUMBER IN HERE. An earlier version quoted the flat app's total
+# against this one and went stale the moment either moved. A specific number
+# nobody keeps current is worse than none.
+ABSOLUTE_MISSTATED_HELP = (
+    "The difference between actual and master, summed across every time the "
+    "routing was performed — then taken as an absolute value once per "
+    "standard, so different standards never cancel each other out.")
+
+# The tooltip on the "Operations rows to edit" tile, which Overview and the
+# Review queue also both carry. They had drifted: Overview said "higher than
+# distinct parts affected as each part has multiple operations", the Review
+# queue said "one edit per part per operation" - the same fact, in two
+# vocabularies, under the same label and against the same 2'337.
+#
+# NAMES NO TILE. Overview's wording pointed at "Distinct parts affected", which
+# sits beside it there and does not exist on the Review queue - so copying it
+# across would have referred a reader to something not on their screen. It names
+# the CONCEPT instead, which is true wherever the tile appears.
+#
+# The two pages reach 2'337 by different routes - Overview counts rows in the
+# three execution sheets, the Review queue sums N_PARTS over 01_Actions - and
+# they agree. Worth knowing if they ever stop agreeing; not worth a tooltip.
+#
+# What it still does not say: this also runs ahead of distinct ERP routing rows,
+# because 39 rows share a MASTER_OPS_ROWID - one physical row needing both RUN
+# and SETUP_HRS edited is two field edits and one row. That is a third
+# comparison and would double the length of a tile tooltip.
+ROWS_TO_EDIT_HELP = (
+    "One edit per part per operation. This is higher than the number of "
+    "distinct parts, because a part with four operations to correct needs "
+    "four edits.")
+
+# TWO CONSTANTS, because Additional findings puts the warning in a banner
+# headline and the description in the sub-line under it. Held apart so the page
+# does not say the same thing twice - which the long single string did, its
+# headline and its first sentence being the same sentence.
 NOT_A_STANDARD = "Nothing here is a standard to key in"
 
 # WHAT UNITES THE THREE, and WHEN it happened - which is the one thing neither

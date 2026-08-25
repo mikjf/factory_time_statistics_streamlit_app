@@ -27,10 +27,10 @@ with st.sidebar:
     # size now, set in ui.
     ui.side_title(st, "Reading the colours")
     ui.side_note(st, "Colour means something here")
-    # ui.legend rather than a hand-written gate_rail. The hand-written version
-    # named three of the four states, in different words than Inspect uses for
-    # the same thing - and the one it omitted was amber, the review flag. One
-    # definition now, in ui.STATES, rendered two ways.
+    # ui.legend rather than a hand-written list. The hand-written version named
+    # three of the four states, in different words than Inspect uses for the
+    # same thing - and the one it omitted was amber, the review flag. One
+    # definition now, in ui.STATES.
     ui.legend(st, explain=True)
     # TWO THINGS WERE CUT FROM UNDER HERE.
     #
@@ -57,8 +57,9 @@ st.markdown(text.TWO_DIRECTIONS)
 # THE SIX RULES ARE NOT REPEATED HERE. Methodology shows them at the point they
 # fire, between step 1 and step 2, where the counts either side make them mean
 # something. A second copy is a second thing to keep in step, and this project
-# has already paid for that once - v1 calls them gates, v2 calls them rules, and
-# text.py uses both in its own docstrings.
+# has already paid for that once: they were written out three times, and a
+# de-jargon pass reached only one of the three. text.py still calls them "gates"
+# in places where the screen says "rules".
 st.page_link("pages/6_Methodology.py",
              label="The six rules, and where each one is applied",
              icon=":material/rule:")
@@ -298,7 +299,7 @@ if len(_ex_pool):
                 # nowhere earlier, and this is the one sentence on the page that
                 # has to be right for all three routes.
                 if _kind == evidence.K_PCSHR:
-                    _why = ("`RUN_MASTER` under PCS/HR is a **rate**, so the "
+                    _why = ("`RUN` under PCS/HR is a **rate**, so the "
                             "correction **divides** and the standard comes "
                             "down even though the ratio went up")
                 else:
@@ -337,7 +338,10 @@ st.divider()
 # Full width, stacked. Side by side, the red box and the paragraph explaining it
 # were two half-width columns of unequal length, and the eye had to cross the
 # gutter mid-thought to get from the number to what it means.
-st.subheader("Flagged for review")
+# "Flagged for manual review", matching ui.STATES - which renders as this page's
+# own sidebar legend, a few inches to the left of this heading. The two said
+# different things about one state.
+st.subheader("Flagged for manual review")
 # AMBER, not red - but the same ALERT layout as every other st.error/st.warning
 # /st.info in the app, so the boxes differ only in colour. A verdict_banner here
 # was the right colour in the wrong shape: one box on one page laid out unlike
@@ -377,8 +381,20 @@ st.divider()
 
 # ---- last, because it is the last thing you do -------------------------------
 st.subheader("What you are keying in")
-st.caption("One decision is not one edit, and the field it writes to is not "
-           "always the same one.")
+# THE FIELD-TO-RUN-TYPE MAPPING IS STATED, not left to be inferred from the list.
+# The instructions name RUN_MASTER on 166 decisions and RUN on 21 without ever
+# saying that the first is only ever PCS/HR and the second only ever HRS/LOAD -
+# true of every row, and the one thing a reader has to know to place an
+# instruction against the analysis it came from. It was possible to read the list
+# and ask whether RUN_MASTER meant run in general - the question that turned up
+# the alias in the first place.
+#
+# THERE ARE TWO FIELDS, NOT THREE. RUN carries both run analyses; the run type
+# says which kind of number is in it. See ui.field_name.
+st.caption("One decision is not one edit, and there are only two fields it can "
+           "write to. `RUN` holds the `PCS/HR` rate and the `HRS/LOAD` "
+           "duration — one column, two kinds of number — and `SETUP_HRS` is "
+           "always setup.")
 
 # ONE COLUMN, STACKED. This was a 1.25/1 split with the instruction list left
 # and its two notes right, and the two columns were never the same height - a
@@ -396,7 +412,7 @@ st.caption("One decision is not one edit, and the field it writes to is not "
 st.markdown(f"**The instruction is on every decision, and there are "
             f"{len(_k['how_to_apply'])} of them:**")
 st.markdown(
-    "\n".join(f"- `{n}` — {how}"
+    "\n".join(f"- `{n}` — {ui.keying_instruction(how)}"
               for how, n in _k["how_to_apply"]))
 
 # BOXED. This is an aside - a note about the list above, not an item in it - and
@@ -439,8 +455,9 @@ st.info(
 st.markdown(
     f"**{_k['no_value']} decisions carry no single value to key in, and "
     f"that is deliberate.** Those families hold several different "
-    f"`RUN_MASTER` values across their parts, so there is no one number to "
-    f"write. The row says *{_k['no_value_note']}* — the ratio is the "
+    f"`RUN` values across their parts, so there is no one number to "
+    f"write. The row says *{ui.keying_instruction(_k['no_value_note'])}* — "
+    f"the ratio is the "
     f"instruction, not the value. A blank in the suggested column on those "
     f"rows is the correct reading, not a gap.")
 

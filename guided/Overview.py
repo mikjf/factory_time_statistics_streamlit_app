@@ -1,4 +1,4 @@
-"""H0 master-time review - guided version. Start here.
+"""H0 master-time review. Start here.
 
     streamlit run streamlit_app/guided/Overview.py --server.address localhost
 
@@ -6,10 +6,13 @@ Keep the address flag. Streamlit binds every interface by default, and this
 shows part numbers, customer family names, work order numbers and real job
 durations with no authentication in front of them.
 
-This version differs from streamlit_app/Overview.py in one idea: the six rules
-that decide whether a standard changes are the spine of the analysis, so they
-are the spine of the interface too. They sit in the left rail, colour-coded,
-wherever a unit is selected.
+One idea runs through the whole app: the six rules that decide whether a
+standard changes are the spine of the analysis, so they are the spine of the
+interface too - named on Methodology, applied with a unit's own figures on
+Inspect, and answered for on By part.
+
+An earlier flat version sat beside this one for comparison while the design
+settled. It was never published and has been deleted; this is the app.
 
 Reads the workbooks and the parquet. Writes nothing, anywhere.
 """
@@ -77,30 +80,17 @@ c[1].metric("Distinct parts affected", ui.num(edits.PART_ID.nunique()),
             help="Parts have multiple operations and each one could need an "
                  "edit.")
 c[2].metric("Operations rows to edit", ui.num(len(edits)),
-            # Also runs ahead of distinct ERP routing rows, not just of parts:
-            # 39 rows share a MASTER_OPS_ROWID with another row here, because
-            # that one physical row needs both RUN and SETUP_HRS edited - two
-            # field edits, one row in the ERP, counted twice in this tile.
-            help="Higher than distinct parts affected as each part has "
-                 "multiple operations and can have run and/or setup "
-                 "edited.")
+            # SHARED WITH THE REVIEW QUEUE, which carries this tile too and had
+            # drifted to a second wording of the same fact. The two reach 2'337
+            # by different routes - this counts rows in the execution sheets,
+            # that sums N_PARTS over 01_Actions - and agree.
+            help=text.ROWS_TO_EDIT_HELP)
 c[3].metric("Absolute misstated hours",
             ui.hrs(total.HOURS_DELTA_ABSOLUTE),
-            # "per standard" pins the absolute to the right level. Without it,
-            # "absolute hours delta" reads as the absolute of each work
-            # order's delta - a different and larger number, because it would
-            # count ordinary job-to-job variation as misstatement. Within one
-            # standard the deltas cancel; across standards they do not.
-            #
-            # NO COMPARISON NUMBER HERE ANYMORE. This comment used to quote
-            # the flat total as 24,622 h against 10,966 h here - already
-            # stale, since the tile now reads 10,826 h and nothing recomputes
-            # the flat side live. A specific number nobody keeps current is
-            # worse than none; see the same lesson on data.multi_load_facts.
-            help="The difference between actual and master, summed across "
-                 "every time the routing was performed — then taken as an "
-                 "absolute value once per standard, so different standards "
-                 "never cancel each other out.")
+            # SHARED WITH THE REVIEW QUEUE, which shows the same figure under
+            # the same label one click away. text.ABSOLUTE_MISSTATED_HELP
+            # carries the wording and the reasoning behind every clause of it.
+            help=text.ABSOLUTE_MISSTATED_HELP)
 
 st.divider()
 
@@ -158,10 +148,10 @@ with g1:
     st.caption(
         "**The three rows are corrected in opposite directions.** PCS/HR holds "
         "a **rate** — pieces per hour — so a job running 25% longer needs a "
-        "*lower* number (`RUN_MASTER`, divided by the ratio). Setup and "
+        "*lower* number (`RUN`, divided by the ratio). Setup and "
         "HRS/LOAD hold a **duration** in hours, so the same job needs a "
-        "*higher* one (`SETUP_HRS` and `RUN`, multiplied by it). Reversed, the "
-        "figures still look plausible but wrong.")
+        "*higher* one (`SETUP_HRS` and the same `RUN`, multiplied by it). "
+        "Reversed, the figures still look plausible but wrong.")
 
 with g2:
     # RUN ONLY, like the two panels below it. Setup is judged on a different

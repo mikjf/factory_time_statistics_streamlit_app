@@ -79,12 +79,22 @@ with st.sidebar:
         """Family, then the operations those families are actually routed
         through - the same cascade Inspect uses. Offering all 48 operations
         under a family with four steps sends a reader to an empty table by way
-        of a valid-looking choice."""
-        f = st.multiselect("Family", sorted(frame.FAMILY.unique()),
-                           placeholder="all families", key=f"{key}fam")
+        of a valid-looking choice.
+
+        Each placeholder carries how many options are behind it, the same way
+        the Review queue's rail does. On Operation that figure is the cascade
+        speaking: it drops from every operation this finding touches to just the
+        chosen families' as soon as a family is picked, so the narrowing is
+        visible without opening the box."""
+        fams = sorted(frame.FAMILY.unique())
+        f = st.multiselect("Family", fams,
+                           placeholder=f"all families ({len(fams)})",
+                           key=f"{key}fam")
         scope = frame[frame.FAMILY.isin(f)] if f else frame
-        o = st.multiselect("Operation", sorted(scope.OPERATION.unique()),
-                           placeholder="all operations", key=f"{key}op")
+        ops = sorted(scope.OPERATION.unique())
+        o = st.multiselect("Operation", ops,
+                           placeholder=f"all operations ({len(ops)})",
+                           key=f"{key}op")
         return f, o
 
     if choice == MICRO:

@@ -523,30 +523,3 @@ def most_wrong_bar(d):
                                     range=[MISSTATED, MISSTATED_LIGHT])),
                 tooltip=tip)
             .properties(height=_height(len(d))))
-
-
-def family_bar(fam, top=15):
-    """Families by misstated hours, gross with net beside it."""
-    d = fam[fam.FAMILY != "TOTAL"].nlargest(top, "GROSS_HOURS").copy()
-    d["LABEL"] = d.FAMILY + "  (" + d.PART_TYPE.str.slice(0, 18) + ")"
-    long = d.melt(id_vars=["LABEL"], value_vars=["GROSS_HOURS", "NET_HOURS"],
-                  var_name="MEASURE", value_name="HOURS")
-    long["MEASURE"] = long.MEASURE.map({"GROSS_HOURS": "misstated (gross)",
-                                        "NET_HOURS": "net"})
-    return (alt.Chart(long)
-            .mark_bar()
-            .encode(
-                y=alt.Y("LABEL:N", sort=list(d.LABEL), title=None,
-                        axis=alt.Axis(labelLimit=320)),
-                x=alt.X("HOURS:Q", title="hours over the fiscal year"),
-                yOffset=alt.YOffset("MEASURE:N"),
-                color=alt.Color("MEASURE:N",
-                                scale=alt.Scale(
-                                    domain=["misstated (gross)", "net"],
-                                    range=["#2b7bba", "#b8c9d9"]),
-                                legend=alt.Legend(title=None, orient="top")),
-                tooltip=[alt.Tooltip("LABEL:N", title="family"),
-                         alt.Tooltip("MEASURE:N", title="measure"),
-                         alt.Tooltip("HOURS:Q", title="hours",
-                                     format=",.0f")])
-            .properties(height=max(260, 34 * len(d))))

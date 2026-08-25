@@ -241,16 +241,102 @@ def run_by_operation():
 
 
 def actions():
-    """01_Actions, with the review flag recomputed.
+    """01_Actions, with the review flag recomputed and the value to key attached.
 
     REVIEW_FLAG lives on the three execution sheets rather than here, but the
     rule is a plain band on the ratio and the reviewer wants to see it while
     scanning decisions, not only when keying them in.
+
+    TO_KEY IS NOT SUGGESTED_VALUE, and that is the reason this function reaches
+    into the execution sheets at all. 01_Actions carries SUGGESTED_VALUE, which
+    is RM_SUGGESTED - what a part's OWN evidence points to. The value to apply is
+    RM_RECOMMENDED, and h0_v2_update_list calls 02_RunUpdateList "THE definitive
+    run list ... with the exact RUN_MASTER to apply".
+
+    The two differ on 13 of the 59 part-level PCS/HR decisions, by up to 9%. A
+    part keeps its own figure only where the family ratio falls outside the
+    part's 95% interval; otherwise the two are statistically indistinguishable
+    and the family's value is applied, because a separate standard would preserve
+    sampling noise rather than a real process difference. Setup and HRS/LOAD are
+    unaffected - 34 of 34 and 12 of 12 already agree - so attaching this must
+    change nothing on those, which is the check that the join is sound.
+
+    TO_KEY_CHANGE_PCT COMES WITH IT, always. CHANGE_PCT on 01_Actions is derived
+    from SUGGESTED_VALUE on all 59, so showing the recommended value beside the
+    suggested value's percentage would put a row on screen that contradicts its
+    own arithmetic - 120.00 to 90.50 labelled -31.1% when it is -24.6%.
+
+    PART-LEVEL ROWS ONLY. A family row is left exactly as 01_Actions wrote it,
+    and that is a scoping decision rather than an oversight.
+
+    A part-level action names one part, so the join to its execution row is 1:1
+    and the value is unambiguous. A family action names a pool, and 01_Actions
+    gives it ONE representative pair whose RATIO is right and whose absolute
+    values are an hours-weighted blend across parts that may run different
+    standards. On one bending step every part of the pool sits at 90.00 and the
+    sheet reports 44.98 - a crewed routing whose master hours are stated per
+    operator. Setup and HRS/LOAD have the same shape for a different reason:
+    their recommendation is each part's own value times a shared ratio, so a
+    pool with parts at 1.9 and 1.4 carries a single blended pair on 01_Actions.
+
+    So a family pool has no single number to key in those cases, and dropping
+    the sheet's blended pair for one part's value would be a different error
+    from the one being fixed. That question is open and belongs with the blend
+    itself, not here.
     """
     a = update_list("01_Actions").copy()
     a["NEEDS_REVIEW"] = ((a.RATIO < pipeline.REVIEW_LO)
                          | (a.RATIO > pipeline.REVIEW_HI))
-    return a
+
+    # edits() is the same normalisation By part reads, which is the page that
+    # has always shown the right number. Joining through it makes By part the
+    # reference for the other two rather than a fourth opinion.
+    e = edits().rename(columns={"TARGET_COLUMN": "TARGET"})
+    e = e.assign(ROUTE=e.ROUTE.astype(str).str.upper())
+    K = ["FAMILY", "PART_TYPE", "OPERATION", SEQ, "TARGET", "RUN_TYPE"]
+    cols = {"RECOMMENDED": "TO_KEY", "CHANGE": "TO_KEY_CHANGE_PCT",
+            "BASIS": "TO_KEY_BASIS"}
+
+    part = (e[e.ROUTE == "PART"][K + ["PART_ID"] + list(cols)]
+            .rename(columns=cols))
+
+    # ROW ORDER IS PRESERVED EXPLICITLY. A merge resets the index and the two
+    # halves are concatenated, so without this the queue's rows would come back
+    # in a different order than the sheet - and the dataframe's row selection is
+    # positional.
+    a["_ORD"] = range(len(a))
+    is_part = a.LEVEL.astype(str).str.upper() == "PART"
+    fam = a[~is_part].assign(TO_KEY=lambda d: d.SUGGESTED_VALUE,
+                             TO_KEY_CHANGE_PCT=lambda d: d.CHANGE_PCT,
+                             TO_KEY_BASIS="family")
+    a = pd.concat([a[is_part].merge(part, on=K + ["PART_ID"], how="left"), fam])
+    return a.sort_values("_ORD").drop(columns="_ORD").reset_index(drop=True)
+
+
+def action_row(target, run_type, operation, family, part_type, seq,
+               part_id=None):
+    """The 01_Actions row for one unit, TO_KEY included, or None.
+
+    Inspect reaches its numbers through the per-operation workbooks rather than
+    through 01_Actions, so it cannot see TO_KEY without asking for it. It only
+    needs it on units that carry an action - the value is shown under "Change it
+    to", which a non-action unit does not render - and every action has a row
+    here by construction.
+
+    Matched on the full key including LEVEL, because one family and step can
+    carry both a family action and a part action, and the two propose different
+    values. Without the level the first match would win by sheet order.
+    """
+    a = actions()
+    lvl = "PART" if part_id is not None else "FAMILY"
+    m = ((a.TARGET == target) & (a.RUN_TYPE == run_type)
+         & (a.OPERATION == operation) & (a.FAMILY == family)
+         & (a.PART_TYPE == part_type) & (a[SEQ] == seq)
+         & (a.LEVEL.astype(str).str.upper() == lvl))
+    if part_id is not None:
+        m &= (a.PART_ID == part_id)
+    hit = a[m]
+    return hit.iloc[0] if len(hit) else None
 
 
 def edits():
@@ -625,7 +711,7 @@ def _reconciliation(key):
     would report it as nearly right.
 
     Setup has no part-level route at all: setup units average under four worked
-    hours in a year, so nothing clears a materiality gate alone. An empty row
+    hours over the whole window, so nothing clears a materiality gate alone. An empty row
     would look like a gap rather than a decision, so routes with nothing in
     them are dropped and the caption carries the reason.
     """
@@ -724,7 +810,7 @@ def _coverage(key):
     the same mistake the funnel's opening bar used to make.
 
     Setup appears at family level only. Setup units average under four worked
-    hours in a year, so nothing clears a materiality gate alone.
+    hours over the whole window, so nothing clears a materiality gate alone.
 
     A zero in ACTIONS is readable off TESTABLE: testable pools and no action
     means tested and holding, no testable pools means there was not enough

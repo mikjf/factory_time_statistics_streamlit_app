@@ -391,7 +391,7 @@ ui.funnel(st, [
          "once, and the interval. Different, not just different by chance"),
         ("5–6 · Big enough to be worth changing", int(ops.MATERIAL.sum()),
          f"at least {pipeline.MIN_EFFECT:.0%} off and "
-         f"{pipeline.MIN_HOURS_IMPACT:g} h a year"),
+         f"{pipeline.MIN_HOURS_IMPACT:g} h"),
     ]),
 ], scale_to=fn["at_a_standard"])   # same scale as the first half, so 8'749
                                    # is drawn the same width in both
@@ -452,7 +452,7 @@ if ff:
              "the same three rules, on the pooled ratio"),
             ("5–6 · Big enough to be worth changing", ff["material"],
              f"at least {pipeline.MIN_EFFECT:.0%} off and "
-             f"{pipeline.MIN_HOURS_IMPACT:g} h a year"),
+             f"{pipeline.MIN_HOURS_IMPACT:g} h"),
         ]),
     ], scale_to=fn["at_a_standard"])
 
@@ -492,8 +492,8 @@ st.caption(
     f"is two rows here and one part in the total, "
     f"{ui.num(sum(p for _, _, p, _, _ in _rows))} against {ui.num(_tp)}. "
     f"Setup has no part row because setup units average under four worked "
-    f"hours in a year — nothing clears a materiality gate alone, so it is "
-    f"judged at family level only.")
+    f"hours over the whole window — nothing clears a materiality gate "
+    f"alone, so it is judged at family level only.")
 
 st.divider()
 
@@ -535,8 +535,8 @@ with st.expander("Every operation examined, and what came out of it — "
                 help="Part — the part judged on its own evidence. Family — "
                      "parts too thin to judge alone, pooled with the rest of "
                      "their family at that step. Setup is family only: setup "
-                     "units average under four worked hours in a year, so "
-                     "nothing clears a materiality gate alone."),
+                     "units average under four worked hours over the whole "
+                     "window, so nothing clears a materiality gate alone."),
             "EXAMINED": st.column_config.NumberColumn(
                 "Pools examined",
                 help="At part level, one part at one routing step. At family "

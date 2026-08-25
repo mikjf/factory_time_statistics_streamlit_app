@@ -435,10 +435,11 @@ def rule_results(container, gates, per_row=2):
     beside the result table as the evidence that the six were checked, and six
     paragraphs would out-weigh the thing they support.
 
-    Marks follow gate_rail exactly, including that ONLY THE FIRST failure is the
-    blocker: a later rule that also failed is shown with its real value in grey
-    rather than a second red cross, because "it failed on the hours floor" and
-    "it failed on everything" are different situations.
+    EVERY FAILURE IS RED; only the first carries "(STOPPED)". Colour answers the
+    question a reader asks six times over - did this rule pass - and the stamp
+    answers the one they ask once, which rule decided. It matters because
+    recommend() returns at the first failing condition, so the reason written
+    into the workbook is that rule and no other.
 
     Its own CSS grid, not st.columns - st.columns(2) lays out two columns of
     three and sizes each box to its own content, so the six come out six
@@ -532,6 +533,22 @@ def side_note(container, text):
                        unsafe_allow_html=True)
 
 
+# A unit judged on the whole family rather than on one part. TWO CASINGS: WHOLE
+# is a menu option and takes a capital, WHOLE_INLINE runs inside a sentence.
+#
+# HERE RATHER THAN ON A PAGE, because two now need it - Inspect's "Judged at"
+# picker and subtitle, and the Review queue's Applies to column, which reaches
+# the same idea from the other side by compacting the workbook's sentence. A
+# picker's value is compared against WHOLE, so a second copy differing by a
+# space would silently turn a family into a part.
+# "Whole family", not "family as a whole". Five characters shorter and it says
+# the same thing, which decides it: the phrase now has to fit a table cell on the
+# Review queue as well as a picker and a subtitle on Inspect, and a cell is where
+# width actually costs something.
+WHOLE = "Whole family"
+WHOLE_INLINE = "whole family"
+
+
 def part_tag(value, with_title=True):
     """ADV / ANDV. The part type only has to disambiguate, not describe.
 
@@ -622,51 +639,6 @@ def thresholds(container):
     ])
 
 
-def equal_cards(container, min_height="16.5rem"):
-    """Make bordered cards stacked in st.columns come out the same size.
-
-    Streamlit sizes a bordered container to its own content and pins it to the
-    top of its column, so a row of cards ends up as ragged as its captions.
-
-    Three things are needed and none of them alone is enough:
-
-    - the column's inner block becomes a flex column, so the cards in it are
-      flex items rather than blocks stacked at the top;
-    - flex:1 on each card, so they divide the column instead of hugging their
-      own text;
-    - a min-height, because flex:1 CANNOT grow the column. A flex item will not
-      shrink below its own content - min-height:auto is the default - so the
-      column ends up as tall as its two cards' content and the taller card
-      simply keeps its height. Measured: 188 and 262 in one column, with
-      flex:1 1 0% correctly applied to both.
-
-    So min_height is a floor, not a fixed size. Set it at or above the tallest
-    card's content and every column becomes twice it, which flex then splits
-    evenly. If a caption later outgrows it the layout degrades gently: that
-    card takes what it needs, its column grows, the others stretch to match.
-
-    Emitted by the page that wants it rather than living in the app-wide sheet,
-    so it holds only while that page renders. Pairs with a single st.columns()
-    call holding the cards column-major - two separate rows of three cannot
-    equalise against each other whatever the CSS says, because they are two
-    independent flex containers.
-    """
-    container.markdown(f"""<style>
-[data-testid="stColumn"] > div {{ height: 100%; display: flex;
-    flex-direction: column; gap: .75rem; }}
-[data-testid="stColumn"] [data-testid="stLayoutWrapper"] {{
-    flex: 1; min-height: {min_height}; }}
-/* The card's own contents fill it, and the last element - the link out - is
-   pushed to the floor. Left where it fell, the link sat directly under a
-   two-line caption on one card and a three-line one on the next, so six links
-   landed at four different heights and the eye had nothing to follow across. */
-[data-testid="stColumn"] [data-testid="stLayoutWrapper"] > div {{
-    height: 100%; }}
-[data-testid="stColumn"] [data-testid="stLayoutWrapper"] > div
-    > [data-testid="stElementContainer"]:last-child {{ margin-top: auto; }}
-</style>""", unsafe_allow_html=True)
-
-
 def align_table_columns(container, markdown_pct=30, table_pct=70):
     """Put every table on this page on one column grid. Call once, near the top.
 
@@ -719,41 +691,6 @@ def caption_line(container, html):
 def chip(label, colour):
     return (f'<span class="h0-chip" style="color:{colour};border-color:{colour};'
             f'background:{colour}1a">{_e(label)}</span>')
-
-
-def gate_rail(container, gates):
-    """The six rules, with this unit's own figure against each.
-
-    EVERY FAILURE IS RED; the first one carries "stopped here". Colour answers
-    the question a reader asks six times on this rail - did this rule pass - and
-    the label answers the one they ask once, which rule decided. It used to be
-    the other way round: red meant "the blocker" and a later failure went grey,
-    which spent the strongest signal on an ordinal fact and needed a third state
-    nobody could name on sight.
-
-    The blocker still has to be marked, and not as a nicety. h0_v2_analysis
-    .recommend() returns at the first failing condition, so the reason written
-    into the workbook - the line somebody reads on the update list - is that
-    rule and no other. A page that could not point at it would disagree with
-    its own deliverable.
-    """
-    blocker = next((i for i, g in enumerate(gates) if not g["passed"]), None)
-    rows = []
-    for i, g in enumerate(gates):
-        ok = g["passed"]
-        colour = PASS if ok else FAIL
-        mark = "&#10003;" if ok else "&#10005;"
-        stop = (f'<div class="h0-stop" style="color:{FAIL}">stopped here</div>'
-                if i == blocker else "")
-        rows.append(
-            f'<div class="h0-step">'
-            f'<div class="h0-dot" style="background:{colour}">{mark}</div>'
-            f'<div class="h0-txt"><div class="h0-name">{_e(g["name"])}</div>'
-            f'<div class="h0-val">{_e(g.get("value", ""))}</div>{stop}</div>'
-            f'</div>')
-    container.markdown(f'<div class="h0-rail">{"".join(rows)}</div>',
-                       unsafe_allow_html=True)
-    return blocker
 
 
 def verdict_banner(container, verdict, kind, detail=""):
@@ -849,12 +786,28 @@ def funnel(container, sections, scale_to=None):
 # meant; the dash itself reads as "not applicable" when it meant "failed". Every
 # failure is red now, and the rule that decided is named in words on the rail
 # and on the cards rather than distinguished by hue.
+#
+# THE AMBER LABEL IS THE WORKBOOK'S OWN. It read "needs a human before keying",
+# which was a fourth name for a state the workbook writes as NEEDS REVIEW into a
+# column called REVIEW_FLAG, that "How to read it" heads "Flagged for review",
+# and that the Review queue called three further things. This legend renders in
+# that page's sidebar, directly beside its own contradicting heading.
+#
+# "manual" is carried from the Review queue, where plain "flagged for review"
+# collides with the page name and with its "Standards to review" tile. One
+# string everywhere beats a shorter one that has to be qualified in one place.
 STATES = [
     ("✓", PASS, "rule passed", "this unit cleared it"),
     ("✕", FAIL, "rule failed",
      "the first one to fail is marked stopped here"),
-    ("!", WARN, "needs a human before keying",
-     "all rules passed but extreme, check"),
+    # Terse on purpose, matching the two rows above it - this is a sidebar
+    # legend at .82rem, not prose.
+    #
+    # NO PUNCTUATION IN IT. An em dash after "extreme" reads better and costs a
+    # line: it pushes the row onto two in a 230px rail, where the other two
+    # states sit on one. A legend that wraps stops looking like a legend.
+    ("!", WARN, "flagged for manual review",
+     "six rules passed but extreme needs check"),
 ]
 
 
@@ -884,9 +837,9 @@ def legend(container, explain=False):
 
 
 def summary_rail(container, items):
-    """A plain counted summary. Deliberately NOT gate_rail.
+    """A plain counted summary. Deliberately NOT the six-rule treatment.
 
-    Reusing the six-rule rail for a count of "what we found about this part"
+    Reusing the rule marks for a count of "what we found about this part"
     put a green tick beside "0 steps tested" and a red cross beside a part with
     nothing wrong with it - the same visual language carrying the opposite
     meaning one page over. Counts are not verdicts and must not look like them.
@@ -913,11 +866,101 @@ def review_warning(container, current, suggested, ratio, lo, hi):
         icon=":material/pan_tool:")
 
 
+def analysis_name(target, run_type):
+    """Which of the three analyses a row came from.
+
+    "Run PCS/HR", "Run HRS/LOAD", "Setup" - the same three strings Overview's
+    hours table indexes on and data.coverage builds its Route column from. Held
+    here because a third copy of a three-way string mapping is how the three
+    stop agreeing.
+
+    NOT "Route", which is what Methodology heads this with. In a table carrying
+    Step and Operation columns that word reads as the manufacturing routing -
+    and it should, since the app says "routing step", "routing row" and "routing
+    line" some forty times over. Analysis is Inspect's own word for the same
+    three, and collides with nothing.
+
+    THE ROUTE DETERMINES THE FIELD, which is why this can replace a field
+    column rather than sit beside one: both run analyses edit RUN and setup
+    edits SETUP_HRS, so naming the analysis names the field too. See field_name
+    for the mapping and for why RUN_MASTER is not one of them.
+    """
+    if str(target) == "SETUP_HRS":
+        return "Setup"
+    return f"Run {run_type}"
+
+
+def field_name(target, run_type, unit=False):
+    """The ERP column an action edits, from what 01_Actions carries.
+
+    THERE ARE ONLY TWO FIELDS, and RUN_MASTER is not one of them. h0_v2.sql
+    reads `CAST(O.RUN AS NUMERIC(19,2)) AS RUN_MASTER` from dbo.OPERATION, so
+    RUN_MASTER is the EXTRACT'S ALIAS for a column the ERP calls RUN - and the
+    pipeline's own TARGET_COLUMN says so, writing RUN on all 1'941 run edits
+    whichever run type they are, and SETUP_HRS on the other 396.
+
+    An earlier version of this function returned "RUN_MASTER" for PCS/HR, on the
+    reasoning that TARGET alone was ambiguous. The ambiguity is real and the
+    conclusion was backwards: one physical column holds both, a rate under
+    PCS/HR and a duration under HRS/LOAD, so what the run type resolves is not
+    WHICH column but WHICH KIND OF NUMBER is in it. Naming an alias sent a
+    reader looking for a column their ERP does not have.
+
+    So the field comes first and the run type qualifies it, which is the shape
+    01_Actions itself uses on the HRS/LOAD rows.
+
+    unit=True spells the qualifier out instead - "pieces per hour", "hours per
+    load". That is the fact deciding whether a correction divides or multiplies,
+    and it is worth the words where there is room. SETUP_HRS takes no
+    parenthetical either way: its name already carries the unit.
+    """
+    if str(target) == "SETUP_HRS":
+        return "SETUP_HRS"
+    if str(run_type) == "HRS/LOAD":
+        return "RUN (hours per load)" if unit else "RUN (HRS/LOAD)"
+    return "RUN (pieces per hour)" if unit else "RUN (PCS/HR)"
+
+
+def keying_instruction(text):
+    """The workbook's HOW_TO_APPLY, with RUN's parenthetical in the app's words.
+
+    01_Actions writes "set RUN (hours per load) to SUGGESTED_VALUE". That
+    parenthetical is there to say WHICH RUN - the field name alone is ambiguous,
+    because RUN_MASTER is the other one - and every other screen in this tool
+    names that value HRS/LOAD verbatim: Inspect's radio, Overview's table rows,
+    Additional findings' column. "Hours per load" is the same fact spelled out
+    and appears nowhere else, which makes it a synonym a reader has to learn for
+    one page.
+
+    DELIBERATELY NOT the same choice as field_name(unit=True), which keeps
+    "pieces per hour" and "hours per load". There the parenthetical says what
+    KIND of number the field holds - a rate or a duration - and that is the fact
+    deciding whether a correction divides or multiplies. Here it only says which
+    field, and the ERP's own value does that more consistently.
+
+    RUN_MASTER IS ALSO REWRITTEN, and that one is a correction rather than a
+    house-style choice. 01_Actions writes "set RUN_MASTER to SUGGESTED_VALUE" on
+    166 of the 224 decisions, and RUN_MASTER is the extract's alias for
+    dbo.OPERATION.RUN - see field_name. Left verbatim, the app would print the
+    Field column as "RUN (PCS/HR)" and the instruction under it as "set
+    RUN_MASTER", naming two different columns for one edit on one screen, one of
+    which the ERP does not have.
+
+    The workbook still says RUN_MASTER, so the screen and the sheet differ here
+    by design. That is the right way round: the sheet's TARGET_COLUMN - the
+    field anything automated would read - already says RUN.
+    """
+    return (str(text).replace("(hours per load)", "(HRS/LOAD)")
+            .replace("RUN_MASTER", "RUN (PCS/HR)"))
+
+
 def direction_note(target, run_type):
     """The sentence that stops a rate being corrected like a duration."""
     if target == "RUN" and run_type == "PCS/HR":
-        return ("**RUN_MASTER is a rate** (pieces per hour). Hours = quantity "
-                "÷ rate, so the correction **divides**: a job running "
+        # "RUN under PCS/HR", not "RUN_MASTER" - see field_name. One ERP column
+        # holds both kinds of number, so the run type is what says which.
+        return ("**RUN under PCS/HR is a rate** (pieces per hour). Hours = "
+                "quantity ÷ rate, so the correction **divides**: a job running "
                 "slower means a *lower* rate.")
     field = "SETUP_HRS" if target == "SETUP_HRS" else "RUN (hours per load)"
     return (f"**{field} is a duration.** The correction **multiplies**: a job "

@@ -138,11 +138,19 @@ else:
     ui.verdict_banner(st, f"{len(mine)} standard(s) to change", "act",
                       "MASTER_OPS_ROWID is the routing row to update so future "
                       "work orders inherit it.")
+    # REVIEW_FLAG IS A SENTENCE IN THE SHEET - "NEEDS REVIEW - ratio outside
+    # 0.25-4.0", on 85 of 2'337 rows and blank on the rest - and it was rendered
+    # raw, under its own database name, to a reader with no schema. As a tick it
+    # takes one narrow column and matches the Review queue, which shows the same
+    # state under the same header; the sentence moves into the tooltip, where it
+    # is read once rather than repeated down the column.
+    _mine = mine.copy()
+    _mine["REVIEW_FLAG"] = _mine.REVIEW_FLAG.notna()
     st.dataframe(
         ui.swiss_grid(
-            mine[["OPERATION", S, "TARGET_COLUMN", "RUN_TYPE", "ROUTE",
-                  "CURRENT", "RECOMMENDED", "CHANGE", "BASIS", "RATIO",
-                  "EVIDENCE_N", "MASTER_OPS_ROWID", "REVIEW_FLAG"]],
+            _mine[["OPERATION", S, "TARGET_COLUMN", "RUN_TYPE", "ROUTE",
+                   "CURRENT", "RECOMMENDED", "CHANGE", "BASIS", "RATIO",
+                   "EVIDENCE_N", "MASTER_OPS_ROWID", "REVIEW_FLAG"]],
             {"CURRENT": ",.2f", "RECOMMENDED": ",.2f", "CHANGE": ",.1f",
              "RATIO": ",.3f", "EVIDENCE_N": ",.0f"}),
         hide_index=True, width="stretch",
@@ -164,6 +172,13 @@ else:
             # not a quantity, and 1'234'567 invites reading it as one.
             "MASTER_OPS_ROWID": st.column_config.NumberColumn("Routing row",
                                                               format="%d"),
+            # Same header and same sentence as the Review queue's column.
+            "REVIEW_FLAG": st.column_config.CheckboxColumn(
+                "Flagged?",
+                help=f"Ratio outside {pipeline.REVIEW_LO}–"
+                     f"{pipeline.REVIEW_HI}. It passed all six rules, but the "
+                     f"change is large enough that a person should check it "
+                     f"before it is keyed in."),
         })
     if (~mine.ROWID_FOUND.fillna(False)).any():
         st.warning("Some rows have no routing row id and cannot be applied "
