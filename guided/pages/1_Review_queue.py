@@ -373,17 +373,20 @@ event = st.dataframe(
         # No `format` on these: the Styler above owns the display, and a
         # NumberColumn format would override it and put the commas back.
         "CURRENT_VALUE": st.column_config.NumberColumn("Now"),
-        # RM_RECOMMENDED, not 01_Actions' own SUGGESTED_VALUE. See data.actions:
-        # the sheet's column is what a part's own evidence points to, and on 17
-        # part-level decisions that is not the value the pipeline says to apply.
+        # RM_RECOMMENDED from the execution sheets, which is what a reviewer
+        # actually keys. Since 2026-08-26 it equals 01_Actions' SUGGESTED_VALUE
+        # on every part row - a part that passed the six rules keeps its own
+        # figure - so this is a consistency check, not a correction. See
+        # data.actions for what changed and why.
         "TO_KEY": st.column_config.NumberColumn(
             "Proposed",
-            help="The value to key, as the execution sheets carry it. On a few "
-                 "parts this is the family's value rather than the part's own "
-                 "measurement — the caption under the table names them. Blank "
-                 "where the family runs several different current values: "
-                 "there is no single number to key, and the instruction is to "
-                 "divide each part's own value by the ratio."),
+            help="The value to key, as the execution sheets carry it. A part "
+                 "judged on its own evidence keeps its own figure; the family "
+                 "value applies to the parts that could not be judged alone. "
+                 "Blank where the family runs several different current "
+                 "values: there is no single number to key, and the "
+                 "instruction is to divide each part's own value by the "
+                 "ratio."),
         "TO_KEY_CHANGE_PCT": st.column_config.NumberColumn(
             "Change %",
             help="How much the field's own number changes, which is not how "
@@ -449,16 +452,25 @@ if _no_value:
 # so nothing else on the row hints that the value came from the family pool, and
 # a reader who notices the gap has every reason to read it as a display fault.
 # Counted, never written down, and silent on the other rows.
+# AN INTEGRITY CHECK, NOT AN EXPLANATION - and it used to be the opposite.
+# Until 2026-08-26 a rule in h0_v2_update_list overrode a part's own figure
+# with its family's on 17 rows, and this caption explained why. The rule was
+# removed: a part that clears the six rules on its own evidence keeps its own
+# value, on all three analyses.
+#
+# So this block now fires only if that guarantee has broken, and it says so
+# instead of explaining it away. Do NOT restore the old wording if it ever
+# appears - it would present the removed rule as if it were current.
 _from_fam = d[(d.SUGGESTED_VALUE - d.TO_KEY).abs() > 0.101]
 if len(_from_fam):
-    st.caption(
-        f"On **{len(_from_fam)}** of these, Proposed is the **family's** value "
-        f"rather than the part's own measurement. The part cleared all six "
-        f"rules on its own evidence, but its family's ratio falls inside the "
-        f"part's 95% band — the two are not statistically distinguishable, so "
-        f"a separate standard would preserve sampling noise rather than a real "
-        f"process difference. The workbook records this as "
-        f"*{_from_fam.TO_KEY_BASIS.iloc[0]}*.")
+    st.warning(
+        f"**{len(_from_fam)} row(s) propose a value that is not the part's "
+        f"own measurement.** Every part here cleared all six rules on its own "
+        f"evidence, so the two should match. They do not, which means the "
+        f"workbook and this page disagree about what to key. Check "
+        f"`02_RunUpdateList` before keying these, and report it. The workbook "
+        f"records the basis as *{_from_fam.TO_KEY_BASIS.iloc[0]}*.",
+        icon=":material/error:")
 
 rows = event.selection["rows"] if event and event.selection else []
 if rows:

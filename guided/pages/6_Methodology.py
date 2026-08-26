@@ -503,7 +503,7 @@ st.divider()
 # a reader following the narrative has already been told this; a reader hunting
 # for one operation is not reading the narrative at all and can open it.
 #
-# Not deleted. 15 of the 49 operations produced no action, and this is the only
+# Not deleted. 29 of the 61 operations produced no action, and this is the only
 # place in the tool that separates "tested and the standard holds" from "nothing
 # was ever testable". Everywhere else both are a blank cell.
 with st.expander("Every operation examined, and what came out of it — "
@@ -525,8 +525,14 @@ with st.expander("Every operation examined, and what came out of it — "
         column_config={
             "OPERATION": st.column_config.TextColumn("Operation",
                                                      width="medium"),
+            # "Analysis", not "Route". The app says "routing step" / "routing
+            # row" / "routing line" throughout, so a Route column invited being
+            # read as the routing rather than as which of the three analyses
+            # this row belongs to - and the help below already opened with "The
+            # three analyses". The Review queue moved to Analysis for the same
+            # reason; this was the last screen still saying Route.
             "ROUTE": st.column_config.TextColumn(
-                "Route",
+                "Analysis",
                 help="The three analyses. An operation can appear on more "
                      "than one — a milling step has both a run standard and "
                      "a setup standard, judged separately."),

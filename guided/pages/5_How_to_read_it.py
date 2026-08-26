@@ -58,8 +58,8 @@ st.markdown(text.TWO_DIRECTIONS)
 # fire, between step 1 and step 2, where the counts either side make them mean
 # something. A second copy is a second thing to keep in step, and this project
 # has already paid for that once: they were written out three times, and a
-# de-jargon pass reached only one of the three. text.py still calls them "gates"
-# in places where the screen says "rules".
+# de-jargon pass reached only one of the three. text.py used to call them
+# "gates" where the screen says "rules"; it no longer does.
 st.page_link("pages/6_Methodology.py",
              label="The six rules, and where each one is applied",
              icon=":material/rule:")
@@ -81,19 +81,25 @@ st.divider()
 _k = data.keying()
 
 st.subheader("Part or family?")
+# ONE RULE, STATED ONCE. The opening paragraph used to say the opposite of the
+# one below it: that a part got its own standard only where it "demonstrably
+# differed" from its family, which is the override rule removed from
+# h0_v2_update_list on 2026-08-26. It sat directly above the paragraph
+# explaining that flagged parts are excluded from the family pool - two rules,
+# contradicting each other, three lines apart.
 st.markdown(f"""
-A part gets its **own** standard only where it demonstrably differs from its
-family. If the family's ratio falls inside the part's own 95% interval the two
-are statistically indistinguishable, and giving the part a separate standard
-would preserve sampling noise rather than a real process difference.
+**A part judged on its own evidence keeps its own standard.** If a part has at
+least {pipeline.MIN_WO} work orders and clears all six rules, its own measured
+figure is the one to key. The family never overrides it.
 
-Where a part is too thin to judge alone — fewer than {pipeline.MIN_WO} work
-orders — its family may still pool enough evidence. Parts already flagged
-individually are **removed from the family pool before the family ratio is
-computed**, so the two routes never both act on the same part, and the family
-figure is not propped up by the parts already known to be off.
+Where a part is too thin to judge alone its family may still pool enough
+evidence. Parts already judged individually are **removed from the family pool
+before the family ratio is computed**, so the two routes never both act on the
+same part, and the family figure is not propped up by the parts already known
+to be off.
 
-Both candidate values stay in the workbook, so any row can be overridden by eye.
+The family's figure is still shown beside the part's, so any row can be
+compared and overridden by eye — but it is context, not the recommendation.
 """)
 
 st.divider()
@@ -219,7 +225,7 @@ if len(_ex_pool):
                     # Same six cards Inspect draws, minus the explanations -
                     # one definition in ui, so a reader who meets them on both
                     # pages meets the same six.
-                    ui.rule_results(st, text.gates(_stats, _q), per_row=2)
+                    ui.rule_results(st, text.rule_status(_stats, _q), per_row=2)
 
                 with _tc:
                     # ---- the two scales, side by side ------------------

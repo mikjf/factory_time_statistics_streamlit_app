@@ -426,7 +426,7 @@ def rule_cards(container, rules, per_row=3):
         unsafe_allow_html=True)
 
 
-def rule_results(container, gates, per_row=2):
+def rule_results(container, results, per_row=2):
     """The six rules with this unit's own figure, and nothing else.
 
     The same six cards as rule_cards, minus the explanation of what each rule
@@ -445,9 +445,9 @@ def rule_results(container, gates, per_row=2):
     three and sizes each box to its own content, so the six come out six
     different heights. grid-auto-rows:1fr is what makes them equal.
     """
-    blocker = next((i for i, g in enumerate(gates) if not g["passed"]), None)
+    blocker = next((i for i, g in enumerate(results) if not g["passed"]), None)
     cards = []
-    for i, g in enumerate(gates):
+    for i, g in enumerate(results):
         ok = g["passed"]
         colour = PASS if ok else FAIL
         mark = "&#10003;" if ok else "&#10005;"
@@ -870,15 +870,16 @@ def analysis_name(target, run_type):
     """Which of the three analyses a row came from.
 
     "Run PCS/HR", "Run HRS/LOAD", "Setup" - the same three strings Overview's
-    hours table indexes on and data.coverage builds its Route column from. Held
+    hours table indexes on and data.coverage builds its ROUTE column from. Held
     here because a third copy of a three-way string mapping is how the three
     stop agreeing.
 
-    NOT "Route", which is what Methodology heads this with. In a table carrying
-    Step and Operation columns that word reads as the manufacturing routing -
-    and it should, since the app says "routing step", "routing row" and "routing
-    line" some forty times over. Analysis is Inspect's own word for the same
-    three, and collides with nothing.
+    NOT "Route", which both this screen and Methodology used to head it with.
+    In a table carrying Step and Operation columns that word reads as the
+    manufacturing routing - and it should, since the app says "routing step",
+    "routing row" and "routing line" some forty times over. Analysis is
+    Inspect's own word for the same three, and collides with nothing. Both
+    screens now say Analysis; the underlying column is still ROUTE.
 
     THE ROUTE DETERMINES THE FIELD, which is why this can replace a field
     column rather than sit beside one: both run analyses edit RUN and setup

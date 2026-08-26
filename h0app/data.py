@@ -247,19 +247,21 @@ def actions():
     rule is a plain band on the ratio and the reviewer wants to see it while
     scanning decisions, not only when keying them in.
 
-    TO_KEY IS NOT SUGGESTED_VALUE, and that is the reason this function reaches
-    into the execution sheets at all. 01_Actions carries SUGGESTED_VALUE, which
-    is RM_SUGGESTED - what a part's OWN evidence points to. The value to apply is
-    RM_RECOMMENDED, and h0_v2_update_list calls 02_RunUpdateList "THE definitive
-    run list ... with the exact RUN_MASTER to apply".
+    TO_KEY COMES FROM THE EXECUTION SHEETS, which is why this function reaches
+    into them at all. It is RM_RECOMMENDED, the column h0_v2_update_list calls
+    "the exact RUN_MASTER to apply", and it is what a reviewer keys.
 
-    The two differ on 17 of the 64 part-level PCS/HR decisions, by up to 9%. A
-    part keeps its own figure only where the family ratio falls outside the
-    part's 95% interval; otherwise the two are statistically indistinguishable
-    and the family's value is applied, because a separate standard would preserve
-    sampling noise rather than a real process difference. Setup and HRS/LOAD are
-    unaffected - 34 of 34 and 12 of 12 already agree - so attaching this must
-    change nothing on those, which is the check that the join is sound.
+    IT NOW EQUALS SUGGESTED_VALUE ON EVERY PART ROW, and that is the point. A
+    part that cleared all six rules on its own evidence keeps its own figure;
+    the family value covers only the parts that could not be judged alone, and
+    h0_v2_family_view removes the flagged parts from the family pool before
+    computing it. Until 2026-08-26 a rule here overrode 17 of the 64 part rows
+    with a family figure pooled over ALL parts - including the ones being
+    overwritten - which was circular and has been removed.
+
+    So the join is now a consistency check rather than a correction: if TO_KEY
+    ever differs from SUGGESTED_VALUE on a part row again, something upstream
+    has changed and should be understood before it is shown to anyone.
 
     TO_KEY_CHANGE_PCT COMES WITH IT, always. CHANGE_PCT on 01_Actions is derived
     from SUGGESTED_VALUE on all 59, so showing the recommended value beside the

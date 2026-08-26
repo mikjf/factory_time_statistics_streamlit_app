@@ -282,18 +282,17 @@ if not stats or rows.empty:
 
 w = evidence.verdict_for(target, run_type, operation, family, part_type, seq,
                          part_id)
-gates = text.gates(stats, w["q"])
+rule_state = text.rule_status(stats, w["q"])
 kindof = evidence.outcome(w["verdict"], stats)
 
-# THE VALUE TO KEY IS NOT ALWAYS THIS UNIT'S OWN. verdict_for reads the unit
-# sheets, whose SUGGESTED column is what this part's evidence points to; the
-# execution sheets carry RM_RECOMMENDED, which is what the pipeline says to
-# apply, and on 17 part-level PCS/HR units the two differ by up to 9%. See
-# data.actions.
+# THE VALUE TO KEY IS THIS UNIT'S OWN, on every part-level unit. verdict_for
+# reads the unit sheets; the execution sheets carry RM_RECOMMENDED, and since
+# 2026-08-26 the two agree on every part row - a part that cleared the six
+# rules keeps its own figure. See data.actions.
 #
-# The old value is kept as _own, because on those units it is still worth
-# showing: it is what this part measured, and the gap between it and the value
-# to key IS the reason the recommendation came from the family.
+# _own is kept anyway. It costs nothing, and it is the guard: if it ever
+# diverges from the value to key, the rule upstream has moved and this page
+# should not quietly show one number while the workbook holds another.
 #
 # Only an action carries a row here, which is exactly when "Change it to"
 # renders a number - a held or untestable unit shows "leave as is" and never
@@ -330,7 +329,7 @@ needs_human = (kindof == "act" and _r is not None and pd.notna(_r)
 # Three copies of the six rules on one screen was the thing to fix, and the rail
 # was the copy furthest from the evidence it describes. The sidebar keeps what
 # only it can do - choosing what to look at.
-blocker = next((i for i, g in enumerate(gates) if not g["passed"]), None)
+blocker = next((i for i, g in enumerate(rule_state) if not g["passed"]), None)
 
 # ---- verdict ----------------------------------------------------------------
 # ui.field_name, not a mapping written out here. The Review queue needs the same
@@ -350,9 +349,9 @@ detail = {
     "act": ("It passed all six rules, and the change it proposes is large "
             "enough to want a second pair of eyes." if needs_human
             else "It passed all six rules."),
-    "hold": (f"Rule {blocker + 1} of 6 stopped it: {gates[blocker]['name'].lower()}"
-             f" — {gates[blocker]['value']}." if blocker is not None else ""),
-    "blocked": (gates[blocker]["value"] if blocker is not None else ""),
+    "hold": (f"Rule {blocker + 1} of 6 stopped it: {rule_state[blocker]['name'].lower()}"
+             f" — {rule_state[blocker]['value']}." if blocker is not None else ""),
+    "blocked": (rule_state[blocker]["value"] if blocker is not None else ""),
     "unknown": "The workbook has no row for this combination.",
 }[kindof]
 ui.verdict_banner(st, headline, "review" if needs_human else kindof, detail)
@@ -497,15 +496,19 @@ st.caption(ui.direction_note(target, run_type))
 #
 # An st.info rather than a caption: it is not a note about how to read the
 # numbers above it, it is a fact about which of two numbers to key.
+# INVERTED 2026-08-26. This used to explain why the value to key was the
+# family's rather than this part's. That rule is gone - a part clearing the six
+# rules keeps its own figure - so a difference here is now a fault, not a
+# feature, and the box says so. Do not restore the old wording.
 if _from_family:
-    st.info(
-        f"**The value to key is the family's, not this part's.** This part "
-        f"measured **{ui.fmt(_own)}**, but its family's ratio falls inside "
-        f"the part's own 95% band — the two are not statistically "
-        f"distinguishable, so a separate standard for this part would "
-        f"preserve sampling noise rather than a real process difference. "
-        f"The workbook records the basis as *{_act.TO_KEY_BASIS}*.",
-        icon=":material/group:")
+    st.warning(
+        f"**This page and the workbook disagree.** The part measured "
+        f"**{ui.fmt(_own)}**, but the execution sheet carries a different "
+        f"value to key. A part that cleared all six rules on its own evidence "
+        f"should keep its own figure, so this should not happen. Check "
+        f"`02_RunUpdateList` before keying it. The workbook records the basis "
+        f"as *{_act.TO_KEY_BASIS}*.",
+        icon=":material/error:")
 
 # Some family actions carry no single value to key in, because the family
 # runs several different current standards. Those rows say "divide each part's
@@ -573,7 +576,7 @@ st.subheader("How this was decided")
 _rc, _tc = st.columns(2)
 
 with _rc:
-    ui.rule_results(st, gates, per_row=2)
+    ui.rule_results(st, rule_state, per_row=2)
 
 with _tc:
     # _mk and _measured come from the metric row above - one derivation per

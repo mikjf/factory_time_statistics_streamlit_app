@@ -1,9 +1,9 @@
-"""Shared prose, and the gate ladder.
+"""Shared prose, and the rule ladder.
 
 The ladder is the reason this tool is worth building rather than sending the
 workbook round. A recommendation is easy to read; the absence of one is not. A
 part owner asking "why is mine not on the list" currently has to find somebody
-who knows. Here every unit shows the six gates in the order the pipeline applies
+who knows. Here every unit shows the six rules in the order the pipeline applies
 them, with the actual figures, so "we looked at this and the standard holds" and
 "we never had enough data to say" stop being the same blank cell.
 """
@@ -24,9 +24,9 @@ def _fmt(v, spec=".3f"):
 
 def _honest(v, threshold, passed, at_least=True, specs=(".1f", ".2f", ".3f",
                                                         ".4f", ".5f")):
-    """Format a gate's value so the number cannot contradict its own verdict.
+    """Format a rule's value so the number cannot contradict its own verdict.
 
-    A ratio of 1.099706 is 9.97% off the standard and fails the 10% gate, but
+    A ratio of 1.099706 is 9.97% off the standard and fails the 10% rule, but
     printed to one decimal it reads "10.0%" beside "needs at least 10%" and a
     cross. On a screen whose entire pitch is that you can check the arithmetic
     yourself, that hands the room a free reason to disbelieve the other 235
@@ -117,14 +117,18 @@ def rules():
     ]
 
 
-def gates(stats, q=None):
-    """The six gates, in the order recommend() and verdict() apply them.
+def rule_status(stats, q=None):
+    """The six rules with this unit's own figures, in the order they apply.
 
-    Returns per gate: passed, name, a compact `value` for the sidebar rail, and
-    a longer `detail` for anyone who wants to know why the rule exists. A gate
-    after the first failure is still evaluated and shown - a reviewer wants to
-    know that a unit missed the hours floor by two hours, not just that it
-    stopped at the first hurdle.
+    Named `rule_status` rather than `gates` because every screen says "rules".
+    This module was the last place still calling them gates, so a reader moving
+    between the code and the screen had to translate.
+
+    Returns per rule: passed, name, and a compact `value` for the sidebar rail.
+    Why each rule exists is rules()' job, not this one's. A rule after the first
+    failure is still evaluated and shown - a reviewer wants to know that a unit
+    missed the hours floor by two hours, not just that it stopped at the first
+    hurdle.
     """
     n = stats.get("N_TESTED")
     min_n = stats.get("MIN_N", pipeline.MIN_WO)
@@ -146,7 +150,7 @@ def gates(stats, q=None):
 
     # The hours figure keeps its sign. It is stated twice on the page - here and
     # in the metric beside it - and showing 10 in one place and -10 in the other
-    # reads as two different numbers. The gate itself is on the magnitude, so
+    # reads as two different numbers. The rule itself is on the magnitude, so
     # the threshold text says "either way".
     hrs = _honest(abs(delta) if num(delta) else None, min_h, hrs_ok,
                   specs=(",.0f", ",.1f", ",.2f"))
@@ -169,40 +173,17 @@ def gates(stats, q=None):
         # "a year" gone here too - same reason as on the rule above.
         f"{hrs} h   (needs ≥ {min_h:g} h either way)",
     ]
-    details = [
-        f"A hard floor, not a preference: with fewer than {min_n} work orders "
-        f"the test cannot reach significance however consistently they miss "
-        f"the standard. Note this counts every work order the test used — a few "
-        f"may still be set aside afterwards as unlike the rest, which changes "
-        f"the estimate but never the test.",
-        "A signed-rank test — it asks whether the work orders land on one side "
-        "of the standard more often than coin-flipping would explain. It makes "
-        "no assumption about the shape of the data, which is the guard against "
-        "a few extreme jobs dragging the average while the middle of the "
-        "evidence says the standard is fine.",
-        "Hundreds of part-and-step combinations are tested together, so a "
-        "handful would look convincing by chance alone. This adjusts for that, "
-        "and is what keeps the list from filling with coincidences.",
-        "The plausible range for the true ratio. If it straddles 1.0 the "
-        "evidence is still consistent with the standard being right, however "
-        "far off the best single estimate looks.",
-        "Real but small differences are not worth the churn of re-keying a "
-        "standard across every part of a family.",
-        "Actual minus master across the window the analysis covers. The gate "
-        "is on the size of the miss, not its direction — the sign is kept so "
-        "it matches the metric beside it. Below the threshold the correction "
-        "is right and does not matter enough to be worth making.",
-    ]
-    # NOTHING RENDERS `details`. The six paragraphs above are built on every
-    # call and returned under the "detail" key, and no page reads that key -
-    # rule_cards takes its sentence from rules(), rule_results shows name and
-    # value only, and the rail that did show them is gone. Left in place rather
-    # than deleted because the contract of this function is shared and the
-    # content is worth having if a page ever wants it, but it is dead weight
-    # today and should not be trusted to be current.
+    # THE SIX EXPLANATORY PARAGRAPHS THAT USED TO SIT HERE ARE GONE. They were
+    # returned under a key that no page has ever read - rule_cards takes its
+    # sentence from rules(), rule_results shows name and value only, and the
+    # rail that once showed them was removed. They were also a second
+    # explanation of the same six rules that rules() already explains, which is
+    # the failure this project has paid for before: the rules were written out
+    # three times and a de-jargon pass reached one of the three. One
+    # explanation, in rules(), rendered on Methodology.
     passed = [num(n) and n >= min_n, p_ok, q_ok, excludes_one, dev_ok, hrs_ok]
-    return [{"passed": bool(p), "name": nm, "value": v, "detail": d}
-            for p, (nm, _, _), v, d in zip(passed, rules(), values, details)]
+    return [{"passed": bool(p), "name": nm, "value": v}
+            for p, (nm, _, _), v in zip(passed, rules(), values)]
 
 
 # Which labour tickets are in the data at all. Lives with the dataset rather
