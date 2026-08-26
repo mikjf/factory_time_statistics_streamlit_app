@@ -368,14 +368,14 @@ ABSOLUTE_MISSTATED_HELP = (
 # Review queue also both carry. They had drifted: Overview said "higher than
 # distinct parts affected as each part has multiple operations", the Review
 # queue said "one edit per part per operation" - the same fact, in two
-# vocabularies, under the same label and against the same 2'337.
+# vocabularies, under the same label and against the same 2'421.
 #
 # NAMES NO TILE. Overview's wording pointed at "Distinct parts affected", which
 # sits beside it there and does not exist on the Review queue - so copying it
 # across would have referred a reader to something not on their screen. It names
 # the CONCEPT instead, which is true wherever the tile appears.
 #
-# The two pages reach 2'337 by different routes - Overview counts rows in the
+# The two pages reach 2'421 by different routes - Overview counts rows in the
 # three execution sheets, the Review queue sums N_PARTS over 01_Actions - and
 # they agree. Worth knowing if they ever stop agreeing; not worth a tooltip.
 #

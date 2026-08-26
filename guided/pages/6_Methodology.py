@@ -362,7 +362,7 @@ ui.rule_cards(st, text.rules())
 st.divider()
 
 # ---- the funnel, second half ------------------------------------------------
-# Reopens on the same 8,749 the first half closed on, so the drop to 607 stays
+# Reopens on the same 9,118 the first half closed on, so the drop to 628 stays
 # visible. Repeating the number is the join.
 # The unit goes in this heading and NOT in step 1's. Every bar here is one
 # part x sequence x operation. Step 1 crosses from work orders to standards, so
@@ -393,7 +393,7 @@ ui.funnel(st, [
          f"at least {pipeline.MIN_EFFECT:.0%} off and "
          f"{pipeline.MIN_HOURS_IMPACT:g} h"),
     ]),
-], scale_to=fn["at_a_standard"])   # same scale as the first half, so 8'749
+], scale_to=fn["at_a_standard"])   # same scale as the first half, so 9'118
                                    # is drawn the same width in both
 # WAS ARITHMETICALLY FALSE. It read "those 59 plus setup's and HRS/LOAD's own
 # share give 230 decisions" - 59 + 44 + 21 is 124. The 59 is the PART-LEVEL

@@ -181,7 +181,7 @@ CSS = """
    carries 4px under the pill that would otherwise have to be subtracted here,
    and dissolving it keeps the arithmetic to one term.
    OPT-IN, by st.container(key="h0-inline-delta-..."), which Streamlit renders
-   as a .st-key- class. Applied globally it would also catch "18 of 224" on the
+   as a .st-key- class. Applied globally it would also catch "18 of 237" on the
    review queue, where the delta is a denominator and belongs under the count it
    qualifies. */
 [class*="st-key-h0-inline-delta"] [data-testid="stMetric"] > div {
@@ -940,7 +940,7 @@ def keying_instruction(text):
 
     RUN_MASTER IS ALSO REWRITTEN, and that one is a correction rather than a
     house-style choice. 01_Actions writes "set RUN_MASTER to SUGGESTED_VALUE" on
-    166 of the 224 decisions, and RUN_MASTER is the extract's alias for
+    178 of the 237 decisions, and RUN_MASTER is the extract's alias for
     dbo.OPERATION.RUN - see field_name. Left verbatim, the app would print the
     Field column as "RUN (PCS/HR)" and the instruction under it as "set
     RUN_MASTER", naming two different columns for one edit on one screen, one of

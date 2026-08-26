@@ -139,7 +139,7 @@ else:
                       "MASTER_OPS_ROWID is the routing row to update so future "
                       "work orders inherit it.")
     # REVIEW_FLAG IS A SENTENCE IN THE SHEET - "NEEDS REVIEW - ratio outside
-    # 0.25-4.0", on 85 of 2'337 rows and blank on the rest - and it was rendered
+    # 0.25-4.0", on 88 of 2'421 rows and blank on the rest - and it was rendered
     # raw, under its own database name, to a reader with no schema. As a tick it
     # takes one narrow column and matches the Review queue, which shows the same
     # state under the same header; the sentence moves into the tooltip, where it

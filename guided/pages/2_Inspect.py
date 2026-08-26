@@ -62,14 +62,14 @@ with st.sidebar:
     ui.side_title(st, "What to look at")
 
     # ---- ONLY WHAT CHANGES -------------------------------------------------
-    # 224 of 12'866 units carry a proposed change. Unfiltered, the four pickers
+    # 237 of 11'777 units carry a proposed change. Unfiltered, the four pickers
     # below offer some 1'220 combinations for the run analysis alone, and 98% of
     # them land on "leave this standard alone" or "not enough evidence" - which
     # is the honest answer for those units and useless as a way to find the ones
     # that need keying in.
     #
     # FIRST IN THE RAIL, above the analysis it does not itself filter. It is the
-    # bigger fork: this decides whether the rail offers 224 units or 12'866, and
+    # bigger fork: this decides whether the rail offers 237 units or 11'777, and
     # the radio then navigates inside whichever of those was chosen. It sat
     # between the radio and the pickers, which is exactly the boundary of what it
     # affects and reads as belonging to neither.
@@ -288,7 +288,7 @@ kindof = evidence.outcome(w["verdict"], stats)
 # THE VALUE TO KEY IS NOT ALWAYS THIS UNIT'S OWN. verdict_for reads the unit
 # sheets, whose SUGGESTED column is what this part's evidence points to; the
 # execution sheets carry RM_RECOMMENDED, which is what the pipeline says to
-# apply, and on 13 part-level PCS/HR units the two differ by up to 9%. See
+# apply, and on 17 part-level PCS/HR units the two differ by up to 9%. See
 # data.actions.
 #
 # The old value is kept as _own, because on those units it is still worth

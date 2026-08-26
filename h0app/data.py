@@ -253,7 +253,7 @@ def actions():
     RM_RECOMMENDED, and h0_v2_update_list calls 02_RunUpdateList "THE definitive
     run list ... with the exact RUN_MASTER to apply".
 
-    The two differ on 13 of the 59 part-level PCS/HR decisions, by up to 9%. A
+    The two differ on 17 of the 64 part-level PCS/HR decisions, by up to 9%. A
     part keeps its own figure only where the family ratio falls outside the
     part's 95% interval; otherwise the two are statistically indistinguishable
     and the family's value is applied, because a separate standard would preserve

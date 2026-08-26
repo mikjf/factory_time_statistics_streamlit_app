@@ -81,7 +81,7 @@ c[1].metric("Distinct parts affected", ui.num(edits.PART_ID.nunique()),
                  "edit.")
 c[2].metric("Operations rows to edit", ui.num(len(edits)),
             # SHARED WITH THE REVIEW QUEUE, which carries this tile too and had
-            # drifted to a second wording of the same fact. The two reach 2'337
+            # drifted to a second wording of the same fact. The two reach 2'421
             # by different routes - this counts rows in the execution sheets,
             # that sums N_PARTS over 01_Actions - and agree.
             help=text.ROWS_TO_EDIT_HELP)

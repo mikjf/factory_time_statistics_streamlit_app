@@ -382,7 +382,7 @@ st.divider()
 # ---- last, because it is the last thing you do -------------------------------
 st.subheader("What you are keying in")
 # THE FIELD-TO-RUN-TYPE MAPPING IS STATED, not left to be inferred from the list.
-# The instructions name RUN_MASTER on 166 decisions and RUN on 21 without ever
+# The instructions name RUN_MASTER on 178 decisions and RUN on 21 without ever
 # saying that the first is only ever PCS/HR and the second only ever HRS/LOAD -
 # true of every row, and the one thing a reader has to know to place an
 # instruction against the analysis it came from. It was possible to read the list
@@ -422,7 +422,7 @@ st.markdown(
 # keying, and it is spent on the 85 flagged rows above. This carries no doubt: it
 # says a decision fans out to many rows, which is arithmetic.
 #
-# The closing clause splits the 166 rather than describing them all as
+# The closing clause splits the 178 rather than describing them all as
 # family-wide, because 59 of them are not: run_actions is every PCS/HR run
 # decision, fam_actions only the FAMILY-level ones, and the difference is the
 # part-level decisions that touch exactly one part. Both numbers are read from

@@ -51,14 +51,14 @@ freshness.guard()
 # GREEN, and "act" rather than "caution", even though the sub-line is a caveat.
 # The colour has one job in this tool and it is not tone: green means a rule was
 # satisfied, and all six were, on every row here. Amber is spoken for - "do not
-# act on this as it stands" - which is false of 217 of the 224 and would be a
+# act on this as it stands" - which is false of 230 of the 237 and would be a
 # second meaning for the one colour the legend promises has only one.
 #
 # NO FIGURE IN IT, deliberately, and not only to keep it from going stale. There
 # is no honest denominator to quote: EXAMINED counts one part at one step on the
 # part route and one FAMILY at one step on the family route, so a summed
-# "224 of N" would add two units together and report them as one. The tile below
-# carries the 224 and follows the filter; this banner is true whatever is picked.
+# "237 of N" would add two units together and report them as one. The tile below
+# carries the 237 and follows the filter; this banner is true whatever is picked.
 #
 # THE TWO ABSENT OUTCOMES ARE NAMED IN THE APP'S OWN WORDS - "tested and held"
 # and "not enough evidence" are data.py's two verdict strings, the ones
@@ -80,7 +80,7 @@ freshness.guard()
 # Its replacement, "missing from this list does not mean correct", was plain and
 # WRONG, because it is true of only one of the two absent groups. A standard
 # that was tested and held HAS been checked; one with not enough evidence never
-# reached the test at all - 8'142 of the 8'749 units on the PCS/HR part route.
+# reached the test at all - 8'490 of the 9'118 units on the PCS/HR part route.
 # Saying "missing does not mean correct" over both of them casts doubt on the
 # first group and erases the distinction the very next clause points at.
 #
@@ -127,7 +127,7 @@ S = data.SEQ
 # show, and it loses nothing: both run analyses edit RUN and setup edits
 # SETUP_HRS, so naming the analysis names the field. The tooltip says so.
 #
-# EFFECT drops the " the standard" DIRECTION repeats on all 224 rows - the column
+# EFFECT drops the " the standard" DIRECTION repeats on all 237 rows - the column
 # heading says it once. A plain string replace rather than a lookup, so a third
 # direction added upstream passes through as itself instead of vanishing.
 acts["ANALYSIS"] = [ui.analysis_name(t, r)
@@ -232,7 +232,7 @@ if big_first:
     d = d.reindex(d.HOURS_DELTA.abs().sort_values(ascending=False).index)
 
 # ---- what the current filter is worth ---------------------------------------
-# "Standards to review", the label Overview uses for the same 224, with the
+# "Standards to review", the label Overview uses for the same 237, with the
 # breakdown tooltip it carries too - both now following the filter. It read
 # "Decisions shown", which was a third word for the row and hid the fact that
 # this tile and Overview's leftmost one count exactly the same thing.
@@ -374,7 +374,7 @@ event = st.dataframe(
         # NumberColumn format would override it and put the commas back.
         "CURRENT_VALUE": st.column_config.NumberColumn("Now"),
         # RM_RECOMMENDED, not 01_Actions' own SUGGESTED_VALUE. See data.actions:
-        # the sheet's column is what a part's own evidence points to, and on 13
+        # the sheet's column is what a part's own evidence points to, and on 17
         # part-level decisions that is not the value the pipeline says to apply.
         "TO_KEY": st.column_config.NumberColumn(
             "Proposed",
