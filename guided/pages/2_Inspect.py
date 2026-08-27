@@ -722,9 +722,20 @@ st.caption("Every work order in scope, including the ones that did not "
 _cols = evidence.table_cols(_mk)
 show = rows[_cols].copy()
 show["LAST_DATE"] = pd.to_datetime(show.LAST_DATE, errors="coerce")
+# HOURS AT 2 DECIMALS, the way every other table in the tool shows them. These
+# two were the only 4-decimal columns in the app, and the extra digits bought
+# nothing a reader uses: the ratio is computed from the underlying values and
+# printed beside them, so it does not depend on reproducing the division by eye.
+#
+# CHECKED BEFORE CUTTING IT. Across all three routes, 24 work orders hold an
+# Actual h that is above zero and rounds to 0.00 - 1 on the run route, 23 on
+# setup PCS/HR, smallest 0.0033 h. Every one of them is a token booking or a
+# skipped setup, which the Counted? column already names as excluded, so 0.00 is
+# the honest reading rather than a lost figure. No Master h rounds to zero: the
+# smallest is 0.0074 h on run and 0.1667 h on setup.
 st.dataframe(
-    ui.swiss_grid(show, {"TOTAL_QTY": ",.0f", "HOURS_MASTER": ",.4f",
-                         "HOURS_WORKED": ",.4f", "RATIO": ",.3f",
+    ui.swiss_grid(show, {"TOTAL_QTY": ",.0f", "HOURS_MASTER": ",.2f",
+                         "HOURS_WORKED": ",.2f", "RATIO": ",.3f",
                          "ACHIEVED_N": ",.2f"}),
     hide_index=True, width="stretch", height=380,
     column_config={

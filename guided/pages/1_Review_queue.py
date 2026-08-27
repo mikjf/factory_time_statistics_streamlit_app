@@ -199,8 +199,15 @@ with st.sidebar:
     # largest gap in the whole list is -404 h, so "biggest" read as "largest
     # signed" puts the wrong row at the top of the reader's expectation. The
     # help says so with the case that proves it.
+    # OFF BY DEFAULT. Left on, the queue opens scrambled relative to its own
+    # leftmost columns: 01_Actions is sorted family, part type, level, part,
+    # step, so untouched it groups every decision for one family together -
+    # which is the set they will be applied as, and the order FAMILY /
+    # PART_TYPE / OPERATION at the head of the table already promises. Sorting
+    # by size breaks that grouping and is a question the reader should have to
+    # ask ("what is worth most?"), not the one they are answered before asking.
     big_first = st.toggle(
-        "Biggest Δ Hours first", value=True,
+        "Biggest Δ Hours first", value=False,
         help="By the SIZE of the gap, not its direction — a standard 400 "
              "hours under ranks above one 300 hours over. Both are equally "
              "wrong and equally worth fixing; the Effect column says which "
@@ -365,8 +372,9 @@ detail = st.toggle("Show the statistics columns", value=False,
 # that reads on sight.
 #
 # Δ HOURS SITS WITH THE MAGNITUDE BLOCK, not at the far right, because it is
-# the SORT KEY - "Biggest hours first" is on by default, so the column driving
-# the order has to be visible without scanning to the end of the row.
+# the SORT KEY the rail toggle reaches for. It is off by default, but the moment
+# it goes on the column driving the order has to be visible without scanning to
+# the end of the row.
 #
 # EFFECT COMES BEFORE CHANGE %, AND AFTER BOTH VALUES. The sign of Change %
 # means OPPOSITE THINGS by analysis: a PCS/HR rate falling 11.7% SLOWS the
