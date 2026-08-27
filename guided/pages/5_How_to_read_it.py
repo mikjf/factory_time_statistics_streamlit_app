@@ -92,7 +92,8 @@ st.markdown(f"""
 least {pipeline.MIN_WO} work orders and clears all six rules, its own measured
 figure is the one to key. The family never overrides it.
 
-Where a part is too thin to judge alone its family may still pool enough
+Where a part has too few work orders to be judged alone, its family may still
+pool enough
 evidence. Parts already judged individually are **removed from the family pool
 before the family ratio is computed**, so the two routes never both act on the
 same part, and the family figure is not propped up by the parts already known
@@ -429,7 +430,7 @@ st.markdown(
 # says a decision fans out to many rows, which is arithmetic.
 #
 # The closing clause splits the 178 rather than describing them all as
-# family-wide, because 59 of them are not: run_actions is every PCS/HR run
+# family-wide, because 64 of them are not: run_actions is every PCS/HR run
 # decision, fam_actions only the FAMILY-level ones, and the difference is the
 # part-level decisions that touch exactly one part. Both numbers are read from
 # the workbook and the remainder is subtracted, so the split cannot drift.

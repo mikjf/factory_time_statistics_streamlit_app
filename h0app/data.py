@@ -312,7 +312,38 @@ def actions():
                              TO_KEY_CHANGE_PCT=lambda d: d.CHANGE_PCT,
                              TO_KEY_BASIS="family")
     a = pd.concat([a[is_part].merge(part, on=K + ["PART_ID"], how="left"), fam])
-    return a.sort_values("_ORD").drop(columns="_ORD").reset_index(drop=True)
+    a = a.sort_values("_ORD").drop(columns="_ORD").reset_index(drop=True)
+
+    # ---- CHANGE % WHERE THERE IS NO SINGLE VALUE -----------------------------
+    # 01_Actions computes CHANGE_PCT as (SUGGESTED / CURRENT - 1), so it comes
+    # back blank on the rows whose family runs several different current values:
+    # there is no single CURRENT and no single SUGGESTED, so the division has
+    # nothing to work with.
+    #
+    # BUT THE PERCENTAGE IS STILL WELL DEFINED. Every part in that family is
+    # corrected by the SAME ratio, so they all move by the same proportion even
+    # though they start and end at different absolute values. The ratio carries
+    # it, and the ratio is present on all of those rows.
+    #
+    # PCS/HR holds a RATE, so the correction DIVIDES and the change is
+    # (1/ratio - 1). Setup and HRS/LOAD hold DURATIONS, so it multiplies and the
+    # change is (ratio - 1). Getting that backwards would print a plausible
+    # number with the wrong sign, which is the one failure this column cannot
+    # afford - see EFFECT on the Review queue.
+    #
+    # Checked against the 216 rows that carry both: derived agrees with stored
+    # to within 2 percentage points on every one, and within 0.5 on 95%. The
+    # residue is tidy() rounding the suggested value before the stored figure is
+    # computed from it; the derived one comes off the unrounded ratio.
+    #
+    # ONLY FILLS BLANKS. Where 01_Actions has a figure it is left alone, so the
+    # two never compete for the same cell.
+    gap = a.TO_KEY_CHANGE_PCT.isna() & a.RATIO.notna() & (a.RATIO > 0)
+    if gap.any():
+        rate = (a.TARGET == "RUN") & (a.RUN_TYPE == "PCS/HR")
+        derived = np.where(rate, (1 / a.RATIO - 1) * 100, (a.RATIO - 1) * 100)
+        a.loc[gap, "TO_KEY_CHANGE_PCT"] = np.round(derived[gap.values], 1)
+    return a
 
 
 def action_row(target, run_type, operation, family, part_type, seq,
@@ -657,7 +688,9 @@ def _family_funnel(key):
     A part that cannot clear the 6-work-order floor alone is not dropped. Its
     work orders join the rest of its family at the same step, and the pool is
     put through the same six rules. That route produces most of the PCS/HR run
-    decisions - 106 against 59 - and the part-level funnel does not show it.
+    decisions - the family route runs to roughly twice the part route - and
+    the part-level funnel does not show it. No counts here: they move with
+    every extract and the funnels on Methodology carry the live ones.
 
     Read from 01_FamilyRollup rather than recomputed. The pooling excludes
     parts already flagged individually, which is a rule of the family script

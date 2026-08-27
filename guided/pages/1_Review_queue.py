@@ -80,7 +80,7 @@ freshness.guard()
 # Its replacement, "missing from this list does not mean correct", was plain and
 # WRONG, because it is true of only one of the two absent groups. A standard
 # that was tested and held HAS been checked; one with not enough evidence never
-# reached the test at all - 8'490 of the 9'118 units on the PCS/HR part route.
+# reached the test at all - 8'492 of the 9'120 units on the PCS/HR part route.
 # Saying "missing does not mean correct" over both of them casts doubt on the
 # first group and erases the distinction the very next clause points at.
 #
@@ -91,11 +91,18 @@ freshness.guard()
 # ordinary English - it is a workbook verdict the reader meets again in
 # Methodology's Outcome column and on By part - and an earlier draft left it to
 # be recovered from the sentence after it. Said in the parenthesis, it is
-# understood on first read. "Proposed" rather than "suggested": the workbook's
-# own strings read "no change - not significant", and Proposed is the column
-# header a few inches to the right.
+# "(no change proposed)" IN THE PROSE, "Suggested" AS THE COLUMN HEADER, and
+# they are not in conflict: the prose describes what the analysis DID - it
+# proposed nothing for those units - while the header names WHERE THE NUMBER
+# CAME FROM, which is the workbook's RM_SUGGESTED.
 #
-# NOT "the standard is correct", which the gloss must not become. 157 of the
+# The header read "Proposed" until 2026-08-27, on the argument that SUGGESTED
+# and RECOMMENDED were two different workbook columns that disagreed, so
+# borrowing either word would name the wrong one. They can no longer disagree:
+# RM_RECOMMENDED IS RM_SUGGESTED on both routes since the family branch was
+# corrected. The header now matches the column it displays.
+#
+# NOT "the standard is correct", which the gloss must not become. 183 of the
 # units that tested and held ARE off the standard - they failed rule 5 or 6, the
 # deviation and hours floors - so what they have in common is that no change was
 # proposed, not that nothing is wrong.
@@ -142,13 +149,19 @@ def applies_to(part_id, level):
     01_Actions writes a phrase in this column wherever the unit is judged on the
     family, and the longest of them - "every part of this family that performs
     the setup", 49 characters - was setting the width of the widest column on
-    the page. It appears on exactly the 37 SETUP_HRS rows and nowhere else, so
-    every character of it restates the Field column beside it.
+    the page. It appears on the SETUP_HRS rows and nowhere else, so every
+    character of it restates the Analysis column beside it.
 
-    What the phrases actually carry, once Field and Parts are on the row, is one
-    bit and one number: whole family or one part, and how many parts were left
-    out of the pool. Both survive here; the setup wording does not, because
-    Field already says SETUP_HRS on precisely those rows.
+    What the phrases actually carry, once Analysis and Parts are on the row, is
+    one bit and one number: whole family or one part, and how many parts were
+    left out of the pool. Both survive here; the setup wording does not, because
+    Analysis already says Setup on precisely those rows.
+
+    (This docstring said "the Field column" until 2026-08-27. That column was
+    renamed to Analysis when Field turned out to name nothing - RUN and
+    SETUP_HRS are fields, PCS/HR is a value of RUN_TYPE - and the rename did not
+    reach here. It also quoted a row count, which went stale the next time the
+    extract moved; the count is gone rather than refreshed.)
 
     ANYTHING UNRECOGNISED IS PASSED THROUGH UNCHANGED rather than flattened to
     the family phrase. A seventh wording added upstream would then be visibly
@@ -170,6 +183,29 @@ def applies_to(part_id, level):
 # the other two call it.
 with st.sidebar:
     ui.side_title(st, "What to look at")
+
+    # FIRST IN THE RAIL, above the pickers it does not filter - the same place
+    # Inspect puts "Only where a change is proposed". Both are the rail's
+    # bigger fork: they decide the SHAPE of what follows rather than narrowing
+    # it, so they read before the boxes that narrow it and not among them.
+    #
+    # It sat last, under the two filters, where it looked like a third filter.
+    # NAMES THE COLUMN IT SORTS. It read "Biggest hours first" while the column
+    # was called Hours; the column became Δ Hours on 2026-08-27 and this did not
+    # follow.
+    #
+    # AND IT SORTS ON THE ABSOLUTE VALUE - d.HOURS_DELTA.abs() below - which the
+    # label alone cannot convey. 109 of the 237 actions are negative, and the
+    # largest gap in the whole list is -404 h, so "biggest" read as "largest
+    # signed" puts the wrong row at the top of the reader's expectation. The
+    # help says so with the case that proves it.
+    big_first = st.toggle(
+        "Biggest Δ Hours first", value=True,
+        help="By the SIZE of the gap, not its direction — a standard 400 "
+             "hours under ranks above one 300 hours over. Both are equally "
+             "wrong and equally worth fixing; the Effect column says which "
+             "way each one goes.")
+
 
     def narrow(frame, label, col, placeholder, fmt=str, count=False):
         """One filter, offering only what the filters above it left standing.
@@ -200,7 +236,7 @@ with st.sidebar:
     # get by opening the box, and left out the half they cannot: what the list
     # would show if they left it alone.
     #
-    # THE COUNT IS ONLY ON THESE TWO. Part type, Field and Judged at offer two
+    # THE COUNT IS ONLY ON THESE TWO. Part type, Analysis and Judged at offer two
     # or three options and their placeholders already enumerate the whole set,
     # so "both (2)" would be the box counting to two in front of the reader.
     d = narrow(acts, "Family", "FAMILY", "all families", count=True)
@@ -224,7 +260,6 @@ with st.sidebar:
              f"quadruples reads +300% but one cut to a quarter reads −75% and "
              f"can never pass −100%, so flagging on the change would catch "
              f"only increases.")
-    big_first = st.toggle("Biggest hours first", value=True)
 
 if only_review:
     d = d[d.NEEDS_REVIEW]
@@ -243,7 +278,7 @@ if big_first:
 # notice and does re-read.
 #
 # The page's own tile goes last rather than being slotted among them. Overview's
-# fourth is "Distinct parts affected", which cannot be shown here: on the 160
+# fourth is "Distinct parts affected", which cannot be shown here: on the 167
 # family-level rows PART_ID holds a sentence - "all parts of this family" - so
 # 01_Actions alone has no part numbers to count distinct. "Need a human first"
 # takes the slot because it is what this page adds: it pairs with the rail's
@@ -257,8 +292,8 @@ m[0].metric("Standards to review", ui.num(len(d)),
             delta_color="off",
             # Counted off TARGET/RUN_TYPE, not off the derived display column.
             # Comparing against display strings meant this silently returned
-            # 0, 0 and 37 the moment that column's wording changed - which it
-            # then did twice.
+            # zero for both run analyses the moment that column's wording
+            # changed - which it then did twice.
             help=f"{int(((d.TARGET == 'RUN') & (d.RUN_TYPE == 'PCS/HR')).sum())}"
                  f" run PCS/HR, "
                  f"{int(((d.TARGET == 'RUN') & (d.RUN_TYPE == 'HRS/LOAD')).sum())}"
@@ -281,7 +316,7 @@ m[2].metric("Absolute misstated hours", ui.hrs(d.HOURS_DELTA.abs().sum()),
 # "MANUAL" IS NOT PADDING. Plain "Flagged for review" collides on this page and
 # nowhere else - the page is the Review queue and the first tile counts
 # "Standards to review", so a reader meets "flagged for review" and reasonably
-# asks how it differs from the other 217. Manual is the difference: the six rules
+# asks how it differs from the other 230. Manual is the difference: the six rules
 # cleared those automatically, these want a person.
 m[3].metric("Flagged for manual review", ui.num(d.NEEDS_REVIEW.sum()),
             help=f"Ratio outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI}. "
@@ -304,11 +339,59 @@ detail = st.toggle("Show the statistics columns", value=False,
 #
 # TWO COLUMNS DROPPED FROM THE SCREEN and kept in the download. LEVEL said
 # PART / FAMILY beside an "Applies to" column already saying "all parts of this
-# family" or a part number, in words; RUN_TYPE is now inside Field, since
-# RUN_MASTER is PCS/HR by definition and RUN is HRS/LOAD by definition.
-base = ["FAMILY", "PART_TYPE", "OPERATION", S, "PART_ID", "ANALYSIS", "EFFECT",
-        "CURRENT_VALUE", "TO_KEY", "TO_KEY_CHANGE_PCT", "N_PARTS",
-        "HOURS_DELTA", "N_WO", "NEEDS_REVIEW"]
+# family" or a part number, in words; RUN_TYPE is now inside Analysis, which
+# reads Run PCS/HR / Run HRS/LOAD / Setup and so carries both facts in one
+# column.
+# ---- COLUMN ORDER, settled 2026-08-27 --------------------------------------
+# Reads left to right as the reviewer's own sequence:
+#
+#   WHICH ROUTING ROW   Family, Part type, Operation, Step
+#   WHAT KIND           Analysis
+#   HOW WIDE, HOW BIG   Applies to, Parts, Work orders, Δ Hours
+#   WHAT TO DO          Now, Suggested, Effect, Change %
+#
+# APPLIES TO SITS BESIDE PARTS because they are ONE FACT AT TWO GRAINS, and the
+# data makes that exact: where Applies to is a part number, Parts is 1 on all 70
+# such rows without exception; where it says "whole family", Parts runs 2 to 73.
+# Read together they explain each other - "whole family · 73", or one part
+# number against a 1.
+# Seven columns apart, which is where Applies to sat until 2026-08-27, "Parts: 1"
+# is a bare number the reader has to decode by remembering the rule.
+#
+# The cost, accepted: Applies to is the second-widest column at 20 characters,
+# so moving it left leaves less room for the identity columns that get scanned
+# most. It does not change the total width - the grid fits its columns to the
+# space either way - so this trades a little truncation on the left for a pair
+# that reads on sight.
+#
+# Δ HOURS SITS WITH THE MAGNITUDE BLOCK, not at the far right, because it is
+# the SORT KEY - "Biggest hours first" is on by default, so the column driving
+# the order has to be visible without scanning to the end of the row.
+#
+# EFFECT COMES BEFORE CHANGE %, AND AFTER BOTH VALUES. The sign of Change %
+# means OPPOSITE THINGS by analysis: a PCS/HR rate falling 11.7% SLOWS the
+# standard down (+324 h on one row), while a setup duration falling 72% SPEEDS
+# it up (-5 h). Both print a minus.
+#
+# Effect used to sit AFTER Change %, where it corrected the misreading. Ahead of
+# it, the reader meets "slow down" and only then the -11.7% - primed rather than
+# corrected, and a wrong impression is harder to undo than to prevent.
+#
+# It was briefly BETWEEN Now and Suggested, reading as the arrow in
+# "3.00 -> slow down -> 2.65". That put a word column between two number columns
+# and broke the numeric run for no gain: Effect precedes Change % either way, so
+# the priming works from here too and Now/Suggested stay adjacent, which is the
+# comparison a reader actually makes.
+#
+# Effect is strictly redundant with the SIGN of Δ Hours - they agree on all 237
+# rows, checked - but Δ Hours is a quantity three columns away, not a direction
+# at the point of confusion. The redundancy is the feature.
+#
+# NEEDS_REVIEW IS NOT HERE. It was False on 230 of 237 rows; the rail toggle,
+# the tile and ui.review_warning on the detail card all still carry it.
+base = ["FAMILY", "PART_TYPE", "OPERATION", S, "ANALYSIS",
+        "PART_ID", "N_PARTS", "N_WO", "HOURS_DELTA",
+        "CURRENT_VALUE", "TO_KEY", "EFFECT", "TO_KEY_CHANGE_PCT"]
 extra = ["RATIO", "CI95_LOW_PER_WO", "CI95_HIGH_PER_WO"]
 cols = base + (extra if detail else [])
 
@@ -374,12 +457,13 @@ event = st.dataframe(
         # NumberColumn format would override it and put the commas back.
         "CURRENT_VALUE": st.column_config.NumberColumn("Now"),
         # RM_RECOMMENDED from the execution sheets, which is what a reviewer
-        # actually keys. Since 2026-08-26 it equals 01_Actions' SUGGESTED_VALUE
-        # on every part row - a part that passed the six rules keeps its own
-        # figure - so this is a consistency check, not a correction. See
-        # data.actions for what changed and why.
+        # actually keys. Since 2026-08-27 it equals 01_Actions' SUGGESTED_VALUE
+        # on EVERY row, part and family alike - RM_RECOMMENDED is RM_SUGGESTED
+        # on both routes - so this is a consistency check, not a correction.
+        # The part branch was corrected on the 26th and the family branch on
+        # the 27th; see data.actions and h0_v2_update_list for why.
         "TO_KEY": st.column_config.NumberColumn(
-            "Proposed",
+            "Suggested",
             help="The value to key, as the execution sheets carry it. A part "
                  "judged on its own evidence keeps its own figure; the family "
                  "value applies to the parts that could not be judged alone. "
@@ -408,24 +492,40 @@ event = st.dataframe(
         #
         # A bare "Hours" makes no claim about the period, so it cannot be wrong
         # the way "a year" was; and the fiscal window is a fact about the whole
-        # page rather than about this column. The sign on every value, and the
-        # neighbours either side, say it is a difference.
+        # page rather than about this column.
+        #
+        # THE DELTA SIGN IS IN THE HEADER, added 2026-08-27. A bare "Hours"
+        # reads as a TOTAL - "+324" under it invites "324 hours of work" rather
+        # than "324 hours MORE than the standard allows". The sign on the value
+        # was doing that job alone and it is not enough, because a signed total
+        # is also a perfectly ordinary thing.
+        #
+        # SAME HEADER ON By part, which called this "Δ h". Three names for one
+        # column across three surfaces was the actual problem; the symbol is
+        # the smaller half of the fix. Inspect keeps a metric label rather than
+        # a header - it has room to name the window, and the slower/faster word
+        # under the figure says which direction without a symbol.
         "HOURS_DELTA": st.column_config.NumberColumn(
-            "Hours",
-            help=f"Actual minus master for this standard, from the start of "
-                 f"{pipeline.FY_LABEL} to the last booking in the extract. "
-                 f"Positive means the jobs take longer than the master "
-                 f"allows."),
+            "Δ Hours",
+            # LEADS WITH THE PERIOD, because the header now carries the rest.
+            # It opened "Actual minus master for this standard", which the Δ
+            # says in one character - so the tooltip spent its first line
+            # restating the header and its last line on the one thing nobody
+            # can infer: how far back this runs. Reversed.
+            help=f"From the start of {pipeline.FY_LABEL} to the last booking "
+                 f"in the extract — a running total, not a rate, and it keeps "
+                 f"growing while the standard stays wrong. Positive means the "
+                 f"jobs take longer than the master allows."),
         "N_WO": st.column_config.NumberColumn(
             "Work orders",
             help="How many work orders the figure is based on."),
-        # "Flagged?", not "Check?" - the third name this page had for the state
-        # its own tile and rail now both call flagged. Still one word wide.
-        "NEEDS_REVIEW": st.column_config.CheckboxColumn(
-            "Flagged?",
-            help=f"Ratio outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI}. It "
-                 f"passed all six rules, but the change is large enough that "
-                 f"a person should check it before it is keyed in."),
+        # NEEDS_REVIEW IS NOT A COLUMN HERE. It is False on 230 of the 237 rows,
+        # so as a checkbox column it carried almost no information per row while
+        # costing a column of width. The state is reachable three other ways:
+        # the rail's "Only flagged for manual review" toggle, the tile that
+        # counts them, and - the one that matters - ui.review_warning on the
+        # detail card, which fires when a flagged row is CLICKED, before anyone
+        # keys anything. It is still in the CSV.
         "RATIO": st.column_config.NumberColumn(
             "Ratio", help="Actual hours divided by master hours, across the "
                           "work orders that counted."),
@@ -440,12 +540,30 @@ event = st.dataframe(
 # same shape as the "not on the chart" caption on Inspect. These rows show three
 # dashes where every other row shows figures, and without this the reader has to
 # click one to find out that is deliberate.
+# NOW AND SUGGESTED ARE BLANK ON THESE, CHANGE % IS NOT - and the caption has
+# to say which, or the reader sees three dashes and assumes the row is empty.
+#
+# The percentage is well defined even where the absolute values are not: every
+# part in the family is corrected by the same ratio, so they all move by the
+# same proportion from different starting points. data.actions derives it from
+# RATIO on exactly these rows.
+#
+# IT DOES NOT TELL ANYONE TO KEY OFF THE PERCENTAGE. That figure is rounded to
+# one decimal; the workbook's instruction divides by the unrounded ratio, and
+# the detail card prints it with the ratio substituted in. The percentage is
+# here to size the change, not to be arithmetic.
 _no_value = int(d.TO_KEY.isna().sum())
+_note = ""
 if _no_value:
-    st.caption(f"**{_no_value}** of these have no single value to key. Their "
-               f"family runs several different current values, so the "
-               f"instruction is to apply the ratio to each part's own value. "
-               f"Click one to see it.")
+    # TWO CLAUSES EARN THEIR KEEP AND THE REST WAS TRIMMED, 2026-08-27:
+    # naming *Now* and *Suggested* is what connects the sentence to the dashes
+    # the reader can see, and "every part moves by the same proportion" is why
+    # a Change % on a row with no other numbers is trustworthy rather than a
+    # leftover. Without that second clause it reads as a bare assertion.
+    _note = (f"**{_no_value} rows** show no *Now* or *Suggested* — their family "
+             f"runs several current values, so there is no single number to "
+             f"key. *Change %* still holds: every part moves by the same "
+             f"proportion. ")
 
 # WHY PROPOSED IS NOT WHAT THIS PART MEASURED, on the rows where it is not.
 # These are judged at PART level - the rail says a part number, not the family -
@@ -485,8 +603,8 @@ if rows:
     # column beside it - "set RUN_MASTER to SUGGESTED_VALUE" - which is right in
     # a spreadsheet where that column is on the row, and one indirection too many
     # here, where the value is on screen and the reader is about to key it. The
-    # two placeholders are mutually exclusive: the 20 rows carrying no single
-    # value are exactly the 20 whose instruction names RATIO instead.
+    # two placeholders are mutually exclusive: the rows carrying no single
+    # value are exactly the ones whose instruction names RATIO instead.
     # ui.keying_instruction, the same rendering "How to read it" gives these six
     # strings - so the instruction a reader is taught there and the one they act
     # on here name the RUN field the same way.
@@ -522,11 +640,19 @@ if rows:
                      label="Open the evidence behind this",
                      icon=":material/query_stats:")
 else:
+    # ONE CAPTION, NOT TWO. The blank-value note and the click affordance used
+    # to be separate st.caption calls with nothing between them on first load -
+    # two elements, two blocks of vertical space, and both ending in "click".
+    # Joined into one paragraph: the note explains why those rows are empty,
+    # the tail says what clicking does, and there is no gap between them.
+    #
+    # _note is "" when no row lacks a value, so the affordance still renders on
+    # its own rather than disappearing with the thing it was appended to.
+    #
     # "Carry it into Inspect" was both a figure of speech and, since the row
     # card grew, no longer the whole truth - clicking now shows the instruction
     # here as well as offering the link. Says what happens, in plain words.
-    st.caption("Click any row for the instruction, and a link to the evidence "
-               "behind it.")
+    st.caption(_note + "Click any row for the instruction and the evidence.")
 
 # THE DOWNLOAD CARRIES MORE THAN THE SCREEN, the same break Inspect makes. It
 # used to export exactly the visible columns, so the toggle above silently
@@ -541,10 +667,17 @@ st.download_button(
     "Download this view as CSV", _dl.to_csv(index=False).encode("utf-8"),
     file_name="h0_review_queue.csv", mime="text/csv",
     icon=":material/download:")
-# Opens the same way Additional findings' download caption does - "carries every
-# column ... including the ones not shown" - so the two pages describe the same
-# promise in the same words.
-st.caption("The download carries every column of `01_Actions` for these rows, "
-           "including the ones not shown in the table — the confidence band, "
-           "the level each pool was judged at, and the instruction as the "
-           "workbook writes it.")
+# NAMES WHAT YOU GET AND WHY, the shape Inspect's download caption uses. It
+# used to open "carries every column of `01_Actions`" - a sheet name from a
+# workbook the reader may never have opened, and a promise that says nothing
+# about whether the file is worth downloading. Twelve of the twenty-one columns
+# are not on screen; these are the ones somebody would actually go looking for.
+#
+# NEEDS_REVIEW IS NAMED FIRST because it is the only one that was a COLUMN here
+# until 2026-08-27. Anyone who used it and finds it gone needs to know where it
+# went, and the rail toggle only filters - it does not export.
+st.caption("The download adds the flag for manual review, the ratio and its "
+           "confidence band, whether each pool was judged at part or family "
+           "level, and the workbook's own keying instruction — twelve columns "
+           "the table leaves out, and the ones worth having when the file is "
+           "the thing being worked from rather than the screen.")

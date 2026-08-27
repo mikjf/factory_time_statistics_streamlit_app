@@ -89,7 +89,7 @@ with st.sidebar:
              "field edits, across every analysis"),
             ("Examined and left alone", f"{held}",
              "tested, and the standard held"),
-            ("Too thin to judge alone", f"{thin}",
+            ("Too few work orders to judge alone", f"{thin}",
              f"under {pipeline.MIN_WO} work orders — covered through the "
              f"family instead, where the family pools enough"),
         ])
@@ -139,7 +139,7 @@ else:
                       "MASTER_OPS_ROWID is the routing row to update so future "
                       "work orders inherit it.")
     # REVIEW_FLAG IS A SENTENCE IN THE SHEET - "NEEDS REVIEW - ratio outside
-    # 0.25-4.0", on 88 of 2'421 rows and blank on the rest - and it was rendered
+    # 0.25-4.0", on 88 of 2'422 rows and blank on the rest - and it was rendered
     # raw, under its own database name, to a reader with no schema. As a tick it
     # takes one narrow column and matches the Review queue, which shows the same
     # state under the same header; the sentence moves into the tooltip, where it
@@ -163,7 +163,7 @@ else:
                 "Judged at", help="PART = this part had enough evidence alone. "
                                   "FAMILY = its family supplied the evidence."),
             "CURRENT": st.column_config.NumberColumn("Now"),
-            "RECOMMENDED": st.column_config.NumberColumn("Proposed"),
+            "RECOMMENDED": st.column_config.NumberColumn("Suggested"),
             "CHANGE": st.column_config.NumberColumn("Change %"),
             "BASIS": st.column_config.TextColumn("Basis"),
             "RATIO": st.column_config.NumberColumn("Ratio"),
@@ -223,10 +223,12 @@ st.dataframe(
         "N_WORK_ORDERS": st.column_config.NumberColumn("Work orders"),
         "HOURS_MASTER": st.column_config.NumberColumn("Master h"),
         "HOURS_WORKED": st.column_config.NumberColumn("Actual h"),
-        "HOURS_DELTA": st.column_config.NumberColumn("Δ h"),
+        # "Δ Hours", the same header the Review queue uses for the same
+        # column. It read "Δ h" here and "Hours" there.
+        "HOURS_DELTA": st.column_config.NumberColumn("Δ Hours"),
         "RATIO_OUTLIERS_REMOVED": st.column_config.NumberColumn("Ratio"),
         "RUN_MASTER_CURRENT": st.column_config.NumberColumn("Now"),
-        "RUN_MASTER_SUGGESTED": st.column_config.NumberColumn("Proposed"),
+        "RUN_MASTER_SUGGESTED": st.column_config.NumberColumn("Suggested"),
         "RECOMMENDATION": st.column_config.TextColumn("Verdict", width="medium"),
     })
 jump = st.selectbox(

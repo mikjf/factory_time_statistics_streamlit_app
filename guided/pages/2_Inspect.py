@@ -62,15 +62,20 @@ with st.sidebar:
     ui.side_title(st, "What to look at")
 
     # ---- ONLY WHAT CHANGES -------------------------------------------------
-    # 237 of 11'777 units carry a proposed change. Unfiltered, the four pickers
-    # below offer some 1'220 combinations for the run analysis alone, and 98% of
-    # them land on "leave this standard alone" or "not enough evidence" - which
-    # is the honest answer for those units and useless as a way to find the ones
-    # that need keying in.
+    # Fewer than one unit in fifty carries a proposed change. Unfiltered, the
+    # four pickers below offer over a thousand combinations for the run analysis
+    # alone, and the overwhelming majority land on "leave this standard alone"
+    # or "not enough evidence" - which is the honest answer for those units and
+    # useless as a way to find the ones that need keying in.
+    #
+    # NO COUNTS WRITTEN DOWN. They were here as "237 of 11'777" and both halves
+    # went stale, the second one twice. The ratio is the argument; the tiles on
+    # Overview and the Review queue carry the live figures.
     #
     # FIRST IN THE RAIL, above the analysis it does not itself filter. It is the
-    # bigger fork: this decides whether the rail offers 237 units or 11'777, and
-    # the radio then navigates inside whichever of those was chosen. It sat
+    # bigger fork: this decides whether the rail offers the units that changed
+    # or every unit examined, and the radio then navigates inside whichever of
+    # those was chosen. It sat
     # between the radio and the pickers, which is exactly the boundary of what it
     # affects and reads as belonging to neither.
     #

@@ -119,13 +119,14 @@ if choice == MICRO:
     # Heading, figures, explanation, evidence - the order Inspect already uses,
     # with the counts first and the two hour figures last.
     #
-    # STANDARD CHARGED BESIDE HOURS BOOKED is the whole finding in two numbers.
-    # 2'418 h allowed against 16.81 h recorded says on sight that the second is
-    # not a measurement, which no arrangement before this one managed to say.
+    # STANDARD CHARGED BESIDE HOURS BOOKED is the whole finding in two numbers:
+    # thousands of allowed hours against a recorded figure in the tens says on
+    # sight that the second is not a measurement, which no arrangement before
+    # this one managed to say.
     #
-    # STEPS IS 346 - every step holding one of these work orders. It was nearly
-    # 119, which is the subset that fell under the floor afterwards: a different
-    # fact, and 227 steps short of what this label claims.
+    # STEPS IS EVERY STEP holding one of these work orders. It was briefly the
+    # much smaller subset that fell under the floor afterwards - a different
+    # fact, and several hundred steps short of what this label claims.
     #
     # THE 50 IS A CAPTION, NOT A TILE. It is the analytical damage rather than a
     # total of anything on screen - standards that would have been tested and
@@ -133,8 +134,9 @@ if choice == MICRO:
     # can say "of those" and carry the 69 as the caveat that stops it being
     # overstated.
     #
-    # THE FLOOR TOGGLE IS GONE. It returned all 119, mixing the 50 the tokens
-    # broke with the 69 that were already too small - the one set nobody wants -
+    # THE FLOOR TOGGLE IS GONE. It returned every below-floor step, mixing the
+    # ones the tokens broke with those already too small - the one set nobody
+    # wants -
     # and it could not change the two counts above it, because they described
     # exactly the rows it selected. WO_ALL, WO_REAL and BELOW_FLOOR_AFTER are
     # columns in the table and in the CSV for anyone who wants to slice it.
@@ -231,8 +233,19 @@ the costing charged against jobs with no evidence they were performed.
                        file_name="h0_additional_findings_micro_duration.csv",
                        mime="text/csv", icon=":material/download:",
                        key="dl_tok")
-    st.caption("The download carries every column of the source sheet, "
-               "including the ones not shown here.")
+    # NAMES WHAT IT ADDS AND WHY, the shape Inspect and the Review queue use.
+    # It read "every column of the source sheet, including the ones not shown
+    # here", which promises completeness and says nothing about whether the file
+    # is worth opening. Two columns are missing from the screen and both matter:
+    # the routing step is what makes a row identifiable at all, and
+    # BELOW_FLOOR_AFTER is the analytical damage - the steps the token bookings
+    # pushed under the six-work-order floor, which the caption above counts but
+    # the table cannot show per row.
+    st.caption("The download adds the routing step — without it a family and "
+               "operation can appear twice — and BELOW_FLOOR_AFTER, which "
+               "marks the steps these bookings pushed under the "
+               "six-work-order floor. Those are the standards that will not "
+               "be tested until real durations are booked.")
 
 elif choice == SETUPS:
     # Filtered first, for the reason above: these describe the table, not the
@@ -311,7 +324,7 @@ not.
     # setups are skipped on 638 of 641 work orders against 26% for PCS/HR - but
     # that is one operation, S RICOTTURA, where a furnace load carries many work
     # orders and one setup serves all of them. The page makes nothing of the
-    # distinction, so on screen the column reads "PCS/HR" on 240 of 279 rows.
+    # distinction, so on screen the column reads "PCS/HR" on 246 of 285 rows.
     # It stays in the rail, where isolating the 39 HRS/LOAD steps is one click,
     # and in the CSV.
     _show2 = ["FAMILY", "PART_TYPE", S, "OPERATION", "PARTS",
@@ -398,8 +411,16 @@ not.
                        file_name=("h0_additional_findings_setups_not_"
                                   "performed.csv"), mime="text/csv",
                        icon=":material/download:", key="dl_skip")
-    st.caption("The download carries every column of the source sheet, "
-               "including the ones not shown here.")
+    # Same shape as the download caption above. Three columns are off screen
+    # here: the routing step, the analytic section, and the run type - the last
+    # separating two regimes the page deliberately makes nothing of, since
+    # HRS/LOAD skipping is one furnace operation where a single setup serves
+    # many work orders.
+    st.caption("The download adds the routing step — without it a family and "
+               "operation can appear twice — the analytic section, and the "
+               "run type, which separates the two regimes this table pools: "
+               "HRS/LOAD skipping is one furnace operation where a single "
+               "setup serves many work orders.")
 
 else:
     # Rebuilt at family grain rather than read off 04_MultiLoadGap, so the two
@@ -417,8 +438,8 @@ else:
     # what it means there - the ones with the issue.
     #
     # IT IS NOT THE SUM OF 04_MultiLoadGap's WORK_ORDERS COLUMN. That sheet is
-    # per operation, and 84 work orders meet two HRS/LOAD operations, so the
-    # column sums to 342 against 258 distinct. Counting a work order once is
+    # per operation, and some work orders meet two HRS/LOAD operations, so the
+    # column sums to 369 against 277 distinct. Counting a work order once is
     # the only reading that survives the family filter as well.
     c = st.columns(4)
     c[0].metric("Work orders", ui.num(d3r.WORK_ORDER.nunique()),
@@ -444,12 +465,15 @@ else:
                 help="Master hours across every multi-load work order at these "
                      "steps — what the figure beside it is a share of.")
 
-    # EVERY FIGURE IN THIS TEXT IS READ, NOT WRITTEN DOWN. It used to quote
-    # 0.96 against 0.57 and a marginal load "from 0% to 156%". The live
-    # workbook says 1.119, 0.647 and 1% to 118% - and 0.96 carried the clause
-    # "the standard is roughly right", which at 1.119 is not merely stale but
-    # backwards. Hardcoding a figure next to a tile that reads its own is how
-    # a page ends up arguing with itself.
+    # EVERY FIGURE IN THIS TEXT IS READ, NOT WRITTEN DOWN. It used to quote a
+    # single-load ratio of 0.96 against a multi-load 0.57, and a marginal load
+    # "from 0% to 156%". Every one of those had drifted, and the 0.96 carried
+    # the clause "the standard is roughly right" - which, once the live ratio
+    # crossed 1.0, was not merely stale but backwards. Hardcoding a figure next
+    # to a tile that reads its own is how a page ends up arguing with itself.
+    #
+    # THE REPLACEMENT FIGURES ARE NOT WRITTEN DOWN HERE EITHER, for the same
+    # reason: this comment quoted them once and they went stale too.
     f = data.multi_load_facts()
     # THE DIRECTION WORD IS DERIVED, NOT TYPED. "12% more" and "35% less" are
     # the point of saying it this way, and they are also exactly the clause

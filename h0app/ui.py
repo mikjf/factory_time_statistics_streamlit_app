@@ -20,6 +20,7 @@ something the screen already says.
 import html
 
 import pandas as pd
+import streamlit as st
 
 # --- semantic palette -------------------------------------------------------
 PASS = "#3d9970"     # the rule was satisfied
@@ -70,6 +71,32 @@ CSS = """
              border-left:5px solid; }
 .h0-banner .h0-b-title { font-size:1.05rem; font-weight:700; }
 .h0-banner .h0-b-sub { font-size:.85rem; opacity:.85; margin-top:.15rem; }
+
+
+/* STREAMLIT'S OWN HELP ICON, reproduced. Copied from the live DOM rather than
+   drawn by hand: st.metric(help=...) renders a 16x16 Feather "help-circle" SVG
+   stroked at 60% of the current text colour, vertical-align middle,
+   cursor:pointer. Those exact values are below, so the marker beside a rule is
+   the same glyph a reader meets on every tile and picker in the app.
+
+   WHY NOT JUST USE help=. Streamlit only attaches it to a whole element, and
+   these six cards are ONE markdown block - which is what lets them share
+   `grid-auto-rows:1fr` and come out the same height. Splitting them into six
+   elements to get six help= arguments was tried on 2026-08-27 and cost the
+   grid; this keeps both.
+
+   WHAT IS STILL NOT THE SAME: the tooltip body. Streamlit's is a BaseWeb React
+   component rendered into a portal on hover, and nothing in a markdown block
+   can summon it - so the text arrives as the browser's own title tooltip. The
+   ICON matches exactly; the panel it opens does not. */
+.h0-help { display:inline-flex; align-items:center; vertical-align:middle;
+           margin-left:.35rem; cursor:pointer; }
+/* stroke-width 2.25, not the 2 in the SVG attribute: Streamlit overrides it in
+   CSS and the computed value is what the eye compares. Measured against a live
+   st.metric help icon on the same page - everything else already matched. */
+.h0-help svg { width:16px; height:16px; stroke-width:2.25px;
+               stroke: color-mix(in srgb, currentColor 60%, transparent); }
+.h0-help:hover svg { stroke: currentColor; }
 
 .h0-chip { display:inline-block; padding:.12rem .55rem; border-radius:999px;
            font-size:.72rem; font-weight:600; margin:.1rem .25rem .1rem 0;
@@ -274,6 +301,25 @@ CSS = """
    different size under every pill, so six boxes of identical height still read
    as six different layouts. The text follows the pill and the slack collects at
    the bottom, where it is the same shape in each. */
+/* THE CARD BODY when the six rules are drawn as native containers rather than
+   as the CSS grid. .h0-rule supplies `gap:.5rem` between name, pill and
+   sentence; in the container path the name is its own st.markdown - so it can
+   carry help= - and only the pill and the sentence are left inside one HTML
+   block. Without this they butt straight up against each other. */
+.h0-rule-body { display:flex; flex-direction:column; gap:1rem; }
+/* 1rem ABOVE the pill as well as below it. The rule name is its own
+   st.markdown in that path - so it can carry help= - which means the space
+   above the pill comes from Streamlit's own vertical block gap. That is 16px,
+   and matching it here rather than cutting it to .5rem keeps the pill sitting
+   evenly between the name it belongs to and the sentence under it.
+
+   An earlier version set both to .5rem, which is what .h0-rule uses in the grid
+   path. Even, but tighter than the rest of the app; 1rem is Streamlit's own
+   rhythm and the card has room for it.
+
+   NO BLOCK-GAP OVERRIDE ANY MORE: 16px is what stVerticalBlock already gives,
+   so the only thing to set is this one. */
+
 .h0-rule-stops { font-size:.84rem; opacity:.75; }
 
 /* Key for the distribution chart: every mark it can draw, in two columns.
@@ -389,38 +435,75 @@ def _e(v):
     return html.escape(str(v))
 
 
-def rule_cards(container, rules, per_row=3):
+def rule_cards(container, rules, per_row=3, methods=None):
     """The six rules as cards: number, name, threshold, what it stops.
 
-    Rendered the same way wherever they appear. The content already comes from
-    one place - text.rules() - and the layout now does too, because two pages
-    drawing the same list two ways is the same drift in a different coat: a
-    reader who meets them as cards on one page and a table on the next has to
-    work out whether they are the same six.
+    TWO RENDERINGS, and which one runs depends on whether `methods` is given.
 
-    Tried as a table first and the cards win on this content. Each rule is a
-    name, one threshold and a sentence, which is a card; in a table the
-    thresholds line up in a narrow column and the sentences wrap three deep.
+    WITHOUT methods - one markdown block, own CSS grid. st.columns(3) does not
+    lay out two rows of three; it lays out three columns of two, and each box
+    takes the height of its own sentence - the six rendered 252, 162, 185, 185,
+    210 and 162 pixels tall. `grid-auto-rows:1fr` is what makes them equal.
 
-    ITS OWN GRID RATHER THAN st.columns, so the six boxes come out the same
-    size. st.columns(3) does not lay out two rows of three - it lays out three
-    columns of two, so rule 4 sits under rule 1 and each box takes the height of
-    its own sentence. The six rendered 252, 162, 185, 185, 210 and 162 pixels
-    tall. Streamlit's own wrapper cannot be styled around that either: the same
-    testid carries the metric row and the section blocks on the same page, so
-    there is nothing to target that means "a rule card".
+    WITH methods - six st.container(height=...) in two rows of st.columns, each
+    holding an st.markdown(help=...). This is the ONLY way to get Streamlit's
+    real help tooltip: `help=` is a property of a Streamlit ELEMENT, rendered as
+    a React component beside that element's label, so it cannot be pasted into a
+    raw HTML string however faithfully the icon is copied.
+
+    The heights come back a different way. `height=` on a container is an
+    explicit pixel box, so all six match by construction rather than by CSS -
+    and content longer than the box scrolls inside it instead of stretching the
+    row, which is the failure mode to prefer: visibly clipped beats silently
+    ragged.
+
+    THREE EARLIER ATTEMPTS, all withdrawn on 2026-08-27 and recorded so nobody
+    re-derives them: a hand-drawn "?" glyph with title=; the same on the
+    threshold pill; and Streamlit's own help-circle SVG lifted from the DOM,
+    matched to 16x16 and 2.25px stroke. All three produced the right ICON and
+    the browser's own tooltip panel, which does not look like Streamlit's.
     """
-    # Lowercased at render, not in text.rules(). The sentence reads as the tail
-    # of "Stops:" here, but the same string stands alone elsewhere and would
-    # look like a typo starting in lower case there.
-    cards = "".join(
-        f'<div class="h0-rule">'
-        f'<div class="h0-rule-name">{i}. {_e(name)}</div>'
-        f'<div>{chip(req, INFO)}</div>'
-        f'<div class="h0-rule-stops"><b>Stops:</b> '
-        f'{_e(stops[:1].lower() + stops[1:])}</div>'
-        f'</div>'
-        for i, (name, req, stops) in enumerate(rules, 1))
+    rules = list(rules)
+    methods = list(methods or [])
+
+    def card_html(i, name, req, stops, with_name=True):
+        head = (f'<div class="h0-rule-name">{i}. {_e(name)}</div>'
+                if with_name else "")
+        body = (f'<div>{chip(req, INFO)}</div>'
+                f'<div class="h0-rule-stops"><b>Stops:</b> '
+                f'{_e(stops[:1].lower() + stops[1:])}</div>')
+        # Wrapped only when the name is elsewhere: inside .h0-rule the grid path
+        # already spaces these three, and a second flex column would double it.
+        return (f'{head}{body}' if with_name
+                else f'<div class="h0-rule-body">{body}</div>')
+
+    if methods:
+        # 190px, and the longest "stops" sentence (117 chars) still leaves
+        # visible space below it at a third of the page width. It was briefly
+        # raised to 210 on the assumption that widening the gaps to 1rem would
+        # overflow - measured wrong: what got measured was the inner block's
+        # scrollHeight, which simply fills the container and says nothing about
+        # the text. The card had room all along.
+        #
+        # A sentence long enough to overflow scrolls inside the box rather than
+        # breaking the row - visibly clipped beats silently ragged.
+        for start in range(0, len(rules), per_row):
+            cols = container.columns(per_row)
+            for col, (i, (name, req, stops)) in zip(
+                    cols, list(enumerate(rules, 1))[start:start + per_row]):
+                with col.container(border=True, height=190):
+                    # The NAME carries help=, so the icon lands beside the rule
+                    # it explains rather than beside the box.
+                    st.markdown(f"**{i}. {name}**",
+                                help=methods[i - 1] if i <= len(methods)
+                                else None)
+                    st.markdown(card_html(i, name, req, stops,
+                                          with_name=False),
+                                unsafe_allow_html=True)
+        return
+
+    cards = "".join(f'<div class="h0-rule">{card_html(i, n, r, s)}</div>'
+                    for i, (n, r, s) in enumerate(rules, 1))
     container.markdown(
         f'<div class="h0-rules" style="--h0-cols:{per_row}">{cards}</div>',
         unsafe_allow_html=True)
@@ -688,6 +771,25 @@ def caption_line(container, html):
     container.caption(html, unsafe_allow_html=True)
 
 
+def help_icon(title):
+    """Streamlit's help glyph, for use inside hand-built HTML.
+
+    The SVG is Streamlit's own, lifted from the rendered DOM so the two cannot
+    drift apart by redrawing. See the note on .h0-help in CSS for what this
+    does and does not reproduce.
+    """
+    return (f'<span class="h0-help" title="{_e(title)}" role="img" '
+            f'aria-label="{_e(title)}">'
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" '
+            f'viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+            f'aria-hidden="true" focusable="false">'
+            f'<circle cx="12" cy="12" r="10"></circle>'
+            f'<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>'
+            f'<line x1="12" y1="17" x2="12.01" y2="17"></line>'
+            f'</svg></span>')
+
+
 def chip(label, colour):
     return (f'<span class="h0-chip" style="color:{colour};border-color:{colour};'
             f'background:{colour}1a">{_e(label)}</span>')
@@ -897,8 +999,8 @@ def field_name(target, run_type, unit=False):
     THERE ARE ONLY TWO FIELDS, and RUN_MASTER is not one of them. h0_v2.sql
     reads `CAST(O.RUN AS NUMERIC(19,2)) AS RUN_MASTER` from dbo.OPERATION, so
     RUN_MASTER is the EXTRACT'S ALIAS for a column the ERP calls RUN - and the
-    pipeline's own TARGET_COLUMN says so, writing RUN on all 1'941 run edits
-    whichever run type they are, and SETUP_HRS on the other 396.
+    pipeline's own TARGET_COLUMN says so, writing RUN on every run edit
+    whichever run type it is, and SETUP_HRS on the rest.
 
     An earlier version of this function returned "RUN_MASTER" for PCS/HR, on the
     reasoning that TARGET alone was ambiguous. The ambiguity is real and the

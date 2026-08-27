@@ -61,6 +61,85 @@ def _honest(v, threshold, passed, at_least=True, specs=(".1f", ".2f", ".3f",
 # only reached one of them, so the landing page taught "Interval excludes 'no
 # difference'" while the working page said "Sure of the direction" - two names
 # for one rule, in a tool whose whole claim is that the rules are the spine.
+def rule_method():
+    """The METHOD behind each rule, in rules() order.
+
+    NOT RENDERED ANYWHERE TODAY, and that is deliberate rather than an
+    oversight - which is the difference between this and the `details` list
+    deleted from this module on 2026-08-26. That one duplicated rules() and had
+    nowhere to go; this has somewhere to go and no mechanism yet.
+
+    It is meant to hang off each rule card on Methodology as a "?" tooltip.
+    Three attempts on 2026-08-27 each failed one of the two requirements - look
+    like Streamlit's own help icon, keep the six cards the same height - and
+    ui.rule_cards records what was tried. Kept because the content is right and
+    was checked against scipy; when the mechanism exists this is what goes in
+    it.
+
+    IF IT IS STILL UNRENDERED IN SIX MONTHS, delete it. Unrendered prose rots
+    exactly like the figures this project spent a day correcting.
+
+    NOT A SECOND EXPLANATION OF WHAT THE RULES DO - rules() owns that, in plain
+    language, and a longer plain-language restatement was deleted from this
+    module on 2026-08-26 precisely because it duplicated rules(). This is the
+    other thing: WHICH TEST, on WHAT STATISTIC, and the arithmetic that makes
+    the threshold the number it is.
+
+    Kept off the face of the cards deliberately. "Benjamini-Hochberg controls
+    the false discovery rate" is exact and tells a reader who does not already
+    know it nothing, so the card says what it stops and this says how - one
+    hover away, for the person who asks.
+
+    A SEPARATE FUNCTION rather than a fourth element of rules(), because
+    rule_status() unpacks that tuple as (name, _, _) and rules() is also the
+    sidebar rail's source. Two consumers of a three-tuple, one consumer of
+    this; widening the tuple would touch all three to serve one.
+    """
+    return [
+        # VERIFIED with scipy.stats.wilcoxon: the smallest two-sided p a
+        # signed-rank test can produce is 2 / 2**n, so n=4 bottoms out at
+        # 0.125, n=5 at 0.0625 and n=6 at 0.0312. Six is not a convention here
+        # - it is the first sample size at which rule 2 is winnable at all.
+        f"A floor set by the test below it, not by taste. The smallest "
+        f"two-sided p a Wilcoxon signed-rank test can return is 2/2^n: at "
+        f"n=5 that is 0.063 and at n={pipeline.MIN_WO} it is 0.031. So a "
+        f"five-work-order pool could never clear rule 2 however consistently "
+        f"it missed the standard.",
+
+        "Wilcoxon signed-rank, two-sided, on the natural log of each work "
+        "order's actual/master ratio. Non-parametric: it ranks the deviations "
+        "rather than averaging them, so a few extreme jobs cannot carry the "
+        "result on their own. Logs because a halving and a doubling have to "
+        "count as equal and opposite.",
+
+        f"Benjamini-Hochberg. The p-values are sorted and the i-th of m is "
+        f"compared against i/m x {pipeline.ALPHA}. It controls the expected "
+        f"SHARE of false positives among the rules that pass, which is the "
+        f"right question when hundreds of standards are tested at once - not "
+        f"the chance of any single one being wrong.",
+
+        "A t-interval on the mean of the log ratios, back-transformed. That "
+        "makes it the geometric mean of the PER WORK ORDER ratios, every work "
+        "order counting once. It is a different estimator from the pooled "
+        "hours-weighted ratio that drives the correction, which is why the "
+        "two can disagree - and why it is only ever read as a test of whether "
+        "1.0 is inside, never as error bars.",
+
+        f"|ratio - 1| >= {pipeline.MIN_EFFECT:.0%}, on the pooled "
+        f"hours-weighted ratio after the outlier filter. Tested on the ratio "
+        f"rather than the percentage change, because the change is asymmetric: "
+        f"a rate that quadruples reads +300% while one cut to a quarter reads "
+        f"-75% and can never pass -100%.",
+
+        f"|sum(actual) - sum(master)| over the window, against "
+        f"{pipeline.MIN_HOURS_IMPACT:g} h. ABSOLUTE, so a standard that "
+        f"over-allows counts the same as one that under-allows. It is a sum "
+        f"over work orders, so it grows with the window and with how often the "
+        f"step runs - a small error on a busy step outranks a large one on a "
+        f"rare step, which is the intended behaviour.",
+    ]
+
+
 def rules():
     """(name, what it requires, what it stops) for each rule, in order."""
     return [
@@ -349,14 +428,14 @@ ABSOLUTE_MISSTATED_HELP = (
 # Review queue also both carry. They had drifted: Overview said "higher than
 # distinct parts affected as each part has multiple operations", the Review
 # queue said "one edit per part per operation" - the same fact, in two
-# vocabularies, under the same label and against the same 2'421.
+# vocabularies, under the same label and against the same 2'422.
 #
 # NAMES NO TILE. Overview's wording pointed at "Distinct parts affected", which
 # sits beside it there and does not exist on the Review queue - so copying it
 # across would have referred a reader to something not on their screen. It names
 # the CONCEPT instead, which is true wherever the tile appears.
 #
-# The two pages reach 2'421 by different routes - Overview counts rows in the
+# The two pages reach 2'422 by different routes - Overview counts rows in the
 # three execution sheets, the Review queue sums N_PARTS over 01_Actions - and
 # they agree. Worth knowing if they ever stop agreeing; not worth a tooltip.
 #
