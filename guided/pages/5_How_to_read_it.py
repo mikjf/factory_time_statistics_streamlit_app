@@ -5,16 +5,16 @@ import sys
 
 import streamlit as st
 
-# parent.parent.parent is streamlit_app/, where h0app lives. parent.parent is
+# parent.parent.parent is streamlit_app/, where ftsapp lives. parent.parent is
 # guided/ - which held only because Overview.py runs first in an ordinary visit
 # and inserts the right path. Deep-link to a page in a fresh session and the
-# import failed with ModuleNotFoundError: no module named 'h0app'.
+# import failed with ModuleNotFoundError: no module named 'ftsapp'.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from h0app import (charts, data, evidence, freshness,  # noqa: E402
+from ftsapp import (charts, data, evidence, freshness,  # noqa: E402
                    pipeline, text, ui)
 
-st.set_page_config(page_title="How to read it · H0",
+st.set_page_config(page_title="How to read it · FTS",
                    page_icon=":material/school:", layout="wide")
 ui.inject()
 st.title("How to read it")
@@ -84,7 +84,7 @@ st.subheader("Part or family?")
 # ONE RULE, STATED ONCE. The opening paragraph used to say the opposite of the
 # one below it: that a part got its own standard only where it "demonstrably
 # differed" from its family, which is the override rule removed from
-# h0_v2_update_list on 2026-08-26. It sat directly above the paragraph
+# fts_update_list on 2026-08-26. It sat directly above the paragraph
 # explaining that flagged parts are excluded from the family pool - two rules,
 # contradicting each other, three lines apart.
 st.markdown(f"""

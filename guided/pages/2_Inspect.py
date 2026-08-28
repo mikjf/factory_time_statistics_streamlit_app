@@ -20,16 +20,16 @@ import sys
 import pandas as pd
 import streamlit as st
 
-# parent.parent.parent is streamlit_app/, where h0app lives. parent.parent is
+# parent.parent.parent is streamlit_app/, where ftsapp lives. parent.parent is
 # guided/ - which held only because Overview.py runs first in an ordinary visit
 # and inserts the right path. Deep-link to a page in a fresh session and the
-# import failed with ModuleNotFoundError: no module named 'h0app'.
+# import failed with ModuleNotFoundError: no module named 'ftsapp'.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from h0app import (charts, data, evidence, freshness,  # noqa: E402
+from ftsapp import (charts, data, evidence, freshness,  # noqa: E402
                    pipeline, text, ui)
 
-st.set_page_config(page_title="Inspect · H0", page_icon=":material/query_stats:",
+st.set_page_config(page_title="Inspect · FTS", page_icon=":material/query_stats:",
                    layout="wide")
 ui.inject()
 freshness.guard()
@@ -404,10 +404,10 @@ if kindof == "act":
     # whose rule is that colour always carries meaning.
     #
     # The key puts the change beside the value rather than under it - see the
-    # .st-key-h0-inline-delta rules in ui.py. It is a qualifier on the number,
+    # .st-key-fts-inline-delta rules in ui.py. It is a qualifier on the number,
     # read in the same breath as it, and on its own line it took a line of the
     # row and left this metric taller than the four beside it.
-    with k[2].container(key="h0-inline-delta-change"):
+    with k[2].container(key="fts-inline-delta-change"):
         st.metric("Change it to", ui.fmt(w["suggested"]),
                   delta=(f"{(w['suggested'] / w['current'] - 1) * 100:+.1f}%"
                          if pd.notna(w["suggested"]) and pd.notna(w["current"])
@@ -456,7 +456,7 @@ _hd = stats.get("HOURS_DELTA", 0)
 # flat zero. Taking the direction off ui.hrs's own output rather than off _hd
 # makes the two agree by construction instead of by coincidence.
 _shown = ui.hrs(_hd, sign=True)
-with k[3].container(key="h0-inline-delta-hours"):
+with k[3].container(key="fts-inline-delta-hours"):
     st.metric(f"Hours since {pipeline.FY_LABEL} start", _shown,
               delta=("slower" if _shown.startswith("+")
                      else "faster" if _shown.startswith("-") else None),
@@ -785,7 +785,7 @@ tag = "_".join(str(x) for x in [operation, family,
                                 part_id or "family"])
 st.download_button("Download these work orders as CSV",
                    dl.to_csv(index=False).encode("utf-8"),
-                   file_name=f"h0_inspect_{pipeline.slug(tag)}.csv",
+                   file_name=f"fts_inspect_{pipeline.slug(tag)}.csv",
                    mime="text/csv", icon=":material/download:")
 st.caption("The download adds family, part type, routing step, operation and "
            "the standard as columns — one value each here, but the only "

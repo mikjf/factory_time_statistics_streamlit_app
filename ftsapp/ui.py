@@ -47,13 +47,13 @@ CSS = """
 [data-testid="stCaptionContainer"] { opacity: 1 !important; }
 [data-testid="stCaptionContainer"] p {
     color: color-mix(in srgb, currentColor 60%, transparent); }
-.h0-rail { margin: .2rem 0 .6rem 0; }
-.h0-step { display:flex; gap:.55rem; padding:.3rem 0 .3rem .1rem;
+.fts-rail { margin: .2rem 0 .6rem 0; }
+.fts-step { display:flex; gap:.55rem; padding:.3rem 0 .3rem .1rem;
            position:relative; align-items:flex-start; }
-.h0-step:not(:last-child)::before {
+.fts-step:not(:last-child)::before {
     content:""; position:absolute; left:6px; top:20px; bottom:-4px;
     width:2px; background:rgba(140,140,140,.30); }
-.h0-dot { width:14px; height:14px; border-radius:50%; flex:0 0 14px;
+.fts-dot { width:14px; height:14px; border-radius:50%; flex:0 0 14px;
           margin-top:2px; display:flex; align-items:center;
           justify-content:center; font-size:9px; font-weight:700;
           color:#fff; line-height:1; z-index:1; }
@@ -61,16 +61,16 @@ CSS = """
    11.5px on screen - a third the size of the metrics they qualify, on the
    one element the whole design exists to surface, in a tool meant to be
    read across a meeting room. */
-.h0-txt { font-size:.95rem; line-height:1.35; min-width:0; }
-.h0-name { font-weight:600; }
-.h0-val { opacity:.85; font-size:.88rem; }
-.h0-stop { font-size:.78rem; font-weight:700; letter-spacing:.04em;
+.fts-txt { font-size:.95rem; line-height:1.35; min-width:0; }
+.fts-name { font-weight:600; }
+.fts-val { opacity:.85; font-size:.88rem; }
+.fts-stop { font-size:.78rem; font-weight:700; letter-spacing:.04em;
            text-transform:uppercase; }
 
-.h0-banner { border-radius:10px; padding:.85rem 1rem; margin:.2rem 0 .9rem 0;
+.fts-banner { border-radius:10px; padding:.85rem 1rem; margin:.2rem 0 .9rem 0;
              border-left:5px solid; }
-.h0-banner .h0-b-title { font-size:1.05rem; font-weight:700; }
-.h0-banner .h0-b-sub { font-size:.85rem; opacity:.85; margin-top:.15rem; }
+.fts-banner .fts-b-title { font-size:1.05rem; font-weight:700; }
+.fts-banner .fts-b-sub { font-size:.85rem; opacity:.85; margin-top:.15rem; }
 
 
 /* STREAMLIT'S OWN HELP ICON, reproduced. Copied from the live DOM rather than
@@ -89,16 +89,16 @@ CSS = """
    component rendered into a portal on hover, and nothing in a markdown block
    can summon it - so the text arrives as the browser's own title tooltip. The
    ICON matches exactly; the panel it opens does not. */
-.h0-help { display:inline-flex; align-items:center; vertical-align:middle;
+.fts-help { display:inline-flex; align-items:center; vertical-align:middle;
            margin-left:.35rem; cursor:pointer; }
 /* stroke-width 2.25, not the 2 in the SVG attribute: Streamlit overrides it in
    CSS and the computed value is what the eye compares. Measured against a live
    st.metric help icon on the same page - everything else already matched. */
-.h0-help svg { width:16px; height:16px; stroke-width:2.25px;
+.fts-help svg { width:16px; height:16px; stroke-width:2.25px;
                stroke: color-mix(in srgb, currentColor 60%, transparent); }
-.h0-help:hover svg { stroke: currentColor; }
+.fts-help:hover svg { stroke: currentColor; }
 
-.h0-chip { display:inline-block; padding:.12rem .55rem; border-radius:999px;
+.fts-chip { display:inline-block; padding:.12rem .55rem; border-radius:999px;
            font-size:.72rem; font-weight:600; margin:.1rem .25rem .1rem 0;
            border:1px solid; }
 
@@ -122,14 +122,14 @@ CSS = """
 [data-testid="stTable"] th { font-weight: 600; }
 [data-testid="stTable"] tbody th { color: inherit; }
 
-.h0-count { display:flex; gap:.6rem; align-items:baseline; padding:.35rem 0; }
-.h0-cval { font-size:1.35rem; font-weight:700; min-width:3.2rem;
+.fts-count { display:flex; gap:.6rem; align-items:baseline; padding:.35rem 0; }
+.fts-cval { font-size:1.35rem; font-weight:700; min-width:3.2rem;
            text-align:right; }
 
 /* Sized up with the rail. The funnel is the one graphic a director actually
    looks at, and it had become the smallest text on the landing page. */
-.h0-funnel { margin:.4rem 0 .2rem 0; }
-.h0-fhead { font-size:.85rem; font-weight:700; letter-spacing:.06em;
+.fts-funnel { margin:.4rem 0 .2rem 0; }
+.fts-fhead { font-size:.85rem; font-weight:700; letter-spacing:.06em;
             text-transform:uppercase; opacity:.7; margin:.9rem 0 .4rem 0; }
 /* st.divider draws an <hr> with equal 32px margins, but the vertical block it
    sits in is a flex container with gap:16px - and the gap lands on one side
@@ -207,17 +207,17 @@ CSS = """
    The delta's wrapper is display:contents rather than a box of its own - it
    carries 4px under the pill that would otherwise have to be subtracted here,
    and dissolving it keeps the arithmetic to one term.
-   OPT-IN, by st.container(key="h0-inline-delta-..."), which Streamlit renders
+   OPT-IN, by st.container(key="fts-inline-delta-..."), which Streamlit renders
    as a .st-key- class. Applied globally it would also catch the review queue's
    filtered count - "18 of 238" and the like - where the delta is a DENOMINATOR
    and belongs under the count it qualifies rather than beside it. */
-[class*="st-key-h0-inline-delta"] [data-testid="stMetric"] > div {
+[class*="st-key-fts-inline-delta"] [data-testid="stMetric"] > div {
     display: flex; flex-wrap: wrap; align-items: flex-end; column-gap: .5rem;
 }
-[class*="st-key-h0-inline-delta"] [data-testid="stMetricLabel"] { flex: 0 0 100%; }
-[class*="st-key-h0-inline-delta"] [data-testid="stMetric"] > div
+[class*="st-key-fts-inline-delta"] [data-testid="stMetricLabel"] { flex: 0 0 100%; }
+[class*="st-key-fts-inline-delta"] [data-testid="stMetric"] > div
     > div:has(> [data-testid="stMetricDelta"]) { display: contents; }
-[class*="st-key-h0-inline-delta"] [data-testid="stMetricDelta"] {
+[class*="st-key-fts-inline-delta"] [data-testid="stMetricDelta"] {
     margin-bottom: 1rem;
     /* Streamlit gives the pill 4px of left padding and 6px of right, which is
        enough for a percentage flanked by an arrow and too tight for a word:
@@ -235,7 +235,7 @@ CSS = """
    arrow from a leading minus, so both readings carry the same UP arrow - an
    arrow pointing up beside the word "faster". The word already says the
    direction; the arrow can only contradict it. */
-.st-key-h0-inline-delta-hours [data-testid="stMetricDelta"] svg { display: none; }
+.st-key-fts-inline-delta-hours [data-testid="stMetricDelta"] svg { display: none; }
 
 /* The line under a page title that says WHICH unit this is: part type, step,
    and whether one part or a whole family. It was st.caption - 14px at 60%
@@ -247,7 +247,7 @@ CSS = """
    rather than guessed, because Streamlit's heading sizes are not the browser
    defaults, and pulled up so it reads as part of the heading rather than as the
    first line of content. */
-.h0-subtitle { font-size:1.75rem; font-weight:600; line-height:1.2;
+.fts-subtitle { font-size:1.75rem; font-weight:600; line-height:1.2;
                letter-spacing:-.005em; opacity:1; margin:-.4rem 0 1rem; }
 
 /* Markdown tables fill whatever holds them, like every other block in this app.
@@ -276,51 +276,51 @@ CSS = """
    FIXED AT THREE COLUMNS, not auto-fit: auto-fit packs in as many as will fit,
    so a wide window laid the six out 5 + 1 and the pairing of rows 1-3 and 4-6
    disappeared. Stepped down explicitly instead, so a narrow pane still works. */
-.h0-rules { display:grid; gap:.7rem; grid-auto-rows:1fr;
-            grid-template-columns:repeat(var(--h0-cols, 3), 1fr); }
+.fts-rules { display:grid; gap:.7rem; grid-auto-rows:1fr;
+            grid-template-columns:repeat(var(--fts-cols, 3), 1fr); }
 @media (max-width: 900px) {
-    .h0-rules { grid-template-columns:repeat(2, 1fr); } }
+    .fts-rules { grid-template-columns:repeat(2, 1fr); } }
 @media (max-width: 600px) {
-    .h0-rules { grid-template-columns:1fr; } }
-.h0-rule { border:1px solid rgba(128,128,128,.35); border-radius:.55rem;
+    .fts-rules { grid-template-columns:1fr; } }
+.fts-rule { border:1px solid rgba(128,128,128,.35); border-radius:.55rem;
            padding:.85rem 1rem; display:flex; flex-direction:column;
            gap:.5rem; }
-.h0-rule-name { font-weight:700; font-size:1rem; }
+.fts-rule-name { font-weight:700; font-size:1rem; }
 /* The result-only variant: a mark, a name and this unit's figure, no sentence.
-   Tighter than .h0-rule because there are six of them beside a table rather
+   Tighter than .fts-rule because there are six of them beside a table rather
    than six across a page, and the explanations live on the full set elsewhere.
    The figure is the thing being read, so it is the one line at full opacity. */
-.h0-rule-tight { padding:.55rem .7rem; gap:.28rem; }
-.h0-rule-tight .h0-rule-name { font-size:.92rem; }
-.h0-rule-val { font-size:.92rem; font-weight:600; }
+.fts-rule-tight { padding:.55rem .7rem; gap:.28rem; }
+.fts-rule-tight .fts-rule-name { font-size:.92rem; }
+.fts-rule-val { font-size:.92rem; font-weight:600; }
 /* Rides on the rule's own name line, so it inherits the red rather than setting
    it. Smaller and tracked out, so it reads as a stamp on the rule rather than
    as part of what the rule is called. */
-.h0-rule-stop { font-size:.72rem; letter-spacing:.05em; }
+.fts-rule-stop { font-size:.72rem; letter-spacing:.05em; }
 /* No margin-top:auto here. Pushing this to the foot of the card left a gap of a
    different size under every pill, so six boxes of identical height still read
    as six different layouts. The text follows the pill and the slack collects at
    the bottom, where it is the same shape in each. */
 /* THE CARD BODY when the six rules are drawn as native containers rather than
-   as the CSS grid. .h0-rule supplies `gap:.5rem` between name, pill and
+   as the CSS grid. .fts-rule supplies `gap:.5rem` between name, pill and
    sentence; in the container path the name is its own st.markdown - so it can
    carry help= - and only the pill and the sentence are left inside one HTML
    block. Without this they butt straight up against each other. */
-.h0-rule-body { display:flex; flex-direction:column; gap:1rem; }
+.fts-rule-body { display:flex; flex-direction:column; gap:1rem; }
 /* 1rem ABOVE the pill as well as below it. The rule name is its own
    st.markdown in that path - so it can carry help= - which means the space
    above the pill comes from Streamlit's own vertical block gap. That is 16px,
    and matching it here rather than cutting it to .5rem keeps the pill sitting
    evenly between the name it belongs to and the sentence under it.
 
-   An earlier version set both to .5rem, which is what .h0-rule uses in the grid
+   An earlier version set both to .5rem, which is what .fts-rule uses in the grid
    path. Even, but tighter than the rest of the app; 1rem is Streamlit's own
    rhythm and the card has room for it.
 
    NO BLOCK-GAP OVERRIDE ANY MORE: 16px is what stVerticalBlock already gives,
    so the only thing to set is this one. */
 
-.h0-rule-stops { font-size:.84rem; opacity:.75; }
+.fts-rule-stops { font-size:.84rem; opacity:.75; }
 
 /* Key for the distribution chart: every mark it can draw, in two columns.
    Sized off the caption scale because it is a caption in every sense except
@@ -339,8 +339,8 @@ CSS = """
    the theme already set. */
 /* Zero margins on the OUTER edges of these blocks, so the divider between two
    of them is the only thing creating the gap and the space above it equals the
-   space below by construction. With a bottom margin on .h0-kv and a top margin
-   on .h0-kv-title the two sides were built from different elements - 8px one
+   space below by construction. With a bottom margin on .fts-kv and a top margin
+   on .fts-kv-title the two sides were built from different elements - 8px one
    side, 5.6px the other - and the rule sat 2px off centre. Symmetric now
    whatever the font metrics do. */
 /* .9375rem, up from .82rem. At .82 the heading was SMALLER than the rail it
@@ -355,35 +355,35 @@ CSS = """
    .9375rem (15px) after trying 1rem: 16px reads as body text set bold, which
    competes with the rail rather than heading it. 15px sits clear of the 14px
    widget labels without becoming a second voice. */
-.h0-kv-title { font-size:.9375rem; font-weight:700; opacity:.9;
+.fts-kv-title { font-size:.9375rem; font-weight:700; opacity:.9;
                margin:0 0 .35rem; }
 /* Small print in a sidebar. st.caption renders at 14px, the h3 a heading would
    use renders at 18px, and the rail below at 15.2 - four sizes in one column,
    none of them the .82rem the key/value blocks settled on. */
-.h0-side-note { font-size:.82rem; line-height:1.5; opacity:.72;
+.fts-side-note { font-size:.82rem; line-height:1.5; opacity:.72;
                 margin:.1rem 0 .55rem; }
-/* The explain rendering of the legend, shrunk to match. NOT .h0-rail itself:
+/* The explain rendering of the legend, shrunk to match. NOT .fts-rail itself:
    that is Inspect's six-rule rail, which is the main device on that page and
    is meant to be read, not skimmed. Same markup, sidebar-footnote size. */
-.h0-rail-sm .h0-name { font-size:.82rem; }
-/* Matched to .h0-side-note, not merely to its size. The two were already both
+.fts-rail-sm .fts-name { font-size:.82rem; }
+/* Matched to .fts-side-note, not merely to its size. The two were already both
    13.12px at weight 400, so what still separated them was opacity - .85
    against .72 - and a tighter line-height. Two greys a hair apart read as a
    mistake rather than a distinction. */
-.h0-rail-sm .h0-val { font-size:.82rem; opacity:.72; line-height:1.5; }
-.h0-kv { font-size:.82rem; line-height:1.55; margin:0; }
-.h0-kv-row { display:flex; justify-content:space-between; align-items:baseline;
+.fts-rail-sm .fts-val { font-size:.82rem; opacity:.72; line-height:1.5; }
+.fts-kv { font-size:.82rem; line-height:1.55; margin:0; }
+.fts-kv-row { display:flex; justify-content:space-between; align-items:baseline;
              gap:.9rem; margin:.12rem 0; }
-/* The row spacing must not leak out of the block. Zeroing .h0-kv's own margins
+/* The row spacing must not leak out of the block. Zeroing .fts-kv's own margins
    was not enough: the LAST row still carried .12rem below it, inside the block,
    which is the 2px that kept the divider off centre - 22px above against 20
    below. Same at the top, so the gap under a title is the title's to set. */
-.h0-kv-row:first-child { margin-top:0; }
-.h0-kv-row:last-child { margin-bottom:0; }
+.fts-kv-row:first-child { margin-top:0; }
+.fts-kv-row:last-child { margin-bottom:0; }
 /* .62 was too far down on a dark background - and these labels are not
    decoration, "first" against "last" labour ticket is a distinction that has to
    be read. Subordinate to the value, still legible on its own. */
-.h0-kv-k { opacity:.72; }
+.fts-kv-k { opacity:.72; }
 /* The value sits on a tint rather than being bolded. Bold was carrying the
    separation before and it made a column of shouted numbers; a quiet panel
    behind them does the same job without raising the voice.
@@ -391,32 +391,32 @@ CSS = """
    rgba(128,128,128,...) on purpose - a mid grey lightens a dark background and
    darkens a light one, so one declaration holds in both themes. A white or
    black tint would vanish in one of them. */
-.h0-kv-v { font-weight:400; white-space:nowrap;
+.fts-kv-v { font-weight:400; white-space:nowrap;
            background:rgba(128,128,128,.20); border-radius:4px;
            padding:.05rem .38rem; }
 
-.h0-key { display:grid; grid-template-columns:repeat(2, minmax(0, auto));
+.fts-key { display:grid; grid-template-columns:repeat(2, minmax(0, auto));
           justify-content:start; gap:.35rem 2.4rem; margin:.4rem 0 .2rem;
           font-size:.82rem; opacity:.85; }
-.h0-k-col { display:flex; flex-direction:column; gap:.35rem; }
-@media (max-width:40rem) { .h0-key { grid-template-columns:minmax(0, 1fr); } }
-.h0-k-item { display:inline-flex; align-items:center; gap:.4rem; }
-.h0-k-dot { width:.7rem; height:.7rem; border-radius:50%;
+.fts-k-col { display:flex; flex-direction:column; gap:.35rem; }
+@media (max-width:40rem) { .fts-key { grid-template-columns:minmax(0, 1fr); } }
+.fts-k-item { display:inline-flex; align-items:center; gap:.4rem; }
+.fts-k-dot { width:.7rem; height:.7rem; border-radius:50%;
             display:inline-block; }
-.h0-k-line { width:1.1rem; height:0; display:inline-block; }
+.fts-k-line { width:1.1rem; height:0; display:inline-block; }
 
-.h0-fstep { margin-bottom:.5rem; }
+.fts-fstep { margin-bottom:.5rem; }
 /* bar and its value share a row, so a bar too narrow to hold the number can
    put it alongside instead of being padded out to fit */
-.h0-fbarrow { display:flex; align-items:center; gap:.5rem; }
-.h0-fbar { height:26px; border-radius:5px; display:flex; align-items:center;
+.fts-fbarrow { display:flex; align-items:center; gap:.5rem; }
+.fts-fbar { height:26px; border-radius:5px; display:flex; align-items:center;
            padding-left:.55rem; font-size:.78rem; font-weight:600;
            color:#fff; white-space:nowrap; min-width:2.6rem; }
 /* no floor on the narrow ones - the floor is what made 215 and 59 identical */
-.h0-fbar.h0-narrow { min-width:0; padding-left:0; }
-.h0-fout { font-size:.78rem; font-weight:700; white-space:nowrap; }
-.h0-flabel { font-size:.95rem; font-weight:600; margin-bottom:.2rem; }
-.h0-fnote { font-size:.82rem; opacity:.75; margin-top:.1rem; }
+.fts-fbar.fts-narrow { min-width:0; padding-left:0; }
+.fts-fout { font-size:.78rem; font-weight:700; white-space:nowrap; }
+.fts-flabel { font-size:.95rem; font-weight:600; margin-bottom:.2rem; }
+.fts-fnote { font-size:.82rem; opacity:.75; margin-top:.1rem; }
 </style>
 """
 
@@ -467,15 +467,15 @@ def rule_cards(container, rules, per_row=3, methods=None):
     methods = list(methods or [])
 
     def card_html(i, name, req, stops, with_name=True):
-        head = (f'<div class="h0-rule-name">{i}. {_e(name)}</div>'
+        head = (f'<div class="fts-rule-name">{i}. {_e(name)}</div>'
                 if with_name else "")
         body = (f'<div>{chip(req, INFO)}</div>'
-                f'<div class="h0-rule-stops"><b>Stops:</b> '
+                f'<div class="fts-rule-stops"><b>Stops:</b> '
                 f'{_e(stops[:1].lower() + stops[1:])}</div>')
-        # Wrapped only when the name is elsewhere: inside .h0-rule the grid path
+        # Wrapped only when the name is elsewhere: inside .fts-rule the grid path
         # already spaces these three, and a second flex column would double it.
         return (f'{head}{body}' if with_name
-                else f'<div class="h0-rule-body">{body}</div>')
+                else f'<div class="fts-rule-body">{body}</div>')
 
     if methods:
         # 190px, and the longest "stops" sentence (117 chars) still leaves
@@ -502,10 +502,10 @@ def rule_cards(container, rules, per_row=3, methods=None):
                                 unsafe_allow_html=True)
         return
 
-    cards = "".join(f'<div class="h0-rule">{card_html(i, n, r, s)}</div>'
+    cards = "".join(f'<div class="fts-rule">{card_html(i, n, r, s)}</div>'
                     for i, (n, r, s) in enumerate(rules, 1))
     container.markdown(
-        f'<div class="h0-rules" style="--h0-cols:{per_row}">{cards}</div>',
+        f'<div class="fts-rules" style="--fts-cols:{per_row}">{cards}</div>',
         unsafe_allow_html=True)
 
 
@@ -541,16 +541,16 @@ def rule_results(container, results, per_row=2):
         #
         # No colour of its own: the whole name line is already FAIL-red, since
         # only a failing rule can be the blocker.
-        stop = (' <span class="h0-rule-stop">(STOPPED)</span>'
+        stop = (' <span class="fts-rule-stop">(STOPPED)</span>'
                 if i == blocker else "")
         cards.append(
-            f'<div class="h0-rule h0-rule-tight">'
-            f'<div class="h0-rule-name" style="color:{colour}">'
+            f'<div class="fts-rule fts-rule-tight">'
+            f'<div class="fts-rule-name" style="color:{colour}">'
             f'{mark} {i + 1}. {_e(g["name"])}{stop}</div>'
-            f'<div class="h0-rule-val">{_e(g.get("value", ""))}</div>'
+            f'<div class="fts-rule-val">{_e(g.get("value", ""))}</div>'
             f'</div>')
     container.markdown(
-        f'<div class="h0-rules" style="--h0-cols:{per_row}">'
+        f'<div class="fts-rules" style="--fts-cols:{per_row}">'
         f'{"".join(cards)}</div>', unsafe_allow_html=True)
     return blocker
 
@@ -572,7 +572,7 @@ def chart_key(container):
     """
     from . import charts, evidence
 
-    line = ('<span class="h0-k-line" style="border-top:2.5px {0} {1}">'
+    line = ('<span class="fts-k-line" style="border-top:2.5px {0} {1}">'
             '</span>')
     # The two rules head the left column: they are marks the chart always
     # draws, not evidence it set aside.
@@ -585,17 +585,17 @@ def chart_key(container):
               + "measured — where the jobs actually ran"]
     left_out = []
     for status in evidence.EXCLUDED_FIRST:
-        mark = (f'<span class="h0-k-dot" '
+        mark = (f'<span class="fts-k-dot" '
                 f'style="background:{charts.COLOURS[status]}"></span>'
                 f'{_e(status)}')
         (left_out if status.startswith("excluded") else counts).append(mark)
 
     def _col(items):
-        return ('<div class="h0-k-col">'
-                + "".join(f'<span class="h0-k-item">{i}</span>' for i in items)
+        return ('<div class="fts-k-col">'
+                + "".join(f'<span class="fts-k-item">{i}</span>' for i in items)
                 + "</div>")
 
-    container.markdown('<div class="h0-key">' + _col(counts) + _col(left_out)
+    container.markdown('<div class="fts-key">' + _col(counts) + _col(left_out)
                        + "</div>", unsafe_allow_html=True)
 
 
@@ -606,13 +606,13 @@ def side_title(container, text):
     same column - the two blocks on this page were built at different times and
     it showed.
     """
-    container.markdown(f'<div class="h0-kv-title">{_e(text)}</div>',
+    container.markdown(f'<div class="fts-kv-title">{_e(text)}</div>',
                        unsafe_allow_html=True)
 
 
 def side_note(container, text):
     """Small print under a sidebar block. st.caption's 14px in .82rem terms."""
-    container.markdown(f'<div class="h0-side-note">{text}</div>',
+    container.markdown(f'<div class="fts-side-note">{text}</div>',
                        unsafe_allow_html=True)
 
 
@@ -666,7 +666,7 @@ def subtitle(container, text):
     under, and this is the opposite: every figure below it is only meaningful
     once you know it belongs to this part, this step, this pool.
     """
-    container.markdown(f'<div class="h0-subtitle">{text}</div>',
+    container.markdown(f'<div class="fts-subtitle">{text}</div>',
                        unsafe_allow_html=True)
 
 
@@ -688,11 +688,11 @@ def kv(container, title, pairs):
     the words around them.
     """
     rows = "".join(
-        f'<div class="h0-kv-row"><span class="h0-kv-k">{_e(k)}</span>'
-        f'<span class="h0-kv-v">{_e(str(v))}</span></div>'
+        f'<div class="fts-kv-row"><span class="fts-kv-k">{_e(k)}</span>'
+        f'<span class="fts-kv-v">{_e(str(v))}</span></div>'
         for k, v in pairs)
     side_title(container, title)
-    container.markdown(f'<div class="h0-kv">{rows}</div>',
+    container.markdown(f'<div class="fts-kv">{rows}</div>',
                        unsafe_allow_html=True)
 
 
@@ -775,10 +775,10 @@ def help_icon(title):
     """Streamlit's help glyph, for use inside hand-built HTML.
 
     The SVG is Streamlit's own, lifted from the rendered DOM so the two cannot
-    drift apart by redrawing. See the note on .h0-help in CSS for what this
+    drift apart by redrawing. See the note on .fts-help in CSS for what this
     does and does not reproduce.
     """
-    return (f'<span class="h0-help" title="{_e(title)}" role="img" '
+    return (f'<span class="fts-help" title="{_e(title)}" role="img" '
             f'aria-label="{_e(title)}">'
             f'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" '
             f'viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -791,7 +791,7 @@ def help_icon(title):
 
 
 def chip(label, colour):
-    return (f'<span class="h0-chip" style="color:{colour};border-color:{colour};'
+    return (f'<span class="fts-chip" style="color:{colour};border-color:{colour};'
             f'background:{colour}1a">{_e(label)}</span>')
 
 
@@ -805,10 +805,10 @@ def verdict_banner(container, verdict, kind, detail=""):
     """
     colour = {"act": PASS, "review": WARN, "caution": WARN, "hold": INFO,
               "blocked": MUTE, "unknown": MUTE}.get(kind, INFO)
-    sub = f'<div class="h0-b-sub">{_e(detail)}</div>' if detail else ""
+    sub = f'<div class="fts-b-sub">{_e(detail)}</div>' if detail else ""
     container.markdown(
-        f'<div class="h0-banner" style="border-color:{colour};'
-        f'background:{colour}14"><div class="h0-b-title" '
+        f'<div class="fts-banner" style="border-color:{colour};'
+        f'background:{colour}14"><div class="fts-b-title" '
         f'style="color:{colour}">{_e(verdict)}</div>{sub}</div>',
         unsafe_allow_html=True)
 
@@ -845,7 +845,7 @@ def funnel(container, sections, scale_to=None):
     for heading, unit_label, stages in sections:
         top = top_all if scale_to else (
             max((c for _, c, _ in stages if c), default=1) or 1)
-        out.append(f'<div class="h0-fhead">{_e(heading)} · counted in '
+        out.append(f'<div class="fts-fhead">{_e(heading)} · counted in '
                    f'{_e(unit_label)}</div>')
         for i, (label, count, note) in enumerate(stages):
             # The floor used to be 4% so the number always had a bar to sit in.
@@ -860,16 +860,16 @@ def funnel(container, sections, scale_to=None):
             colour = PASS if last else INFO
             val = num(count)
             out.append(
-                f'<div class="h0-fstep">'
-                f'<div class="h0-flabel">{_e(label)}</div>'
-                f'<div class="h0-fbarrow">'
-                f'<div class="h0-fbar{"" if inside else " h0-narrow"}" '
+                f'<div class="fts-fstep">'
+                f'<div class="fts-flabel">{_e(label)}</div>'
+                f'<div class="fts-fbarrow">'
+                f'<div class="fts-fbar{"" if inside else " fts-narrow"}" '
                 f'style="width:{pct:.1f}%;background:{colour}">'
                 f'{val if inside else ""}</div>'
                 + ("" if inside else
-                   f'<div class="h0-fout" style="color:{colour}">{val}</div>')
-                + f'</div><div class="h0-fnote">{_e(note)}</div></div>')
-    container.markdown(f'<div class="h0-funnel">{"".join(out)}</div>',
+                   f'<div class="fts-fout" style="color:{colour}">{val}</div>')
+                + f'</div><div class="fts-fnote">{_e(note)}</div></div>')
+    container.markdown(f'<div class="fts-funnel">{"".join(out)}</div>',
                        unsafe_allow_html=True)
 
 
@@ -928,13 +928,13 @@ def legend(container, explain=False):
             unsafe_allow_html=True)
         return
     rows = "".join(
-        f'<div class="h0-step">'
-        f'<div class="h0-dot" style="background:{c}">{m}</div>'
-        f'<div class="h0-txt"><div class="h0-name">{_e(label)}</div>'
-        f'<div class="h0-val">{_e(meaning)}</div></div>'
+        f'<div class="fts-step">'
+        f'<div class="fts-dot" style="background:{c}">{m}</div>'
+        f'<div class="fts-txt"><div class="fts-name">{_e(label)}</div>'
+        f'<div class="fts-val">{_e(meaning)}</div></div>'
         f'</div>'
         for m, c, label, meaning in STATES)
-    container.markdown(f'<div class="h0-rail h0-rail-sm">{rows}</div>',
+    container.markdown(f'<div class="fts-rail fts-rail-sm">{rows}</div>',
                        unsafe_allow_html=True)
 
 
@@ -949,10 +949,10 @@ def summary_rail(container, items):
     rows = []
     for label, value, note in items:
         rows.append(
-            f'<div class="h0-count"><div class="h0-cval">{_e(value)}</div>'
-            f'<div class="h0-txt"><div class="h0-name">{_e(label)}</div>'
-            f'<div class="h0-val">{_e(note)}</div></div></div>')
-    container.markdown(f'<div class="h0-rail">{"".join(rows)}</div>',
+            f'<div class="fts-count"><div class="fts-cval">{_e(value)}</div>'
+            f'<div class="fts-txt"><div class="fts-name">{_e(label)}</div>'
+            f'<div class="fts-val">{_e(note)}</div></div></div>')
+    container.markdown(f'<div class="fts-rail">{"".join(rows)}</div>',
                        unsafe_allow_html=True)
 
 
@@ -996,7 +996,7 @@ def analysis_name(target, run_type):
 def field_name(target, run_type, unit=False):
     """The ERP column an action edits, from what 01_Actions carries.
 
-    THERE ARE ONLY TWO FIELDS, and RUN_MASTER is not one of them. h0_v2.sql
+    THERE ARE ONLY TWO FIELDS, and RUN_MASTER is not one of them. fts.sql
     reads `CAST(O.RUN AS NUMERIC(19,2)) AS RUN_MASTER` from dbo.OPERATION, so
     RUN_MASTER is the EXTRACT'S ALIAS for a column the ERP calls RUN - and the
     pipeline's own TARGET_COLUMN says so, writing RUN on every run edit

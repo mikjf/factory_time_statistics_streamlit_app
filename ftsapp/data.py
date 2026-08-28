@@ -74,7 +74,7 @@ def operations(key):
     MIN_WO changes, and an exact match would silently start returning nothing.
     """
     rows = []
-    for p in sorted(paths.OUTPUTS.glob("H0_v2_*_PARTS.xlsx")):
+    for p in sorted(paths.OUTPUTS.glob("FTS_*_PARTS.xlsx")):
         s = pd.read_excel(p, sheet_name="00_Summary")
         m = {str(k).strip(): v for k, v in zip(s.METRIC, s.VALUE)}
         h = {str(k).strip(): v for k, v in zip(s.METRIC, s.HOURS)}
@@ -108,7 +108,7 @@ def operations(key):
 
 def operation_summaries():
     return operations(paths.cache_key(*sorted(
-        paths.OUTPUTS.glob("H0_v2_*_PARTS.xlsx"))))
+        paths.OUTPUTS.glob("FTS_*_PARTS.xlsx"))))
 
 
 def operation_list():
@@ -233,7 +233,7 @@ def run_by_operation():
 
     04_MultiLoadGap stores MARGINAL_AS_PCT_OF_RUN but not the RUN it was taken
     against, so the percentage there is not independently checkable. This is
-    the same median h0_v2_load_view.py's own fit loop divides by - g.RUN_MASTER
+    the same median fts_load_view.py's own fit loop divides by - g.RUN_MASTER
     .median() inside multi.groupby("OPERATION") - read fresh rather than
     back-derived from two already-rounded sheet columns, which would drift.
     """
@@ -248,13 +248,13 @@ def actions():
     scanning decisions, not only when keying them in.
 
     TO_KEY COMES FROM THE EXECUTION SHEETS, which is why this function reaches
-    into them at all. It is RM_RECOMMENDED, the column h0_v2_update_list calls
+    into them at all. It is RM_RECOMMENDED, the column fts_update_list calls
     "the exact RUN_MASTER to apply", and it is what a reviewer keys.
 
     IT NOW EQUALS SUGGESTED_VALUE ON EVERY PART ROW, and that is the point. A
     part that cleared all six rules on its own evidence keeps its own figure;
     the family value covers only the parts that could not be judged alone, and
-    h0_v2_family_view removes the flagged parts from the family pool before
+    fts_family_view removes the flagged parts from the family pool before
     computing it. Until 2026-08-26 a rule here overrode 17 of the 64 part rows
     with a family figure pooled over ALL parts - including the ones being
     overwritten - which was circular and has been removed.
@@ -697,7 +697,7 @@ def _family_funnel(key):
     and not something to reproduce here from the outside.
     """
     rows = []
-    for f in paths.OUTPUTS.glob("H0_v2_S_*_FAMILY.xlsx"):
+    for f in paths.OUTPUTS.glob("FTS_S_*_FAMILY.xlsx"):
         try:
             d = pd.read_excel(f, sheet_name="01_FamilyRollup")
         except Exception:
@@ -869,7 +869,7 @@ def _coverage(key):
                                                       int(r.TESTABLE)]
 
     # Run PCS/HR, family level: one rollup per operation workbook.
-    for f in paths.OUTPUTS.glob("H0_v2_S_*_FAMILY.xlsx"):
+    for f in paths.OUTPUTS.glob("FTS_S_*_FAMILY.xlsx"):
         try:
             d = pd.read_excel(f, sheet_name="01_FamilyRollup")
         except Exception:

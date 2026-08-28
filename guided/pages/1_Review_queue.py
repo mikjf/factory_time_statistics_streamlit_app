@@ -18,15 +18,15 @@ import sys
 import pandas as pd
 import streamlit as st
 
-# parent.parent.parent is streamlit_app/, where h0app lives. parent.parent is
+# parent.parent.parent is streamlit_app/, where ftsapp lives. parent.parent is
 # guided/ - which held only because Overview.py runs first in an ordinary visit
 # and inserts the right path. Deep-link to a page in a fresh session and the
-# import failed with ModuleNotFoundError: no module named 'h0app'.
+# import failed with ModuleNotFoundError: no module named 'ftsapp'.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from h0app import data, freshness, pipeline, text, ui  # noqa: E402
+from ftsapp import data, freshness, pipeline, text, ui  # noqa: E402
 
-st.set_page_config(page_title="Review queue · H0",
+st.set_page_config(page_title="Review queue · FTS",
                    page_icon=":material/checklist:", layout="wide")
 ui.inject()
 st.title("Review queue")
@@ -469,7 +469,7 @@ event = st.dataframe(
         # on EVERY row, part and family alike - RM_RECOMMENDED is RM_SUGGESTED
         # on both routes - so this is a consistency check, not a correction.
         # The part branch was corrected on the 26th and the family branch on
-        # the 27th; see data.actions and h0_v2_update_list for why.
+        # the 27th; see data.actions and fts_update_list for why.
         "TO_KEY": st.column_config.NumberColumn(
             "Suggested",
             help="The value to key, as the execution sheets carry it. A part "
@@ -579,7 +579,7 @@ if _no_value:
 # a reader who notices the gap has every reason to read it as a display fault.
 # Counted, never written down, and silent on the other rows.
 # AN INTEGRITY CHECK, NOT AN EXPLANATION - and it used to be the opposite.
-# Until 2026-08-26 a rule in h0_v2_update_list overrode a part's own figure
+# Until 2026-08-26 a rule in fts_update_list overrode a part's own figure
 # with its family's on 17 rows, and this caption explained why. The rule was
 # removed: a part that clears the six rules on its own evidence keeps its own
 # value, on all three analyses.
@@ -673,7 +673,7 @@ else:
 _dl = d.drop(columns=["EFFECT", "ANALYSIS"])
 st.download_button(
     "Download this view as CSV", _dl.to_csv(index=False).encode("utf-8"),
-    file_name="h0_review_queue.csv", mime="text/csv",
+    file_name="fts_review_queue.csv", mime="text/csv",
     icon=":material/download:")
 # NAMES WHAT YOU GET AND WHY, the shape Inspect's download caption uses. It
 # used to open "carries every column of `01_Actions`" - a sheet name from a

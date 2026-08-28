@@ -1,11 +1,11 @@
 """The work orders behind one recommendation, rebuilt from the extract.
 
-The workbooks do not carry this. H0_v2_SETUP.xlsx and H0_v2_LOAD.xlsx each have
+The workbooks do not carry this. FTS_SETUP.xlsx and FTS_LOAD.xlsx each have
 a 05_Evidence sheet, but the PCS/HR run analysis writes per-work-order rows only
 for the units it acted on (06_ActionDetail), so most of the analysis has no
 persisted evidence at all.
 
-Rebuilding it from h0_v2.parquet is the better answer anyway. A viewer that read
+Rebuilding it from fts.parquet is the better answer anyway. A viewer that read
 the numbers back out of the workbook could only ever agree with it. This one
 recomputes them, which means it can also disagree - and a disagreement is worth
 knowing about, because it means either the workbook is stale or an exclusion
@@ -44,7 +44,7 @@ OWN_PART = "excluded - this part is judged on its own"
 MULTILOAD = "excluded - charged for more than one load"
 # Setup only. The setup happened and was charged - it is not a skip - but the
 # people who booked it were not the crew the routing plans for, so the standard
-# does not describe the job that was done. See h0_v2_setup_view.load().
+# does not describe the job that was done. See fts_setup_view.load().
 CREW = "excluded - not the crew the routing plans for"
 
 EXCLUDED_FIRST = [IN, OUTLIER, TOKEN, SKIPPED, CREW, SUPERSEDED, OWN_PART,
@@ -307,7 +307,7 @@ def _pack(rows, counted, stats):
 def _run_frames(operation, key):
     """Work-order level for one operation, tokens kept aside rather than lost.
 
-    The scope filter repeats the one in h0_v2_analysis.main(). It is inline
+    The scope filter repeats the one in fts_analysis.main(). It is inline
     there, so there is nothing to import; if the two ever drift apart the
     reconciliation on the unit page is what surfaces it.
     """
@@ -388,7 +388,7 @@ def run_part(operation, family, part_type, part_id, seq):
 
 @st.cache_data(show_spinner=False)
 def _family_pool(operation, key):
-    """The family-level frame, straight from h0_v2_family_view.load().
+    """The family-level frame, straight from fts_family_view.load().
 
     That function differs from the part-level one in a way that matters: it cuts
     every part+sequence to its own latest RUN_MASTER before pooling, so no
@@ -587,7 +587,7 @@ def stored(target, run_type, operation, family, part_type, seq, part_id=None):
     """The figure the pipeline recorded for this unit, at full precision.
 
     Always read from the workbook that COMPUTED it, never from
-    H0_v2_UPDATE_LIST.xlsx. The consolidated sheets round the ratio to three
+    FTS_UPDATE_LIST.xlsx. The consolidated sheets round the ratio to three
     decimals for reading - 0.7297 is written 0.730 - and comparing a rebuilt
     number against a rounded one reports a mismatch on every second unit, which
     would train everybody to ignore the one check that matters.

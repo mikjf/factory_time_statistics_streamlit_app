@@ -1,4 +1,4 @@
-"""H0 master-time review. Start here.
+"""FTS master-time review. Start here.
 
     streamlit run streamlit_app/guided/Overview.py --server.address localhost
 
@@ -26,10 +26,10 @@ import streamlit as st
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from h0app import (charts, data, evidence, freshness, paths,  # noqa: E402
+from ftsapp import (charts, data, evidence, freshness, paths,  # noqa: E402
                    pipeline, text, ui)
 
-st.set_page_config(page_title="H0 master-time review",
+st.set_page_config(page_title="FTS master-time review",
                    page_icon=":material/timer:", layout="wide")
 ui.inject()
 

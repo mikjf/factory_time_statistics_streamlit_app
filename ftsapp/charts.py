@@ -225,10 +225,10 @@ def distribution(rows, stats, height=300, legend=True):
                             #
                             # The rest of these match ui.chart_key's CSS, which
                             # is the same key rendered in HTML on another page:
-                            #   labelOpacity .85   .h0-key opacity:.85
-                            #   labelFontSize 13   .h0-key .82rem
-                            #   rowPadding 6       .h0-k-col gap:.35rem
-                            #   labelOffset 6      .h0-k-item gap:.4rem
+                            #   labelOpacity .85   .fts-key opacity:.85
+                            #   labelFontSize 13   .fts-key .82rem
+                            #   rowPadding 6       .fts-k-col gap:.35rem
+                            #   labelOffset 6      .fts-k-item gap:.4rem
                             # labelOpacity rather than a literal colour: the
                             # CSS dims the theme's own text, so a hard-coded
                             # white would be right in dark mode and invisible

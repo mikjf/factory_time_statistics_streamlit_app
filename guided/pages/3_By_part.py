@@ -12,15 +12,15 @@ import sys
 import pandas as pd
 import streamlit as st
 
-# parent.parent.parent is streamlit_app/, where h0app lives. parent.parent is
+# parent.parent.parent is streamlit_app/, where ftsapp lives. parent.parent is
 # guided/ - which held only because Overview.py runs first in an ordinary visit
 # and inserts the right path. Deep-link to a page in a fresh session and the
-# import failed with ModuleNotFoundError: no module named 'h0app'.
+# import failed with ModuleNotFoundError: no module named 'ftsapp'.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from h0app import data, freshness, pipeline, ui  # noqa: E402
+from ftsapp import data, freshness, pipeline, ui  # noqa: E402
 
-st.set_page_config(page_title="By part · H0", page_icon=":material/qr_code:",
+st.set_page_config(page_title="By part · FTS", page_icon=":material/qr_code:",
                    layout="wide")
 ui.inject()
 st.title("By part")
@@ -249,5 +249,5 @@ if jump != "—":
                  icon=":material/query_stats:")
 st.download_button("Download this part's steps as CSV",
                    steps[cols].to_csv(index=False).encode("utf-8"),
-                   file_name=f"h0_by_part_{pipeline.slug(part)}.csv",
+                   file_name=f"fts_by_part_{pipeline.slug(part)}.csv",
                    mime="text/csv", icon=":material/download:")

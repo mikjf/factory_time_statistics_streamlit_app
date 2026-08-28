@@ -68,7 +68,7 @@ def _window_problems():
              f"for.** It starts {first:%d %b %Y}, which is {gap} days after "
              f"`FY_START` ({fy:%d %b %Y}) — so anything booked in between is "
              f"missing rather than excluded, and every hours total here is "
-             f"short by that much. Check that the date in `h0_v2.sql` still "
+             f"short by that much. Check that the date in `fts.sql` still "
              f"matches `FY_START` in the analysis scripts; they are two ends of "
              f"the same setting and have to be changed together.")]
 
@@ -133,7 +133,7 @@ def problems():
         return out
     if paths.mtime(paths.UPDATE_LIST) is None:
         out.append(("stop", f"`{paths.UPDATE_LIST.name}` is missing. Run "
-                            "`python h0_v2_update_list.py`."))
+                            "`python fts_update_list.py`."))
         return out
 
     if _older(paths.CACHE, paths.EXTRACT):
@@ -152,7 +152,7 @@ def problems():
             f"({paths.stamp(paths.UPDATE_LIST)} against "
             f"{paths.stamp(paths.CACHE)}). The update list predates the data "
             "it claims to describe. Re-run every operation, then "
-            "`python h0_v2_update_list.py`."))
+            "`python fts_update_list.py`."))
 
     out += _window_problems()
     out += _window_length_problem()

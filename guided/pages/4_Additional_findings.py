@@ -10,15 +10,15 @@ import sys
 
 import streamlit as st
 
-# parent.parent.parent is streamlit_app/, where h0app lives. parent.parent is
+# parent.parent.parent is streamlit_app/, where ftsapp lives. parent.parent is
 # guided/ - which held only because Overview.py runs first in an ordinary visit
 # and inserts the right path. Deep-link to a page in a fresh session and the
-# import failed with ModuleNotFoundError: no module named 'h0app'.
+# import failed with ModuleNotFoundError: no module named 'ftsapp'.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from h0app import data, freshness, pipeline, text, ui  # noqa: E402
+from ftsapp import data, freshness, pipeline, text, ui  # noqa: E402
 
-st.set_page_config(page_title="Additional findings · H0",
+st.set_page_config(page_title="Additional findings · FTS",
                    page_icon=":material/flag:", layout="wide")
 ui.inject()
 st.title("Additional findings")
@@ -230,7 +230,7 @@ the costing charged against jobs with no evidence they were performed.
                      "HOURS_BOOKED": st.column_config.NumberColumn("Booked h"),
                  })
     st.download_button("Download as CSV", d.to_csv(index=False).encode("utf-8"),
-                       file_name="h0_additional_findings_micro_duration.csv",
+                       file_name="fts_additional_findings_micro_duration.csv",
                        mime="text/csv", icon=":material/download:",
                        key="dl_tok")
     # NAMES WHAT IT ADDS AND WHY, the shape Inspect and the Review queue use.
@@ -408,7 +408,7 @@ not.
                  })
     st.download_button("Download as CSV",
                        d2.to_csv(index=False).encode("utf-8"),
-                       file_name=("h0_additional_findings_setups_not_"
+                       file_name=("fts_additional_findings_setups_not_"
                                   "performed.csv"), mime="text/csv",
                        icon=":material/download:", key="dl_skip")
     # Same shape as the download caption above. Three columns are off screen
@@ -587,7 +587,7 @@ work orders are excluded from the test and reported here.
         })
     st.download_button("Download as CSV",
                        d3r.to_csv(index=False).encode("utf-8"),
-                       file_name="h0_additional_findings_multiple_loads.csv",
+                       file_name="fts_additional_findings_multiple_loads.csv",
                        mime="text/csv",
                        icon=":material/download:", key="dl_gap")
     st.caption("The download is one row per work order rather than the "

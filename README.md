@@ -18,18 +18,18 @@ from the extract so the two can be compared.
 The analysis outputs, sitting in a folder next to this one:
 
 ```
-h0_v2.parquet             the extract, cached
-h0_v2.xlsx                the extract as exported
-H0_v2_UPDATE_LIST.xlsx    the consolidated decisions
-H0_v2_SETUP.xlsx          optional
-H0_v2_LOAD.xlsx           optional
-H0_v2_<OPERATION>_PARTS.xlsx / _FAMILY.xlsx   one pair per operation
+fts.parquet             the extract, cached
+fts.xlsx                the extract as exported
+FTS_UPDATE_LIST.xlsx    the consolidated decisions
+FTS_SETUP.xlsx          optional
+FTS_LOAD.xlsx           optional
+FTS_<OPERATION>_PARTS.xlsx / _FAMILY.xlsx   one pair per operation
 ```
 
 **None of those are in this repository, and none ever should be.** They contain
 part numbers, customer-identifiable family names, work order numbers and real job
-durations. `h0app/paths.py` resolves them relative to the parent folder; set
-`H0_ROOT` to point somewhere else.
+durations. `ftsapp/paths.py` resolves them relative to the parent folder; set
+`FTS_ROOT` to point somewhere else.
 
 ```bash
 python -m pip install -r requirements.txt
@@ -73,7 +73,7 @@ No caches on disk, no exports, and deliberately no parquet rebuild — the
 analysis has a `load()` that rebuilds its cache when the extract is newer, and
 rotates the previous one away in the process. That previous copy is what the
 pipeline uses to report a change of scope between extracts, and somebody opening
-a dashboard must not be able to destroy it. `h0app/pipeline.py` calls everything
+a dashboard must not be able to destroy it. `ftsapp/pipeline.py` calls everything
 in the analysis scripts *except* that function.
 
 `sys.dont_write_bytecode` is set too, so importing them leaves no `.pyc` beside
@@ -212,14 +212,14 @@ guided/pages/4_Additional_findings.py  hours charged for work with no evidence
 guided/pages/5_How_to_read_it.py how to read a recommendation
 guided/pages/6_Methodology.py    the method, and what it is computed over
 
-h0app/paths.py      where the analysis lives; imports nothing from it
-h0app/pipeline.py   imports the analysis scripts; re-exports their thresholds
-h0app/freshness.py  the staleness guard
-h0app/data.py       cached workbook readers, keyed on file mtime
-h0app/evidence.py   per-work-order evidence for each of the four routes
-h0app/charts.py     the distribution chart and the rankings
-h0app/text.py       the six rules, and the shared prose
-h0app/ui.py         the visual language: colours, the rule cards, the funnel
+ftsapp/paths.py      where the analysis lives; imports nothing from it
+ftsapp/pipeline.py   imports the analysis scripts; re-exports their thresholds
+ftsapp/freshness.py  the staleness guard
+ftsapp/data.py       cached workbook readers, keyed on file mtime
+ftsapp/evidence.py   per-work-order evidence for each of the four routes
+ftsapp/charts.py     the distribution chart and the rankings
+ftsapp/text.py       the six rules, and the shared prose
+ftsapp/ui.py         the visual language: colours, the rule cards, the funnel
 ```
 
 Thresholds (`MIN_WO`, `MAD_K`, `TOKEN_HOURS`, the materiality gates) are

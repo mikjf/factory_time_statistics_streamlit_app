@@ -13,15 +13,15 @@ import sys
 import pandas as pd
 import streamlit as st
 
-# parent.parent.parent is streamlit_app/, where h0app lives. parent.parent is
+# parent.parent.parent is streamlit_app/, where ftsapp lives. parent.parent is
 # guided/ - which held only because Overview.py runs first in an ordinary visit
 # and inserts the right path. Deep-link to a page in a fresh session and the
-# import failed with ModuleNotFoundError: no module named 'h0app'.
+# import failed with ModuleNotFoundError: no module named 'ftsapp'.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from h0app import data, freshness, paths, pipeline, text, ui  # noqa: E402
+from ftsapp import data, freshness, paths, pipeline, text, ui  # noqa: E402
 
-st.set_page_config(page_title="Methodology · H0",
+st.set_page_config(page_title="Methodology · FTS",
                    page_icon=":material/database:", layout="wide")
 ui.inject()
 st.title("Methodology")
@@ -52,7 +52,7 @@ with st.sidebar:
     #
     # This replaced five filenames and their modification times. Those said
     # "is it current?" in the language of the folder rather than the data -
-    # nobody outside this project can place H0_v2_LOAD.xlsx - and five stamps
+    # nobody outside this project can place FTS_LOAD.xlsx - and five stamps
     # within half an hour of each other carried one fact between them.
     ui.kv(st, "Key dates", [
         ("First labour ticket", f"{facts['first']:%d %b %Y}"),
@@ -599,7 +599,7 @@ with st.expander("Every operation examined, and what came out of it — "
         f"per route and level it was judged on.")
     st.download_button("Download this coverage table as CSV",
                        cov.to_csv(index=False).encode("utf-8"),
-                       file_name="h0_methodology_operations_examined.csv",
+                       file_name="fts_methodology_operations_examined.csv",
                        mime="text/csv",
                        icon=":material/download:")
 

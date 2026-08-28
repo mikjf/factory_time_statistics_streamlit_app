@@ -5,7 +5,7 @@ same whatever directory streamlit was launched from. Relative paths would work
 by accident when run from the project root and break silently anywhere else -
 and "silently" is the failure mode this whole project is built to avoid.
 
-H0_ROOT overrides the root. That exists so the freshness guard can be tested
+FTS_ROOT overrides the root. That exists so the freshness guard can be tested
 against a scratch copy of the project: proving the guard fires by making the
 real folder stale would put it into exactly the state the guard refuses.
 
@@ -18,16 +18,16 @@ import os
 import pathlib
 
 APP_DIR = pathlib.Path(__file__).resolve().parent.parent
-ROOT = pathlib.Path(os.environ.get("H0_ROOT") or APP_DIR.parent).resolve()
+ROOT = pathlib.Path(os.environ.get("FTS_ROOT") or APP_DIR.parent).resolve()
 
-EXTRACT = ROOT / "h0_v2.xlsx"          # the export out of the ERP
-CACHE = ROOT / "h0_v2.parquet"         # what every script actually reads
+EXTRACT = ROOT / "fts.xlsx"          # the export out of the ERP
+CACHE = ROOT / "fts.parquet"         # what every script actually reads
 # The per-operation workbooks moved out of the root on 2026-08-28 - see
-# the note in h0_v2_analysis.py. The three deliverables did not.
+# the note in fts_analysis.py. The three deliverables did not.
 OUTPUTS = ROOT / "outputs"
-UPDATE_LIST = ROOT / "H0_v2_UPDATE_LIST.xlsx"
-SETUP = ROOT / "H0_v2_SETUP.xlsx"      # optional input, same as in the pipeline
-LOAD = ROOT / "H0_v2_LOAD.xlsx"        # optional input, same as in the pipeline
+UPDATE_LIST = ROOT / "FTS_UPDATE_LIST.xlsx"
+SETUP = ROOT / "FTS_SETUP.xlsx"      # optional input, same as in the pipeline
+LOAD = ROOT / "FTS_LOAD.xlsx"        # optional input, same as in the pipeline
 
 
 def mtime(path):
@@ -49,7 +49,7 @@ def cache_key(*paths):
 
     Passed to every cached loader. Keying on the path alone would leave the app
     showing a workbook that had been rewritten underneath it, which is the same
-    stale-artefact failure the parquet mtime check in h0_v2_analysis.load()
+    stale-artefact failure the parquet mtime check in fts_analysis.load()
     exists to prevent - just relocated into the viewer.
     """
     return tuple((str(p), (mtime(p) or _dt.datetime.min).timestamp())

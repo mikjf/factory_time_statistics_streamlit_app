@@ -1,4 +1,4 @@
-"""Support package for the H0 review tool.
+"""Support package for the FTS review tool.
 
 Split by responsibility so each piece can be read on its own:
 
