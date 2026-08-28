@@ -51,14 +51,14 @@ freshness.guard()
 # GREEN, and "act" rather than "caution", even though the sub-line is a caveat.
 # The colour has one job in this tool and it is not tone: green means a rule was
 # satisfied, and all six were, on every row here. Amber is spoken for - "do not
-# act on this as it stands" - which is false of 230 of the 237 and would be a
+# act on this as it stands" - which is false of 230 of the 238 and would be a
 # second meaning for the one colour the legend promises has only one.
 #
 # NO FIGURE IN IT, deliberately, and not only to keep it from going stale. There
 # is no honest denominator to quote: EXAMINED counts one part at one step on the
 # part route and one FAMILY at one step on the family route, so a summed
-# "237 of N" would add two units together and report them as one. The tile below
-# carries the 237 and follows the filter; this banner is true whatever is picked.
+# "238 of N" would add two units together and report them as one. The tile below
+# carries the 238 and follows the filter; this banner is true whatever is picked.
 #
 # THE TWO ABSENT OUTCOMES ARE NAMED IN THE APP'S OWN WORDS - "tested and held"
 # and "not enough evidence" are data.py's two verdict strings, the ones
@@ -134,7 +134,7 @@ S = data.SEQ
 # show, and it loses nothing: both run analyses edit RUN and setup edits
 # SETUP_HRS, so naming the analysis names the field. The tooltip says so.
 #
-# EFFECT drops the " the standard" DIRECTION repeats on all 237 rows - the column
+# EFFECT drops the " the standard" DIRECTION repeats on all 238 rows - the column
 # heading says it once. A plain string replace rather than a lookup, so a third
 # direction added upstream passes through as itself instead of vanishing.
 acts["ANALYSIS"] = [ui.analysis_name(t, r)
@@ -195,8 +195,8 @@ with st.sidebar:
     # follow.
     #
     # AND IT SORTS ON THE ABSOLUTE VALUE - d.HOURS_DELTA.abs() below - which the
-    # label alone cannot convey. 109 of the 237 actions are negative, and the
-    # largest gap in the whole list is -404 h, so "biggest" read as "largest
+    # label alone cannot convey. 110 of the 238 actions are negative, and the
+    # largest gap in the whole list is -422 h, so "biggest" read as "largest
     # signed" puts the wrong row at the top of the reader's expectation. The
     # help says so with the case that proves it.
     # OFF BY DEFAULT. Left on, the queue opens scrambled relative to its own
@@ -274,7 +274,7 @@ if big_first:
     d = d.reindex(d.HOURS_DELTA.abs().sort_values(ascending=False).index)
 
 # ---- what the current filter is worth ---------------------------------------
-# "Standards to review", the label Overview uses for the same 237, with the
+# "Standards to review", the label Overview uses for the same 238, with the
 # breakdown tooltip it carries too - both now following the filter. It read
 # "Decisions shown", which was a third word for the row and hid the fact that
 # this tile and Overview's leftmost one count exactly the same thing.
@@ -391,11 +391,11 @@ detail = st.toggle("Show the statistics columns", value=False,
 # the priming works from here too and Now/Suggested stay adjacent, which is the
 # comparison a reader actually makes.
 #
-# Effect is strictly redundant with the SIGN of Δ Hours - they agree on all 237
+# Effect is strictly redundant with the SIGN of Δ Hours - they agree on all 238
 # rows, checked - but Δ Hours is a quantity three columns away, not a direction
 # at the point of confusion. The redundancy is the feature.
 #
-# NEEDS_REVIEW IS NOT HERE. It was False on 230 of 237 rows; the rail toggle,
+# NEEDS_REVIEW IS NOT HERE. It was False on 230 of 238 rows; the rail toggle,
 # the tile and ui.review_warning on the detail card all still carry it.
 base = ["FAMILY", "PART_TYPE", "OPERATION", S, "ANALYSIS",
         "PART_ID", "N_PARTS", "N_WO", "HOURS_DELTA",
@@ -527,7 +527,7 @@ event = st.dataframe(
         "N_WO": st.column_config.NumberColumn(
             "Work orders",
             help="How many work orders the figure is based on."),
-        # NEEDS_REVIEW IS NOT A COLUMN HERE. It is False on 230 of the 237 rows,
+        # NEEDS_REVIEW IS NOT A COLUMN HERE. It is False on 230 of the 238 rows,
         # so as a checkbox column it carried almost no information per row while
         # costing a column of width. The state is reachable three other ways:
         # the rail's "Only flagged for manual review" toggle, the tile that
