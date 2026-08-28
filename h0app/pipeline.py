@@ -85,11 +85,11 @@ drop_token_bookings = analysis.drop_token_bookings
 
 
 def parts_workbook(operation):
-    return paths.ROOT / f"H0_v2_{slug(operation)}_PARTS.xlsx"
+    return paths.OUTPUTS / f"H0_v2_{slug(operation)}_PARTS.xlsx"
 
 
 def family_workbook(operation):
-    return paths.ROOT / f"H0_v2_{slug(operation)}_FAMILY.xlsx"
+    return paths.OUTPUTS / f"H0_v2_{slug(operation)}_FAMILY.xlsx"
 
 
 def read_extract():

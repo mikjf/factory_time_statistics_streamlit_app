@@ -74,7 +74,7 @@ def operations(key):
     MIN_WO changes, and an exact match would silently start returning nothing.
     """
     rows = []
-    for p in sorted(paths.ROOT.glob("H0_v2_*_PARTS.xlsx")):
+    for p in sorted(paths.OUTPUTS.glob("H0_v2_*_PARTS.xlsx")):
         s = pd.read_excel(p, sheet_name="00_Summary")
         m = {str(k).strip(): v for k, v in zip(s.METRIC, s.VALUE)}
         h = {str(k).strip(): v for k, v in zip(s.METRIC, s.HOURS)}
@@ -108,7 +108,7 @@ def operations(key):
 
 def operation_summaries():
     return operations(paths.cache_key(*sorted(
-        paths.ROOT.glob("H0_v2_*_PARTS.xlsx"))))
+        paths.OUTPUTS.glob("H0_v2_*_PARTS.xlsx"))))
 
 
 def operation_list():
@@ -697,7 +697,7 @@ def _family_funnel(key):
     and not something to reproduce here from the outside.
     """
     rows = []
-    for f in paths.ROOT.glob("H0_v2_S_*_FAMILY.xlsx"):
+    for f in paths.OUTPUTS.glob("H0_v2_S_*_FAMILY.xlsx"):
         try:
             d = pd.read_excel(f, sheet_name="01_FamilyRollup")
         except Exception:
@@ -869,7 +869,7 @@ def _coverage(key):
                                                       int(r.TESTABLE)]
 
     # Run PCS/HR, family level: one rollup per operation workbook.
-    for f in paths.ROOT.glob("H0_v2_S_*_FAMILY.xlsx"):
+    for f in paths.OUTPUTS.glob("H0_v2_S_*_FAMILY.xlsx"):
         try:
             d = pd.read_excel(f, sheet_name="01_FamilyRollup")
         except Exception:

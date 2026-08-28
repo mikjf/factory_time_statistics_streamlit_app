@@ -22,6 +22,9 @@ ROOT = pathlib.Path(os.environ.get("H0_ROOT") or APP_DIR.parent).resolve()
 
 EXTRACT = ROOT / "h0_v2.xlsx"          # the export out of the ERP
 CACHE = ROOT / "h0_v2.parquet"         # what every script actually reads
+# The per-operation workbooks moved out of the root on 2026-08-28 - see
+# the note in h0_v2_analysis.py. The three deliverables did not.
+OUTPUTS = ROOT / "outputs"
 UPDATE_LIST = ROOT / "H0_v2_UPDATE_LIST.xlsx"
 SETUP = ROOT / "H0_v2_SETUP.xlsx"      # optional input, same as in the pipeline
 LOAD = ROOT / "H0_v2_LOAD.xlsx"        # optional input, same as in the pipeline
