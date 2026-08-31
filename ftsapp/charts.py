@@ -284,7 +284,7 @@ def ci_caption(stats):
 
     The shaded band and the red line are two different estimators and they can
     legitimately disagree - on a minority of actions the pooled ratio falls
-    outside its own interval (10 of 238 on the 28 Aug 2026 extract; the guided
+    outside its own interval (10 of 238 on the 28 Aug 2026 extract; the
     app computes the live figure rather than quoting one). Drawn without saying
     so, the chart looks broken and takes the analysis down with it.
     """

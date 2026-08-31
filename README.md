@@ -36,7 +36,7 @@ python -m pip install -r requirements.txt
 ```
 
 ```bash
-streamlit run guided/Overview.py --server.address localhost
+streamlit run Overview.py --server.address localhost
 ```
 
 **Keep `--server.address localhost`.** Streamlit binds every interface by
@@ -203,14 +203,14 @@ reported: the two estimators can disagree, and nothing depends on it.
 ## Layout
 
 ```
-guided/Overview.py               headline numbers, where the hours sit
-guided/pages/1_Review_queue.py   every standard proposed for change
-guided/pages/2_Inspect.py        one recommendation: how it was decided,
+Overview.py               headline numbers, where the hours sit
+pages/1_Review_queue.py   every standard proposed for change
+pages/2_Inspect.py        one recommendation: how it was decided,
                                  then the evidence
-guided/pages/3_By_part.py        one part, changed and unchanged steps alike
-guided/pages/4_Additional_findings.py  hours charged for work with no evidence
-guided/pages/5_How_to_read_it.py how to read a recommendation
-guided/pages/6_Methodology.py    the method, and what it is computed over
+pages/3_By_part.py        one part, changed and unchanged steps alike
+pages/4_Additional_findings.py  hours charged for work with no evidence
+pages/5_How_to_read_it.py how to read a recommendation
+pages/6_Methodology.py    the method, and what it is computed over
 
 ftsapp/paths.py      where the analysis lives; imports nothing from it
 ftsapp/pipeline.py   imports the analysis scripts; re-exports their thresholds

@@ -12,11 +12,11 @@ import sys
 import pandas as pd
 import streamlit as st
 
-# parent.parent.parent is streamlit_app/, where ftsapp lives. parent.parent is
-# guided/ - which held only because Overview.py runs first in an ordinary visit
-# and inserts the right path. Deep-link to a page in a fresh session and the
-# import failed with ModuleNotFoundError: no module named 'ftsapp'.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
+# parent.parent is streamlit_app/, where ftsapp lives. Every page inserts it
+# itself rather than relying on Overview.py having run first: deep-link to a
+# page in a fresh session and the import failed with ModuleNotFoundError:
+# no module named 'ftsapp'.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from ftsapp import data, freshness, pipeline, ui  # noqa: E402
 

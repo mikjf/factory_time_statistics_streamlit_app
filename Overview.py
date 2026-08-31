@@ -1,6 +1,6 @@
 """FTS master-time review. Start here.
 
-    streamlit run streamlit_app/guided/Overview.py --server.address localhost
+    streamlit run streamlit_app/Overview.py --server.address localhost
 
 Keep the address flag. Streamlit binds every interface by default, and this
 shows part numbers, customer family names, work order numbers and real job
@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 from ftsapp import (charts, data, evidence, freshness, paths,  # noqa: E402
                    pipeline, text, ui)
