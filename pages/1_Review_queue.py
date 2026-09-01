@@ -689,3 +689,209 @@ st.caption("The download adds the flag for manual review, the ratio and its "
            "level, and the workbook's own keying instruction — twelve columns "
            "the table leaves out, and the ones worth having when the file is "
            "the thing being worked from rather than the screen.")
+
+# ---- SQL master updater -----------------------------------------------------
+# ITS OWN SECTION SINCE 2026-09-01. It arrived as a second download button under
+# the first one's caption, where it read as a variant of that file - a checkbox
+# somebody forgot to add. It is not a variant: the file above is for READING and
+# this one is for WRITING, into the ERP, and a heading is the cheapest way to
+# stop the second from being clicked in the belief it is the first.
+#
+# THE DIVIDER AND THE HEADING DO THE SAME WORK the two headings on By part do:
+# they say the thing below is a different kind of thing, not more of the thing
+# above.
+st.divider()
+st.subheader("SQL master updater")
+# ST.CAPTION, NOT ST.MARKDOWN. Every other explanation sitting under a heading
+# in this tool is in the small grey - By part's two sections, the note under
+# the table above. In body text this paragraph read as page content rather than
+# as the heading's explanation, and it was the only one on any screen that did.
+st.caption(
+    "The file above is one row per **decision** — the right shape for reviewing "
+    "and the wrong one for keying, because a single family decision can cover "
+    "dozens of parts and each needs the value entered against its own routing "
+    "row. This one is one row per **routing row**: every part a decision "
+    "covers, with that part's own current and suggested value, the "
+    "`MASTER_OPS_ROWID` it is keyed against, and a ready-made `UPDATE` "
+    "statement for it.\n\n"
+    "The statement is a **spreadsheet formula**, not finished text — it reads "
+    "the Suggested cell beside it, so correcting a value in the sheet corrects "
+    "the statement with it. Nothing here runs anything: it produces the SQL and "
+    "leaves running it to a person who has read it.")
+
+# ADDED 2026-09-01. The file above is one row per DECISION, which is the
+# right shape for reviewing and the wrong one for keying: a family decision is
+# one line covering up to 73 parts, and each of those parts needs the value
+# entered against its own routing row.
+#
+# This explodes each row into the parts it covers - see data.actions_by_part
+# for why the join has to be level-aware. Applies to is left exactly as the
+# screen shows it, so a reader can still see at a glance that these ten rows
+# came from one family decision; PART_ID beside it says which part each is.
+#
+# NOW AND SUGGESTED COME FROM THE PART, not from the decision. On the 20 rows
+# where a family runs several current values the decision has no single figure
+# to give and the table above shows dashes; here each part carries its own,
+# which is the entire reason for wanting this file.
+#
+# NO CHANGE %, dropped 2026-09-01 as confusing, and it was: it can mean the
+# move in the FIELD or the move in the HOURS, and those go opposite ways on a
+# PCS/HR rate. The two figures either side of it - Now and Suggested - are what
+# gets keyed, and Effect says which way the standard moves. There was a second
+# trap in it too: the screen's Change % comes from the unrounded ratio and a
+# per-part one from the rounded values, so they disagreed on 420 rows by up to
+# 0.5pp. Nothing to reconcile now.
+_by_part = data.actions_by_part(d)
+# MASTER_OPS_ROWID LEADS. It is the thing each line is keyed against, and
+# every other column exists to say what to put in it and why - so it reads
+# first, the way an id does. int64 with no nulls on all 2'468 rows, and
+# ROWID_FOUND is true on every one of them.
+#
+# It is not unique down the column and should not be: 28 routing rows carry
+# both a RUN and a SETUP_HRS edit, which are two FIELDS of one ERP line rather
+# than two opinions about one field. Checked - no routing row is written twice
+# for the same field, so (rowid, analysis) identifies a line exactly.
+#
+# RATIO SITS BETWEEN SUGGESTED AND EFFECT, the same place By part puts it: the
+# measured number, then the word that says which way it points. From the
+# decision, not the part row - the two agree to 0.0005, the execution sheet's
+# rounding, and the decision carries the unrounded one.
+# HOW_TO_APPLY LAST, because it is a sentence: six wordings, up to 83
+# characters, and putting it among the numbers would push them off the screen
+# in any spreadsheet. It is the workbook's own instruction, exported as the
+# workbook writes it and not reworded here.
+#
+# ON ONE OF THE SIX IT IS ALREADY DONE. "family holds several RUN_MASTER
+# values - divide each part's own RUN_MASTER by RATIO" is the instruction for
+# the rows the screen shows dashes on - and dividing is exactly what this file
+# has carried out: NOW is that part's own value and SUGGESTED is the result.
+# Read as an instruction it asks for arithmetic already in the row beside it;
+# read as a description of where SUGGESTED came from, it is exact. Kept rather
+# than reworded, because the other file and the workbook both say it this way.
+# TARGET rides along unrendered - it is dropped again once the statement
+# below is built. It is the ERP COLUMN NAME, "RUN" or "SETUP_HRS", which is
+# exactly what that statement has to name.
+_cols = ["MASTER_OPS_ROWID", "FAMILY", "PART_TYPE", "OPERATION", S, "ANALYSIS",
+         "APPLIES_TO", "PART_ID", "CURRENT", "RECOMMENDED", "RATIO", "EFFECT",
+         "HOW_TO_APPLY", "TARGET"]
+_by_part["APPLIES_TO"] = [applies_to(p, lv)
+                          for p, lv in zip(_by_part.PART_ID_DECISION,
+                                           _by_part.LEVEL)]
+_by_part = _by_part[_cols].rename(columns={S: "STEP", "CURRENT": "NOW",
+                                           "RECOMMENDED": "SUGGESTED"})
+# BY THE WORK, NOT BY THE PART. Family and part type first, then the routing
+# step - so every part going through one step sits in a single block, which is
+# how the change actually gets keyed: one step at a time, down the list of
+# parts that share it. Sorting by part first scattered each step across the
+# file.
+#
+# STEP BEFORE OPERATION. The step number is the routing sequence, so ordering
+# on it walks the part through its process in the order the work happens;
+# operation is the name of what is done at that step and only breaks ties.
+# Sorting on the name first put the process in alphabetical order, which is no
+# order at all.
+#
+# ANALYSIS DESCENDING PUTS SETUP FIRST, before the run at the same step, which
+# is the order the shop floor does them in. It works because "Setup" sorts
+# after "Run ..." alphabetically, and descending then also leaves Run PCS/HR
+# ahead of Run HRS/LOAD. That is the alphabet doing what is wanted rather than
+# an order stated outright - if ui.analysis_name is ever reworded, check this
+# still comes out setup-first.
+#
+# APPLIES TO BEFORE PART ID separates the two kinds of row within a step: the
+# parts judged on their own evidence, then the block covered by one family
+# decision. Part numbers sort ahead of "whole family" because they are
+# uppercase.
+_by_part = _by_part.sort_values(
+    ["FAMILY", "PART_TYPE", "STEP", "OPERATION", "ANALYSIS", "APPLIES_TO",
+     "PART_ID"],
+    ascending=[True, True, True, True, False, True, True])
+
+# THE APP'S OWN PRECISION, carried into the file: two decimals on the two
+# values, three on the ratio - the same as every table on every screen. Rounded
+# as NUMBERS rather than formatted as text, so a spreadsheet still treats them
+# as numbers and nothing has to be converted back before it can be summed.
+#
+# WHAT THIS CHANGES, measured rather than assumed.
+#
+# RATIO: nothing. All 2'468 are already at three decimals.
+#
+# SUGGESTED: 154 values, by at most 0.15%, and every one an HRS/LOAD row. That
+# analysis is the only one writing three decimals - setup and run PCS/HR are
+# already at two, setup because fts_setup_view rounds them on the way out. The
+# ERP field takes two, so 5.926 was never keyable as written and whoever keyed
+# it was rounding by hand; this rounds it the same way every screen already
+# does.
+#
+# NOW: 12 values, none by more than 0.02%, and all of them setup. These are NOT
+# float noise, which is what this comment said until it was checked: the stored
+# value is exactly 0.5001 on 114 setup units and 0.9999 on one more, repeated
+# to the digit, so it is data somebody entered rather than a representation
+# artefact. Rounding it to 0.50 matches every screen in this tool and the two
+# decimals that get keyed - but it does mean NOW reads 0.50 where the master
+# holds 0.5001. It is a display of the current value, not a figure anybody
+# keys, so the consistency is worth more than the fourth decimal.
+_by_part = _by_part.round({"NOW": 2, "SUGGESTED": 2, "RATIO": 3})
+
+# ---- the statement, as a live spreadsheet formula ---------------------------
+# NOT THE FINISHED TEXT. This wrote the statement out fully rendered until
+# 2026-09-01; it now writes the formula that BUILDS it, so the cell recomputes
+# when somebody edits the value beside it. Editing Suggested and having the
+# statement still carry the old number is the failure this avoids.
+#
+# BRANCHED ON TARGET, NOT ON ANALYSIS. Analysis is a display string built by
+# ui.analysis_name, and this page has already been bitten twice by comparing
+# against those: reword one and the comparison silently stops matching, here by
+# writing the wrong ERP column into an UPDATE. TARGET is the column name
+# itself - "RUN" on both run analyses, "SETUP_HRS" on setup - so the mapping
+# the statement needs IS the data. It is the one part baked in as text rather
+# than referenced, because it is not a cell.
+#
+# THE COLUMN LETTERS ARE DERIVED, NOT TYPED. A formula saying J and A is right
+# only for one column order, and this file's order has already been rearranged
+# several times; a reorder would leave the formula quietly pointing at the
+# wrong columns - Ratio instead of Suggested - and still looking plausible.
+# Taking the letters from the position of the columns it actually means keeps
+# the formula correct through any future reshuffle.
+#
+# THE ROW NUMBER IS POSITIONAL, counted after the sort and off the row's place
+# in the file rather than off the frame's index, which the sort left unordered.
+# Row 1 is the header, so the first data row is 2.
+_out = [c for c in _cols if c != "TARGET"]
+_out = ["STEP" if c == S else {"CURRENT": "NOW",
+                               "RECOMMENDED": "SUGGESTED"}.get(c, c)
+        for c in _out]
+assert len(_out) <= 26, "past column Z - the letters below need two characters"
+_val, _rid = (chr(ord("A") + _out.index("SUGGESTED")),
+              chr(ord("A") + _out.index("MASTER_OPS_ROWID")))
+# A NaN would leave the formula building "SET RUN = ''", a live statement that
+# blanks a standard. There are none today on any of the 2'468 rows; the cell is
+# left empty rather than trusted, because an empty cell is a visible nothing.
+_by_part["SQL_UPDATE"] = [
+    "" if pd.isna(v) or pd.isna(rid) else
+    f'''="UPDATE OPERATION SET {t} = '"&{_val}{n}&"' WHERE ROWID = "&{_rid}{n}&";"'''
+    for n, (t, v, rid) in enumerate(zip(_by_part.TARGET, _by_part.SUGGESTED,
+                                        _by_part.MASTER_OPS_ROWID), start=2)]
+_by_part = _by_part.drop(columns=["TARGET"])
+st.download_button(
+    "Download master row updater as CSV",
+    _by_part.to_csv(index=False).encode("utf-8"),
+    file_name="fts_review_queue_sql_master_updater.csv", mime="text/csv",
+    icon=":material/download:")
+# THE COUNT IS THE CHECK. This file must have exactly as many rows as the
+# "Operations rows to edit" tile at the top of the page, under every filter -
+# both count the same thing from different ends, so the day they disagree the
+# join is wrong. Printed rather than asserted: a mismatch should be visible,
+# not a crash on a page somebody is using.
+# WHAT IS LEFT FOR THE CAPTION, once the paragraph above says what the file is:
+# the one thing only true of THIS download, which is how many rows it has right
+# now under the filter in force.
+#
+# IT SAID "TRIAL" until 2026-09-01. That was honest while the join was unproven
+# and meaningless afterwards - a word on screen that told a reader to distrust
+# the file without saying what to distrust or when it would stop being true.
+# The check it stood for is in the sentence that follows it, which names a
+# figure on this same page that this count has to equal.
+st.caption(f"**{ui.num(len(_by_part))}** rows, which should match *Operations "
+           f"rows to edit* at the top of the page — it follows the same "
+           f"filters as the table.")

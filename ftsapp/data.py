@@ -429,6 +429,52 @@ def edits():
     return pd.concat([f[cols] for f in frames], ignore_index=True)
 
 
+# The unit a decision was reached on. NOT PART_ID: on a family-level action
+# 01_Actions writes a sentence into that column, and the whole point of the
+# join below is that the sentence has actual part numbers behind it.
+_UNIT = ["FAMILY", "PART_TYPE", "OPERATION", SEQ, "TARGET", "RUN_TYPE", "LEVEL"]
+
+
+def actions_by_part(acts):
+    """The Review queue's rows, one per PART rather than one per decision.
+
+    01_Actions is one row per DECISION - 238 of them - and on the 167 family
+    rows its PART_ID holds a phrase, "every part of this family...", not a part
+    number. That is why the Review queue can show "operations rows to edit" and
+    "absolute misstated hours" but cannot show a distinct-part count: the sheet
+    it reads has no part numbers on two rows in three.
+
+    The execution sheets do. edits() is one row per part per unit - 2,468 of
+    them, which is exactly what the "Operations rows to edit" tile counts - so
+    joining the two turns each family decision into the parts it actually
+    covers, each carrying ITS OWN current and recommended value.
+
+    That last point is the reason this is a join and not a repeat of the
+    action's own figures. Where a family runs several different current values
+    the action has no single Now or Suggested to give - 20 of the 238 rows show
+    blank there, and the Review queue prints a caption explaining why. Every one
+    of those blanks has real per-part numbers underneath it, and they are what
+    somebody keying the change needs.
+
+    THE JOIN IS LEVEL-AWARE, and has to be. 53 part-level actions share a unit
+    key with another and are told apart only by PART_ID - two parts of one
+    family, each judged on its own evidence at the same operation and step.
+    Joining on the unit alone gave each of them every part of the family: 2,612
+    rows where 2,468 are right. So a part-level action keeps only its own part.
+
+    Checked on the full extract: 2,468 rows out, N_PARTS matched on all 238
+    actions, 954 distinct parts - the same three figures the Overview tiles
+    carry. Under a filter the count follows `acts`, so it must always equal the
+    page's own "Operations rows to edit" tile.
+    """
+    e = edits().rename(columns={"TARGET_COLUMN": "TARGET", "ROUTE": "LEVEL"})
+    j = acts.merge(e[_UNIT + ["PART_ID", "MASTER_OPS_ROWID",
+                              "CURRENT", "RECOMMENDED", "CHANGE"]],
+                   on=_UNIT, how="inner", suffixes=("_DECISION", ""))
+    keep = (j.LEVEL != "PART") | (j.PART_ID == j.PART_ID_DECISION)
+    return j[keep].reset_index(drop=True)
+
+
 @st.cache_data(show_spinner=False)
 def _known_parts(key):
     return set(pd.read_parquet(paths.CACHE, columns=["PART_ID"])
