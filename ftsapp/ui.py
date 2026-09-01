@@ -643,6 +643,43 @@ def side_note(container, text):
 WHOLE = "Whole family"
 WHOLE_INLINE = "whole family"
 
+# The other half of that pair, for a screen whose subject is ONE part. By part
+# already names the part in its title, so repeating the number down an Applies
+# to column would spend the widest cell on the page restating the heading. The
+# Review queue prints the number there because its rows are different parts.
+THIS_PART = "this part"
+
+
+def applies_to(level):
+    """"this part" / "whole family", from the workbook's own LEVEL.
+
+    The Review queue has its own applies_to(part_id, level) because it has to
+    compact a sentence the workbook writes into the PART_ID column. This one
+    takes only the level: on a single-part screen there is no sentence to
+    compact and no part number worth repeating.
+    """
+    return THIS_PART if str(level).upper() == "PART" else WHOLE_INLINE
+
+
+def effect_from_ratio(ratio):
+    """"slow down" / "speed up" - what the change does to the time the standard
+    allows, which is NOT the direction the field's own number moves.
+
+    01_Actions carries this as DIRECTION and the Review queue shows it, with
+    " the standard" stripped off. The rollup sheets do not carry it, and most of
+    what By part shows comes from them - so it is derived here instead.
+
+    DERIVING IT IS EXACT, not an approximation: checked against all 238 rows of
+    01_Actions on 2026-09-01, DIRECTION is "slow down the standard" on every row
+    with RATIO > 1 and "speed up the standard" on every row with RATIO < 1,
+    without exception. The ratio is actual hours over master hours, so above 1
+    the work takes longer than the standard allows and the standard has to slow
+    down - whichever way the field's own number then has to move.
+    """
+    if ratio is None or pd.isna(ratio):
+        return ""
+    return "slow down" if float(ratio) > 1 else "speed up"
+
 
 def part_tag(value, with_title=True):
     """ADV / ANDV. The part type only has to disambiguate, not describe.

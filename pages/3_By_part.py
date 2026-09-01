@@ -9,7 +9,6 @@ different answers to give a director.
 import pathlib
 import sys
 
-import pandas as pd
 import streamlit as st
 
 # parent.parent is streamlit_app/, where ftsapp lives. Every page inserts it
@@ -131,10 +130,12 @@ if not part:
 
 mine = edits[edits.PART_ID == part]
 
-found = [h for op in data.operation_list()
-         for h in [data.all_units(op)] if not h.empty
-         for h in [h[h.PART_ID == part]] if len(h)]
-steps = pd.concat(found, ignore_index=True) if found else pd.DataFrame()
+# ALL THREE ANALYSES, since 2026-09-01. This walked 05_AllUnits across every
+# operation, which is Run PCS/HR at part level and nothing else - so a part
+# whose setup or whose HRS/LOAD run had been examined saw no trace of it here
+# unless it produced an edit, and the banner below promised more than the table
+# under it delivered. data.part_steps carries the reconciliation notes.
+steps = data.part_steps(part)
 
 # Three different situations, and each needs its own answer:
 #
@@ -176,8 +177,14 @@ _id = mine if len(mine) else (steps if len(steps) else
                               (_idx if len(_idx) else None))
 st.title(f"{part}")
 if _id is not None and len(_id):
-    ui.subtitle(st, " · ".join([str(_id.FAMILY.iat[0]),
-                                ui.part_tag(_id.PART_TYPE.iat[0])]))
+    # THE DESCRIPTION ALWAYS COMES FROM THE EXTRACT, not from _id. Only one of
+    # the three sources carries it, and this line is the one place in the whole
+    # tool that says what the part physically IS - so it must not appear or
+    # vanish depending on which source happened to answer.
+    bits = [str(_id.FAMILY.iat[0]), ui.part_tag(_id.PART_TYPE.iat[0])]
+    if len(_idx):
+        bits.append(str(_idx.PART_DESCRIPTION.iat[0]))
+    ui.subtitle(st, " · ".join(bits))
 
 if unknown:
     ui.verdict_banner(
@@ -317,10 +324,11 @@ st.divider()
 st.subheader("Every step of this part that was examined")
 
 if steps.empty:
-    st.info(f"No PCS/HR run step of **{part}** is in scope. Either the part did "
-            f"not run this year, or every step of it sits outside the analysis "
-            f"— most often because the routing step is no longer in the current "
-            f"master revision. **Methodology** lists every exclusion.",
+    st.info(f"No step of **{part}** is in scope for any of the three analyses. "
+            f"Either the part did not run this year, or every step of it sits "
+            f"outside them — most often because the routing step is no longer "
+            f"in the current master revision. **Methodology** lists every "
+            f"exclusion.",
             icon=":material/info:")
     st.stop()
 
@@ -328,52 +336,147 @@ if steps.empty:
 # This page said "tested and it holds" / "never enough data to say" for what
 # that one calls "tested and holds" / "not enough evidence" - one distinction,
 # three phrasings, in a tool whose claim is that its words do not vary.
-st.caption("Including the ones left alone. The verdict column distinguishes "
-           "'tested and holds' from 'not enough evidence'.")
-cols = ["OPERATION", S, "PART_DESCRIPTION", "N_WORK_ORDERS", "HOURS_MASTER",
-        "HOURS_WORKED", "HOURS_DELTA", "RATIO_OUTLIERS_REMOVED",
-        "RUN_MASTER_CURRENT", "RUN_MASTER_SUGGESTED", "RECOMMENDATION"]
+#
+# AND WHOSE FIGURES THEY ARE. A family row carries the family's work orders and
+# the family's hours, not this part's share of them - which is the one thing a
+# reader could take from this table and be wrong about, since the page is about
+# a single part. Applies to says it per row; this says it once, before the
+# first row rather than after the last.
+st.caption("Including the ones left alone. **Verdict** distinguishes 'tested "
+           "and holds' from 'not enough evidence'. On a *whole family* row "
+           "every figure is the family's, this part included.")
+
+# THE REVIEW QUEUE'S COLUMN ORDER, and for the same reasons it settled on:
+# which routing row, what kind, how wide and how big, then what to do. Family
+# and Part type are not columns here - they are the subtitle, one line up, and
+# identical on every row of a single part's table.
+#
+# DESCRIPTION IS GONE FROM HERE for the same reason: it moved into the subtitle
+# on 2026-09-01, where it is read once instead of repeated down a medium-width
+# column that was the same string on every row.
+#
+# MASTER H AND ACTUAL H WENT WITH IT. Δ Hours is their difference and the only
+# one of the three anyone acts on; Ratio is the same pair as a proportion. The
+# per-work-order rows they summarise are one click away in Inspect, which is
+# where a reader who wants the two absolutes should be looking anyway.
+cols = ["OPERATION", S, "ANALYSIS", "APPLIES_TO", "N_WO", "HOURS_DELTA",
+        "NOW", "SUGGESTED", "RATIO", "EFFECT", "CHANGE_PCT", "VERDICT"]
+shown_steps = steps.copy()
+shown_steps["ANALYSIS"] = [ui.analysis_name(t, r)
+                           for t, r in zip(steps.TARGET, steps.RUN_TYPE)]
+shown_steps["APPLIES_TO"] = [ui.applies_to(lv) for lv in steps.LEVEL]
+shown_steps["EFFECT"] = [ui.effect_from_ratio(r) for r in steps.RATIO]
 st.dataframe(
     ui.swiss_grid(
-        steps[cols].sort_values(S),
-        {"N_WORK_ORDERS": ",.0f", "HOURS_MASTER": ",.1f",
-         "HOURS_WORKED": ",.1f", "HOURS_DELTA": ",.1f",
-         "RATIO_OUTLIERS_REMOVED": ",.3f", "RUN_MASTER_CURRENT": ",.2f",
-         "RUN_MASTER_SUGGESTED": ",.2f"}),
+        shown_steps[cols],
+        # Both signed figures carry their sign, the same way the Review queue
+        # and Overview's Net column do: a change and a delta printed bare read
+        # as totals.
+        {"N_WO": ",.0f", "HOURS_DELTA": "+,.1f", "NOW": ",.2f",
+         "SUGGESTED": ",.2f", "RATIO": ",.3f", "CHANGE_PCT": "+,.1f"}),
     hide_index=True, width="stretch",
     column_config={
-        S: st.column_config.NumberColumn("Step", format="%d"),
         "OPERATION": st.column_config.TextColumn("Operation"),
-        "PART_DESCRIPTION": st.column_config.TextColumn("Description",
-                                                        width="medium"),
-        "N_WORK_ORDERS": st.column_config.NumberColumn("Work orders"),
-        "HOURS_MASTER": st.column_config.NumberColumn("Master h"),
-        "HOURS_WORKED": st.column_config.NumberColumn("Actual h"),
+        S: st.column_config.NumberColumn("Step", format="%d"),
+        # Same header, same three strings and the same helper as the Review
+        # queue - see ui.analysis_name for why naming the analysis also names
+        # the field it edits.
+        # NOT width="small": that clipped "Run PCS/HR" to "Run PCS/HI" and
+        # "whole family" to "whole famil", turning both columns into things the
+        # reader has to guess at.
+        "ANALYSIS": st.column_config.TextColumn(
+            "Analysis",
+            help="Which of the three this row came from, which also says which "
+                 "field it is about: both run analyses judge RUN, setup judges "
+                 "SETUP_HRS. Setup is only ever judged per family."),
+        "APPLIES_TO": st.column_config.TextColumn(
+            "Applies to",
+            help="Whether this part had enough work orders to be judged on its "
+                 "own, or whether its family supplied the evidence. On a whole "
+                 "family row every figure beside it is the family's."),
+        "N_WO": st.column_config.NumberColumn(
+            "Work orders", help="How many the figures on this row are based "
+                                "on. For setup, the real setups left after the "
+                                "skipped ones and the crew mismatches come out."),
         # "Δ Hours", the same header the Review queue uses for the same
         # column. It read "Δ h" here and "Hours" there.
-        "HOURS_DELTA": st.column_config.NumberColumn("Δ Hours"),
-        "RATIO_OUTLIERS_REMOVED": st.column_config.NumberColumn("Ratio"),
-        "RUN_MASTER_CURRENT": st.column_config.NumberColumn("Now"),
-        "RUN_MASTER_SUGGESTED": st.column_config.NumberColumn("Suggested"),
-        "RECOMMENDATION": st.column_config.TextColumn("Verdict", width="medium"),
+        "HOURS_DELTA": st.column_config.NumberColumn(
+            "Δ Hours",
+            help=f"From the start of {pipeline.FY_LABEL} to the last booking in "
+                 f"the extract — a running total, not a rate. Positive means "
+                 f"the jobs take longer than the master allows."),
+        "NOW": st.column_config.NumberColumn(
+            "Now", help="The value the master carries today."),
+        # BLANK IS A STATEMENT HERE, not a gap. Two of the three analyses write
+        # a suggested value only where they propose one, and the family rollups
+        # write one even where their own verdict says nothing could be judged -
+        # which data.part_steps strips back out. So: a number appears only
+        # where the analysis stands behind it, and Ratio carries the size of
+        # the gap on every other row.
+        "SUGGESTED": st.column_config.NumberColumn(
+            "Suggested",
+            help="Only where the analysis proposes one. Blank does not mean "
+                 "zero and does not mean the standard is right — Verdict says "
+                 "which, and Ratio says how far off it was measured."),
+        "RATIO": st.column_config.NumberColumn(
+            "Ratio", help="Actual hours divided by master hours, across the "
+                          "work orders that counted. It is on every row, "
+                          "including the ones with nothing to key."),
+        "EFFECT": st.column_config.TextColumn(
+            "Effect",
+            help="What the measurement says about the time the standard should "
+                 "allow, which is not the direction the field's own number "
+                 "moves — slowing down a PCS/HR standard means a lower rate. "
+                 "It describes the measurement, not an instruction: Verdict "
+                 "says whether anything is being proposed."),
+        "CHANGE_PCT": st.column_config.NumberColumn(
+            "Change %",
+            help="How much the field's own number changes, which is not how "
+                 "the hours change. Blank wherever Suggested is."),
+        "VERDICT": st.column_config.TextColumn("Verdict", width="medium"),
     })
+# ONE LABEL PER ROW, not per step. The table now carries up to three analyses
+# and two levels at the same operation and step, and Inspect opens a different
+# unit for each - so a label naming only the operation and the step would have
+# offered several rows under one entry and silently opened the first of them.
+_labels = [f"{r.OPERATION} · step {int(r[S])} · {ui.analysis_name(r.TARGET, r.RUN_TYPE)}"
+           f" · {ui.applies_to(r.LEVEL)}" for _, r in steps.iterrows()]
 jump = st.selectbox(
-    "Open one of these in Inspect", ["—"] + [
-        f"{r.OPERATION} · seq {int(r[S])}" for _, r in steps.iterrows()],
-    help="Carries the selection across, so Inspect opens on this part rather "
-         "than making you pick the operation, family and step again.")
+    "Open one of these in Inspect", ["—"] + _labels,
+    help="Carries the selection across, so Inspect opens on this row rather "
+         "than making you pick the analysis, operation, family and step "
+         "again.")
 if jump != "—":
-    r = steps.iloc[[f"{x.OPERATION} · seq {int(x[S])}"
-                    for _, x in steps.iterrows()].index(jump)]
+    r = steps.iloc[_labels.index(jump)]
+    # PART_ID IS None ON A FAMILY ROW. Inspect's "Judged at" picker indexes on
+    # pre["PART_ID"] and falls back to its first option - the whole family -
+    # when it finds nothing there, so None is what selects the family unit.
     st.session_state["unit"] = {
-        "TARGET": "RUN", "RUN_TYPE": "PCS/HR", "OPERATION": r.OPERATION,
+        "TARGET": r.TARGET, "RUN_TYPE": r.RUN_TYPE, "OPERATION": r.OPERATION,
         "FAMILY": r.FAMILY, "PART_TYPE": r.PART_TYPE, "SEQ": int(r[S]),
-        "LEVEL": "PART", "PART_ID": part,
+        "LEVEL": r.LEVEL, "PART_ID": part if r.LEVEL == "PART" else None,
     }
     st.page_link("pages/2_Inspect.py",
-                 label=f"Open {r.OPERATION} · seq {int(r[S])} in Inspect",
+                 label=f"Open {jump} in Inspect",
                  icon=":material/query_stats:")
+# THE SAME NAMING AS INSPECT, which builds operation_family_ADV_seq_route_part
+# and reads "where, which product, how it was judged, at what grain - most
+# specific last". This one carried the part number alone, so a folder of these
+# sorted by part number and told the reader nothing about what any of them was
+# until it was opened.
+#
+# Only the fields that MEAN anything here. A By part download covers every
+# operation and every step of one part, so Inspect's operation, sequence and
+# route have no single value to print - what is left is family, part type and
+# the part, in that order, most specific last.
+#
+# ui.part_tag for the type, with_title=False: ADV / ANDV, the same two words
+# the subtitle above and the Overview rankings use, rather than the 23
+# characters of "ARTICOLO NON DI VENDITA" carrying one bit.
+_name = "_".join(str(x) for x in [
+    _idx.FAMILY.iat[0], ui.part_tag(_idx.PART_TYPE.iat[0], with_title=False),
+    part])
 st.download_button("Download this part's steps as CSV",
-                   steps[cols].to_csv(index=False).encode("utf-8"),
-                   file_name=f"fts_by_part_{pipeline.slug(part)}.csv",
+                   shown_steps[cols].to_csv(index=False).encode("utf-8"),
+                   file_name=f"fts_by_part_{pipeline.slug(_name)}.csv",
                    mime="text/csv", icon=":material/download:")

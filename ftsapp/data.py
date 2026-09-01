@@ -388,9 +388,32 @@ def edits():
         EVIDENCE_N=run.N_WO_EVIDENCE, BASIS=run.RECOMMENDED_BASIS))
     if has_setup():
         s = update_list("03_SetupUpdateList")
+        # N_SETUPS IS NOT THE EVIDENCE COUNT, and this column was showing it as
+        # one until 2026-09-01. 03_SetupUpdateList writes one row per PART
+        # inside an acted-on family, and its N_SETUPS counts THAT PART's own
+        # setups - 1 or 2 on most rows. The verdict was reached on the family,
+        # whose real setups run from 7 to 69: one unit judged on 18 of them was
+        # showing 2 in this column.
+        #
+        # The Review queue has always shown the family's count, because
+        # 01_Actions carries its N_WO - so the same standard was reported with
+        # two different evidence counts depending on which page you opened, and
+        # the smaller one was under a header reading "Work orders". All 423
+        # setup rows now match 01_Actions exactly.
+        #
+        # WO_REAL, matching part_steps: performed setups with the crew
+        # mismatches taken out, which is the count MIN_SETUPS is tested against.
+        roll = setup_book("01_FamilyRollup")
+        roll = roll[["OPERATION", "FAMILY", "PART_TYPE", SEQ,
+                     "WO_REAL"]].drop_duplicates(
+            subset=["OPERATION", "FAMILY", "PART_TYPE", SEQ])
+        n = len(s)
+        s = s.merge(roll, on=["OPERATION", "FAMILY", "PART_TYPE", SEQ],
+                    how="left")
+        assert len(s) == n, "setup rollup join changed the row count"
         frames.append(s.assign(
             CURRENT=s.SETUP_HRS_CURRENT, RECOMMENDED=s.SETUP_HRS_RECOMMENDED,
-            CHANGE=s.CHANGE_PCT, RUN_TYPE="-", EVIDENCE_N=s.N_SETUPS,
+            CHANGE=s.CHANGE_PCT, RUN_TYPE="-", EVIDENCE_N=s.WO_REAL,
             BASIS="family - setup is never judged per part"))
     if has_load():
         ld = update_list("04_LoadUpdateList")
@@ -425,7 +448,7 @@ def known_parts():
 
 
 def part_index():
-    """Every part in the extract, with the family and type it belongs to.
+    """Every part in the extract, with the family, type and description.
 
     known_parts() answers "does this exist" and is a bare set. This answers
     "what is it", which the rail needs the moment the change-only filter is
@@ -436,20 +459,220 @@ def part_index():
     It also gives the identity line under the title a family to name for a part
     that was examined and left alone, or never judged at all - the cases where
     it previously had to fall back to the bare part number.
+
+    PART_DESCRIPTION rides along because that line is the ONLY place a reader
+    is told what the part physically is. It is on the extract, so it is here
+    for all 1,438 parts rather than only for the ones with a run unit.
     """
     return _part_index(paths.cache_key(paths.CACHE))
 
 
 @st.cache_data(show_spinner=False)
 def _part_index(key):
-    df = pd.read_parquet(paths.CACHE,
-                         columns=["PART_ID", "FAMILY", "PART_TYPE"])
+    df = pd.read_parquet(
+        paths.CACHE,
+        columns=["PART_ID", "FAMILY", "PART_TYPE", "PART_DESCRIPTION"])
     for c in df.columns:
         df[c] = df[c].str.strip()
-    # One row per part. A part carries one family and one type across every
-    # ticket, so first() is the value, not a choice among several.
+    # One row per part. A part carries one family, one type and one description
+    # across every ticket, so first() is the value, not a choice among several.
+    # Checked on this extract: 1,438 parts, none with a second description and
+    # none with it blank.
     return (df.dropna(subset=["PART_ID"]).groupby("PART_ID", as_index=False)
               .first())
+
+
+# ---- one part, across all three analyses ------------------------------------
+# TARGET, RUN_TYPE and LEVEL travel raw, exactly as the workbooks write them.
+# The page turns them into words with ui.analysis_name and ui.applies_to, which
+# is where every other screen gets the same three phrases from - a reader that
+# spelled them itself would be the copy that drifts.
+STEP_COLS = ["OPERATION", SEQ, "TARGET", "RUN_TYPE", "LEVEL", "N_WO",
+             "HOURS_DELTA", "NOW", "SUGGESTED", "RATIO", "CHANGE_PCT",
+             "VERDICT", "FAMILY", "PART_TYPE"]
+
+_ORDER = {("RUN", "PCS/HR"): 0, ("RUN", "HRS/LOAD"): 1, ("SETUP_HRS", "-"): 2}
+
+
+def _shaped(df, const, **cols):
+    """One source sheet renamed onto STEP_COLS.
+
+    `cols` maps an output name to a COLUMN of df; `const` maps an output name
+    to a value used for the whole frame. The two are separate arguments and not
+    told apart by looking, which is how the first version of this got LEVEL
+    wrong: it treated any string that happened to name a column of df as a
+    reference to it, and every family rollup has a column called FAMILY - so
+    LEVEL="FAMILY" silently became the family's name on every family row.
+    """
+    out = pd.DataFrame(index=df.index)
+    for name, src in cols.items():
+        out[name] = df[src]
+    for name, value in const.items():
+        out[name] = value
+    for c in STEP_COLS:
+        if c not in out.columns:
+            out[c] = np.nan
+    return out[STEP_COLS]
+
+
+def part_steps(part):
+    """Every step of one part that any of the three analyses examined.
+
+    UNTIL 2026-09-01 THIS PAGE SHOWED ONE ANALYSIS. It read 05_AllUnits from the
+    per-operation workbooks, which is Run PCS/HR at part level and nothing else -
+    LT_TYPE is "Run" and RUN_TYPE_MASTER is "PCS/HR" on every row of it. So a
+    part whose setup or whose HRS/LOAD run had been examined saw no trace of
+    either unless it produced an edit, and the banner above the table said "no
+    standard change proposed for this part" when what it could honestly claim
+    was "no PCS/HR run change".
+
+    Five sources now, because the three analyses judge at different grains:
+
+        Run PCS/HR   part    05_AllUnits_WithEvidence, per operation
+                     family  01_FamilyRollup, per operation, the FAMEX_ pool
+        Run HRS/LOAD part    01_PartUnits
+                     family  02_FamilyRollup, again the FAMEX_ pool
+        Setup        family  01_FamilyRollup - and family ONLY. A setup unit
+                             averages under four worked hours across a year, so
+                             no single part ever clears a materiality gate
+                             alone. There is no part-level setup row to show.
+
+    FAMEX, not FAM, on both family rollups: it is the pool with the individually
+    flagged parts taken out, which is the pool the family verdict was actually
+    reached on. fts_family_view.pooled(..., "FAMEX") is where that is decided.
+
+    WHICH STEPS BELONG TO THIS PART is settled by the extract, not by the
+    sheets. A family rollup row covers every step the family runs, and this part
+    may not run all of them; intersecting against the part's own
+    (operation, sequence) pairs keeps the table about this part. The
+    intersection can only remove rows, never add one - so nothing out of scope
+    can arrive through it.
+
+    THE FIGURES ON A FAMILY ROW ARE THE FAMILY'S, not this part's share of it -
+    its work orders, its hours delta, its current value. LEVEL is what says so,
+    and the page renders it as the Applies to column beside them.
+
+    Reconciled against FTS_UPDATE_LIST on 2026-09-01: for a part with edits on
+    all three routes, the rows this returns with an UPDATE verdict are exactly
+    that part's rows on 02/03/04 - same operations, same steps, same ratios.
+    """
+    idx = _step_index(paths.cache_key(paths.CACHE))
+    me = idx[idx.PART_ID == part]
+    if me.empty:
+        return pd.DataFrame(columns=STEP_COLS)
+    fam, ptype = me.FAMILY.iat[0], me.PART_TYPE.iat[0]
+    steps = set(zip(me.OPERATION, me[SEQ]))
+
+    def here(df):
+        """The rows of a family-grain sheet that are this family's, at a step
+        this part actually runs."""
+        if df.empty:
+            return df
+        keep = np.array([(o, q) in steps
+                         for o, q in zip(df.OPERATION, df[SEQ])])
+        return df[(df.FAMILY == fam) & (df.PART_TYPE == ptype) & keep]
+
+    common = dict(FAMILY=fam, PART_TYPE=ptype)
+    frames = []
+    for op in sorted({o for o, _ in steps} & set(operation_list())):
+        u = parts_book(op, "05_AllUnits_WithEvidence")
+        u = u[u.PART_ID == part] if len(u) else u
+        if len(u):
+            frames.append(_shaped(
+                u, dict(common, TARGET="RUN", RUN_TYPE="PCS/HR", LEVEL="PART"),
+                OPERATION="OPERATION", **{SEQ: SEQ},
+                N_WO="N_WORK_ORDERS", HOURS_DELTA="HOURS_DELTA",
+                NOW="RUN_MASTER_CURRENT", SUGGESTED="RUN_MASTER_SUGGESTED",
+                RATIO="RATIO_OUTLIERS_REMOVED", VERDICT="RECOMMENDATION"))
+        if pipeline.family_workbook(op).exists():
+            r = here(family_book(op, "01_FamilyRollup"))
+            if len(r):
+                frames.append(_shaped(
+                    r, dict(common, TARGET="RUN", RUN_TYPE="PCS/HR",
+                            LEVEL="FAMILY"),
+                    OPERATION="OPERATION", **{SEQ: SEQ},
+                    N_WO="FAMEX_WO", HOURS_DELTA="FAMEX_HOURS_DELTA",
+                    NOW="FAMEX_RM_CURRENT", SUGGESTED="FAMEX_RM_SUGGESTED",
+                    RATIO="FAMEX_RATIO", VERDICT="FAMEX_VERDICT"))
+
+    if has_setup():
+        s = here(setup_book("01_FamilyRollup"))
+        if len(s):
+            frames.append(_shaped(
+                s, dict(common, TARGET="SETUP_HRS", RUN_TYPE="-",
+                        LEVEL="FAMILY"),
+                OPERATION="OPERATION", **{SEQ: SEQ},
+                # WO_REAL, not WO_ALL: the setups the family was actually
+                # judged on, with the skipped ones and the crew mismatches
+                # already out. It is the count MIN_SETUPS is tested against.
+                N_WO="WO_REAL", HOURS_DELTA="HOURS_DELTA",
+                NOW="SETUP_HRS_CURRENT", SUGGESTED="SETUP_HRS_SUGGESTED",
+                RATIO="RATIO_OUTLIERS_REMOVED", VERDICT="VERDICT"))
+
+    if has_load():
+        p1 = load_book("01_PartUnits")
+        p1 = p1[p1.PART_ID == part]
+        if len(p1):
+            frames.append(_shaped(
+                p1, dict(common, TARGET="RUN", RUN_TYPE="HRS/LOAD",
+                         LEVEL="PART"),
+                OPERATION="OPERATION", **{SEQ: SEQ},
+                N_WO="WO", HOURS_DELTA="HOURS_DELTA",
+                NOW="RUN_CURRENT", SUGGESTED="RUN_SUGGESTED",
+                RATIO="RATIO_OUTLIERS_REMOVED", VERDICT="VERDICT"))
+        f2 = here(load_book("02_FamilyRollup"))
+        if len(f2):
+            frames.append(_shaped(
+                f2, dict(common, TARGET="RUN", RUN_TYPE="HRS/LOAD",
+                         LEVEL="FAMILY"),
+                OPERATION="OPERATION", **{SEQ: SEQ},
+                N_WO="FAMEX_WO", HOURS_DELTA="FAMEX_HOURS_DELTA",
+                NOW="FAMEX_RUN_CURRENT", SUGGESTED="FAMEX_RUN_SUGGESTED",
+                RATIO="FAMEX_RATIO_OUTLIERS_REMOVED", VERDICT="FAMEX_VERDICT"))
+
+    if not frames:
+        return pd.DataFrame(columns=STEP_COLS)
+    out = pd.concat(frames, ignore_index=True)
+
+    # THE FAMILY ROLLUPS COMPUTE A SUGGESTED VALUE THEY DO NOT STAND BEHIND.
+    # 01_FamilyRollup fills FAMEX_RM_SUGGESTED on every row, its own verdict
+    # included - so a family judged on four work orders and reported as
+    # "insufficient data (n<6)" still carries a number, and one that can be
+    # wild: 70 -> 39.85 on a pool of four. Every other sheet withholds the
+    # suggested value there, and this table would otherwise have shown a figure
+    # to key beside a verdict saying nothing could be judged.
+    #
+    # Nothing is invented in the other direction. Setup and HRS/LOAD blank
+    # their suggested value on tested-and-held rows too, and it is NOT filled
+    # in here from current x ratio: that would put a number on screen the
+    # pipeline chose not to write, which is how a viewer starts disagreeing
+    # with the workbook it exists to display. Ratio carries the size of the
+    # gap on those rows.
+    out.loc[out.VERDICT.astype(str).str.startswith("insufficient"),
+            "SUGGESTED"] = np.nan
+    for c in ("N_WO", "HOURS_DELTA", "NOW", "SUGGESTED", "RATIO"):
+        out[c] = pd.to_numeric(out[c], errors="coerce")
+    out["CHANGE_PCT"] = (out.SUGGESTED / out.NOW - 1) * 100
+
+    # By step, and within a step this part before its family: most specific
+    # first, the same order the title and its subtitle are in.
+    out["_lv"] = (out.LEVEL != "PART").astype(int)
+    out["_an"] = [_ORDER.get((t, r), 3)
+                  for t, r in zip(out.TARGET, out.RUN_TYPE)]
+    return (out.sort_values([SEQ, "_lv", "_an"])
+               .drop(columns=["_lv", "_an"]).reset_index(drop=True))
+
+
+@st.cache_data(show_spinner=False)
+def _step_index(key):
+    """Which (operation, sequence) pairs each part actually ran, from the
+    extract. Five columns of a 75k-row parquet, deduplicated once and cached."""
+    df = pd.read_parquet(paths.CACHE, columns=[
+        "PART_ID", "FAMILY", "PART_TYPE", "OPERATION", "OPERATION_SEQUENCE"])
+    for c in ("PART_ID", "FAMILY", "PART_TYPE", "OPERATION"):
+        df[c] = df[c].str.strip()
+    return (df.rename(columns=_SEQ_ALIASES)
+              .dropna(subset=["PART_ID"]).drop_duplicates())
 
 
 @st.cache_data(show_spinner=False)
