@@ -424,7 +424,35 @@ def known_parts():
     return _known_parts(paths.cache_key(paths.CACHE))
 
 
+def part_index():
+    """Every part in the extract, with the family and type it belongs to.
+
+    known_parts() answers "does this exist" and is a bare set. This answers
+    "what is it", which the rail needs the moment the change-only filter is
+    switched off: 1,438 parts are in the extract and 954 carry an edit, so
+    without a family for the other 484 the Family filter would silently drop
+    them rather than narrow them.
+
+    It also gives the identity line under the title a family to name for a part
+    that was examined and left alone, or never judged at all - the cases where
+    it previously had to fall back to the bare part number.
+    """
+    return _part_index(paths.cache_key(paths.CACHE))
+
+
 @st.cache_data(show_spinner=False)
+def _part_index(key):
+    df = pd.read_parquet(paths.CACHE,
+                         columns=["PART_ID", "FAMILY", "PART_TYPE"])
+    for c in df.columns:
+        df[c] = df[c].str.strip()
+    # One row per part. A part carries one family and one type across every
+    # ticket, so first() is the value, not a choice among several.
+    return (df.dropna(subset=["PART_ID"]).groupby("PART_ID", as_index=False)
+              .first())
+
+
+@st.cache_data(show_spinner=False)
 def _master_hours(key):
     """Master hours each family carried over the fiscal year.
 

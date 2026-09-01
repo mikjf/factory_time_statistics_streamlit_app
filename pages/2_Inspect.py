@@ -704,12 +704,13 @@ st.divider()
 # in full. Keeping them here as well would have put the six rules on this one
 # page three times over: the sidebar rail, the compact set, and these.
 #
-# The link that replaced them is now at the foot of the page rather than here.
-# Two reasons, and the second is the one that matters: it reads better as the
-# way out of a finished page than as an interruption before the row-level data;
-# and st.page_link raises inside Streamlit's AppTest harness, which aborts the
-# script, so anything below it is invisible to the test suite. Sitting here it
-# hid the work-order table and its download from every automated run.
+# A link to Methodology stood at the foot of this page for a while and was
+# removed on 2026-08-31: the sidebar reaches Methodology in one click from
+# anywhere, so a second route out of a finished page was a button nobody
+# needed. Its going has a side benefit - st.page_link raises inside
+# Streamlit's AppTest harness and aborts the script, so this page's work-order
+# table and download are now visible to the test suite instead of sitting
+# below the one element that blinded it.
 
 # ---- the rows ---------------------------------------------------------------
 st.subheader("The work orders behind this")
@@ -780,9 +781,20 @@ dl.insert(0, "FAMILY", family)
 # ui.part_tag for the part type: "ARTICOLO_NON_DI_VENDITA" is 23 characters
 # carrying one bit, and ADV/ANDV is what the subtitle and the Overview rankings
 # already say. One mapping, so the filename uses the word the page uses.
+#
+# THE ANALYSIS IS IN THE NAME, and it has to be. The same unit can be inspected
+# under Run PCS/HR, Run HRS/LOAD and Setup, and without this all three
+# downloaded as ONE filename - the browser silently appending "(1)", "(2)",
+# leaving three files whose only distinguishing feature was the order they were
+# saved in. A rate and a duration in indistinguishable files is exactly the
+# confusion this tool spends its time preventing.
+#
+# It sits just before the level, so the name reads: where, which product, how
+# it was judged, at what grain - and the most specific part stays last.
+_route = _mk if _mk == evidence.K_SETUP else f"RUN_{_mk}"
 tag = "_".join(str(x) for x in [operation, family,
                                 ui.part_tag(part_type, with_title=False), seq,
-                                part_id or "family"])
+                                _route, part_id or "family"])
 st.download_button("Download these work orders as CSV",
                    dl.to_csv(index=False).encode("utf-8"),
                    file_name=f"fts_inspect_{pipeline.slug(tag)}.csv",
@@ -792,10 +804,3 @@ st.caption("The download adds family, part type, routing step, operation and "
            "way to tell rows apart once two of these files sit in the same "
            "spreadsheet.")
 
-# Last on the page, deliberately - see the note where the six explained rule
-# cards used to be. It is the way out of a finished page, and it is the one
-# element that blinds the test harness to everything after it.
-st.divider()
-st.page_link("pages/6_Methodology.py",
-             label="What each of the six rules is for, and where it is applied",
-             icon=":material/rule:")

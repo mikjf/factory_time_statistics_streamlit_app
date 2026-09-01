@@ -211,6 +211,18 @@ CSS = """
    as a .st-key- class. Applied globally it would also catch the review queue's
    filtered count - "18 of 238" and the like - where the delta is a DENOMINATOR
    and belongs under the count it qualifies rather than beside it. */
+/* A CAPTION AND THE BUTTON IT NAMES, read as one thing. Streamlit's block gap
+   separates every element by the same amount, which is right between sections
+   and far too much between a sentence ending "clear it to go back" and the
+   Clear button that sentence is pointing at. Opt-in by key so no other pair
+   moves. */
+/* BOTH SELECTORS ON PURPOSE. st.container(key=...) puts the st-key- class on a
+   wrapper in some Streamlit versions and on the vertical block itself in
+   others, and the flex `gap` only exists on the block. Setting it on the
+   wrapper alone did nothing at all - the first attempt at this rule. */
+[class*="st-key-fts-tight"],
+[class*="st-key-fts-tight"] [data-testid="stVerticalBlock"] { gap:.35rem; }
+
 [class*="st-key-fts-inline-delta"] [data-testid="stMetric"] > div {
     display: flex; flex-wrap: wrap; align-items: flex-end; column-gap: .5rem;
 }
