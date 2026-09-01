@@ -29,7 +29,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from ftsapp import (charts, data, evidence, freshness, paths,  # noqa: E402
                    pipeline, text, ui)
 
-st.set_page_config(page_title="FTS master-time review",
+st.set_page_config(page_title="FTS · Overview",
                    page_icon=":material/timer:", layout="wide")
 ui.inject()
 

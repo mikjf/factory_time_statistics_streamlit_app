@@ -643,22 +643,24 @@ def side_note(container, text):
 WHOLE = "Whole family"
 WHOLE_INLINE = "whole family"
 
-# The other half of that pair, for a screen whose subject is ONE part. By part
-# already names the part in its title, so repeating the number down an Applies
-# to column would spend the widest cell on the page restating the heading. The
-# Review queue prints the number there because its rows are different parts.
-THIS_PART = "this part"
+def applies_to(part_id, level):
+    """A part number, or "whole family", from the workbook's own LEVEL.
 
+    THE PART NUMBER, NOT "this part", which is what By part showed until
+    2026-09-01. The argument for the phrase was that the page already names the
+    part in its title, so the number down a column restates the heading. The
+    argument against it won: the Review queue prints the number in the column
+    under this heading, and a reader who learns what that column looks like
+    there should not meet a different vocabulary for the same fact one page
+    over. Consistency across the tool beats saving a repetition on one screen.
 
-def applies_to(level):
-    """"this part" / "whole family", from the workbook's own LEVEL.
-
-    The Review queue has its own applies_to(part_id, level) because it has to
-    compact a sentence the workbook writes into the PART_ID column. This one
-    takes only the level: on a single-part screen there is no sentence to
-    compact and no part number worth repeating.
+    The Review queue keeps its own applies_to(part_id, level) because 01_Actions
+    writes a SENTENCE into PART_ID on family rows - "every part of this family
+    that performs the setup" - which has to be compacted before it can sit in a
+    cell. Nothing reaches this one but a clean part number and a level, so it
+    has no sentence to compact. Both produce the same two shapes.
     """
-    return THIS_PART if str(level).upper() == "PART" else WHOLE_INLINE
+    return str(part_id) if str(level).upper() == "PART" else WHOLE_INLINE
 
 
 def effect_from_ratio(ratio):

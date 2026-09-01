@@ -26,7 +26,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from ftsapp import data, freshness, pipeline, text, ui  # noqa: E402
 
-st.set_page_config(page_title="Review queue · FTS",
+st.set_page_config(page_title="FTS · Review queue",
                    page_icon=":material/checklist:", layout="wide")
 ui.inject()
 st.title("Review queue")

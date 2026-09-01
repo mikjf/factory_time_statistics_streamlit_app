@@ -19,7 +19,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from ftsapp import data, freshness, pipeline, ui  # noqa: E402
 
-st.set_page_config(page_title="By part · FTS", page_icon=":material/qr_code:",
+st.set_page_config(page_title="FTS · By part", page_icon=":material/qr_code:",
                    layout="wide")
 ui.inject()
 freshness.guard()
@@ -364,7 +364,7 @@ cols = ["OPERATION", S, "ANALYSIS", "APPLIES_TO", "N_WO", "HOURS_DELTA",
 shown_steps = steps.copy()
 shown_steps["ANALYSIS"] = [ui.analysis_name(t, r)
                            for t, r in zip(steps.TARGET, steps.RUN_TYPE)]
-shown_steps["APPLIES_TO"] = [ui.applies_to(lv) for lv in steps.LEVEL]
+shown_steps["APPLIES_TO"] = [ui.applies_to(part, lv) for lv in steps.LEVEL]
 shown_steps["EFFECT"] = [ui.effect_from_ratio(r) for r in steps.RATIO]
 st.dataframe(
     ui.swiss_grid(
@@ -389,11 +389,15 @@ st.dataframe(
             help="Which of the three this row came from, which also says which "
                  "field it is about: both run analyses judge RUN, setup judges "
                  "SETUP_HRS. Setup is only ever judged per family."),
+        # THE PART NUMBER, the same as the Review queue's column of this
+        # name - see ui.applies_to. It repeats the page title on those rows,
+        # which is the price of the two screens saying a thing one way.
         "APPLIES_TO": st.column_config.TextColumn(
             "Applies to",
-            help="Whether this part had enough work orders to be judged on its "
-                 "own, or whether its family supplied the evidence. On a whole "
-                 "family row every figure beside it is the family's."),
+            help="The part number where this part had enough work orders to be "
+                 "judged on its own; the whole family where its family supplied "
+                 "the evidence. On a whole family row every figure beside it is "
+                 "the family's."),
         "N_WO": st.column_config.NumberColumn(
             "Work orders", help="How many the figures on this row are based "
                                 "on. For setup, the real setups left after the "
@@ -440,7 +444,7 @@ st.dataframe(
 # unit for each - so a label naming only the operation and the step would have
 # offered several rows under one entry and silently opened the first of them.
 _labels = [f"{r.OPERATION} · step {int(r[S])} · {ui.analysis_name(r.TARGET, r.RUN_TYPE)}"
-           f" · {ui.applies_to(r.LEVEL)}" for _, r in steps.iterrows()]
+           f" · {ui.applies_to(part, r.LEVEL)}" for _, r in steps.iterrows()]
 jump = st.selectbox(
     "Open one of these in Inspect", ["—"] + _labels,
     help="Carries the selection across, so Inspect opens on this row rather "

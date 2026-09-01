@@ -18,7 +18,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from ftsapp import data, freshness, pipeline, text, ui  # noqa: E402
 
-st.set_page_config(page_title="Additional findings · FTS",
+st.set_page_config(page_title="FTS · Additional findings",
                    page_icon=":material/flag:", layout="wide")
 ui.inject()
 st.title("Additional findings")

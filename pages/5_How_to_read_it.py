@@ -14,7 +14,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from ftsapp import (charts, data, evidence, freshness,  # noqa: E402
                    pipeline, text, ui)
 
-st.set_page_config(page_title="How to read it · FTS",
+st.set_page_config(page_title="FTS · How to read it",
                    page_icon=":material/school:", layout="wide")
 ui.inject()
 st.title("How to read it")

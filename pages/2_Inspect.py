@@ -29,7 +29,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from ftsapp import (charts, data, evidence, freshness,  # noqa: E402
                    pipeline, text, ui)
 
-st.set_page_config(page_title="Inspect · FTS", page_icon=":material/query_stats:",
+st.set_page_config(page_title="FTS · Inspect", page_icon=":material/query_stats:",
                    layout="wide")
 ui.inject()
 freshness.guard()
