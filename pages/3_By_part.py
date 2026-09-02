@@ -25,6 +25,174 @@ ui.inject()
 freshness.guard()
 
 S = data.SEQ
+
+
+# ONE SPEC, TWO TABLES. Both tables on this page carry the same twelve columns:
+# the lower one every step that was examined, the upper one the subset that
+# changes. They were two separate definitions until 2026-09-02 and had drifted
+# into different headers, a different order and a different word for the same
+# thing - which is what this page needed a pass for. A second copy is how that
+# happens, so there is one.
+#
+# WHAT THE CALLER HANDS OVER is a frame already carrying the STEP_COLS names.
+# For the lower table that is data.part_steps as it comes. For the upper one it
+# is data.edits renamed onto them, because THE VALUES THERE MUST BE THE UPDATE
+# LIST'S, not this frame's:
+#
+# On one family-route unit checked while this was written, the update list
+# read 70.0 -> 40.6 where part_steps read 69.9 -> 40.5. Only the first pair is
+# keyable. (No part number here on purpose - stage_streamlit_for_github.py
+# sweeps this file for identifiers and will refuse to stage one.)
+#
+# A family row of part_steps carries the pool's average current value; the
+# update list carries THIS part's own stored value with the family factor
+# applied. 26 of 169 family units have members running more than one current
+# value, so the two genuinely disagree - and only one of them is keyable.
+# ELEVEN SHARED, AND A TWELFTH THAT DIFFERS. The two tables agree on
+# everything up to Change %. The last column is the one thing they legitimately
+# disagree about:
+#
+#   lower table  VERDICT           its rows are mostly NOT changes, and the
+#                                  verdict is what separates "tested and the
+#                                  standard holds" from "never enough evidence
+#                                  to say" - the distinction the page exists for
+#   top table    MASTER_OPS_ROWID  its rows are ALL changes, so a verdict there
+#                                  reads "update" on every row, in five
+#                                  different phrasings that name the pipeline's
+#                                  sheets rather than the reader's field:
+#                                  UPDATE RUN_MASTER and UPDATE RUN are the SAME
+#                                  edit to the SAME column, OPERATION.RUN, from
+#                                  two different analyses. Checked on all 2'468
+#                                  rows: the verdict is fully determined by
+#                                  Analysis and Applies to, both already on the
+#                                  row and both written in the app's own words.
+#                                  The routing row is what the line is keyed
+#                                  against, and is not derivable from anything.
+STEP_TABLE_COLS = ["OPERATION", S, "ANALYSIS", "APPLIES_TO", "N_WO",
+                   "HOURS_DELTA", "NOW", "SUGGESTED", "RATIO", "EFFECT",
+                   "CHANGE_PCT"]
+
+# Both signed figures carry their sign, the same way the Review queue and
+# Overview's Net column do: a change and a delta printed bare read as totals.
+STEP_TABLE_FMT = {"N_WO": ",.0f", "HOURS_DELTA": "+,.1f", "NOW": ",.2f",
+                  "SUGGESTED": ",.2f", "RATIO": ",.3f", "CHANGE_PCT": "+,.1f"}
+
+STEP_TABLE_CONFIG = {
+    "OPERATION": st.column_config.TextColumn("Operation"),
+    S: st.column_config.NumberColumn("Step", format="%d"),
+    # Same header, same three strings and the same helper as the Review
+    # queue - see ui.analysis_name for why naming the analysis also names
+    # the field it edits.
+    # NOT width="small": that clipped "Run PCS/HR" to "Run PCS/HI" and
+    # "whole family" to "whole famil", turning both columns into things the
+    # reader has to guess at.
+    "ANALYSIS": st.column_config.TextColumn(
+        "Analysis",
+        help="Which of the three this row came from, which also says which "
+             "field it is about: both run analyses judge RUN, setup judges "
+             "SETUP_HRS. Setup is only ever judged per family."),
+    # THE PART NUMBER, the same as the Review queue's column of this
+    # name - see ui.applies_to. It repeats the page title on those rows,
+    # which is the price of the two screens saying a thing one way.
+    "APPLIES_TO": st.column_config.TextColumn(
+        "Applies to",
+        help="The part number where this part had enough work orders to be "
+             "judged on its own; the whole family where its family supplied "
+             "the evidence. On a whole family row every figure beside it is "
+             "the family's."),
+    "N_WO": st.column_config.NumberColumn(
+        "Work orders", help="How many the figures on this row are based "
+                            "on. For setup, the real setups left after the "
+                            "skipped ones and the crew mismatches come out."),
+    # "Δ Hours", the same header the Review queue uses for the same
+    # column. It read "Δ h" here and "Hours" there.
+    "HOURS_DELTA": st.column_config.NumberColumn(
+        "Δ Hours",
+        help=f"From the start of {pipeline.FY_LABEL} to the last booking in "
+             f"the extract — a running total, not a rate. Positive means "
+             f"the jobs take longer than the master allows."),
+    "NOW": st.column_config.NumberColumn(
+        "Now", help="The value the master carries today."),
+    # BLANK IS A STATEMENT HERE, not a gap. Two of the three analyses write
+    # a suggested value only where they propose one, and the family rollups
+    # write one even where their own verdict says nothing could be judged -
+    # which data.part_steps strips back out. So: a number appears only
+    # where the analysis stands behind it, and Ratio carries the size of
+    # the gap on every other row.
+    "SUGGESTED": st.column_config.NumberColumn(
+        "Suggested",
+        help="Only where the analysis proposes one. Blank does not mean "
+             "zero and does not mean the standard is right — Verdict says "
+             "which, and Ratio says how far off it was measured."),
+    "RATIO": st.column_config.NumberColumn(
+        "Ratio", help="Actual hours divided by master hours, across the "
+                      "work orders that counted. It is on every row, "
+                      "including the ones with nothing to key."),
+    "EFFECT": st.column_config.TextColumn(
+        "Effect",
+        help="What the measurement says about the time the standard should "
+             "allow, which is not the direction the field's own number "
+             "moves — slowing down a PCS/HR standard means a lower rate. "
+             "It describes the measurement, not an instruction: Verdict "
+             "says whether anything is being proposed."),
+    "CHANGE_PCT": st.column_config.NumberColumn(
+        "Change %",
+        help="How much the field's own number changes, which is not how "
+             "the hours change. Blank wherever Suggested is."),
+    "VERDICT": st.column_config.TextColumn("Verdict", width="medium"),
+    # Left ungrouped on purpose - a routing row id is an identifier, not a
+    # quantity, and 1'234'567 invites reading it as one.
+    #
+    # THE FIELD'S OWN NAME, not a description of it. The banner above this
+    # table says "MASTER_OPS_ROWID", the download's column is MASTER_OPS_ROWID
+    # and the Review queue's master row updater leads with it under that name -
+    # so a header reading "Routing row" was the one place the same thing went
+    # by a different word, on the page that names it most.
+    # WHOSE ROUTING ROW IT IS, spelled out. A row reading "Applies to: whole
+    # family" with a single id beside it invites reading the id as the
+    # family's. It is not: this page is about ONE part, edits() is one row per
+    # part per unit, and the id here is that part's own. The family decision
+    # behind it covers a routing row for every part it touches - 184 of the 193
+    # family units in the update list span more than one, up to 73 - and the
+    # place that lists them all is the Review queue's master row updater.
+    #
+    # A FAMILY ROW MIXES SCOPES ON PURPOSE, which is the root of the confusion:
+    # Work orders, Delta Hours and Ratio are the FAMILY's, because that is the
+    # pool the verdict was reached on; Now, Suggested and this id are THIS
+    # PART's, because that is what somebody would key.
+    "MASTER_OPS_ROWID": st.column_config.NumberColumn(
+        "Master Ops RowID", format="%d",
+        help="This part's own OPERATION row - what the change is keyed "
+             "against, so future work orders inherit it. On a whole family "
+             "row the decision still covers every part in the family, and "
+             "each of those has a different routing row of its own: the "
+             "Review queue's master row updater lists them all."),
+}
+
+
+def steps_table(df, part, last):
+    """Render the table. `last` is the twelfth column - see STEP_TABLE_COLS.
+
+    Returns the frame that was shown, so a caller can hand it straight to a
+    download rather than rebuilding the same selection.
+    """
+    cols = STEP_TABLE_COLS + [last]
+    shown = df.copy()
+    shown["ANALYSIS"] = [ui.analysis_name(t, r)
+                         for t, r in zip(df.TARGET, df.RUN_TYPE)]
+    shown["APPLIES_TO"] = [ui.applies_to(part, lv) for lv in df.LEVEL]
+    shown["EFFECT"] = [ui.effect_from_ratio(r) for r in df.RATIO]
+    # The one place a raw verdict string reaches a reader - everywhere else the
+    # app reduces it through evidence.outcome first. Mapped on the display
+    # frame, so the CSV below carries the same words as the screen.
+    if "VERDICT" in shown.columns:
+        shown["VERDICT"] = [ui.verdict_name(v, rt)
+                            for v, rt in zip(shown.VERDICT, df.RUN_TYPE)]
+    st.dataframe(ui.swiss_grid(shown[cols], STEP_TABLE_FMT),
+                 hide_index=True, width="stretch",
+                 column_config=STEP_TABLE_CONFIG)
+    return shown[cols]
+
 edits = data.edits()
 parts = sorted(edits.PART_ID.dropna().unique().tolist())
 
@@ -175,6 +343,24 @@ _idx = data.part_index()
 _idx = _idx[_idx.PART_ID == part]
 _id = mine if len(mine) else (steps if len(steps) else
                               (_idx if len(_idx) else None))
+
+# THE NAME BOTH DOWNLOADS USE. Only the fields that MEAN anything here: a By
+# part download covers every operation and every step of ONE part, so the
+# operation, sequence and route that name an Inspect download have no single
+# value to print. What is left is family, part type and the part, most
+# specific last.
+#
+# ui.part_tag with with_title=False: ADV / ANDV, the two words the subtitle
+# above and the Overview rankings use, rather than the 23 characters of
+# "ARTICOLO NON DI VENDITA" carrying one bit.
+#
+# OFF _id, NOT _idx. _idx is the extract's part index and is only the LAST of
+# the three sources _id falls back through, so a part that reached this page
+# through its edits or its steps could have an empty _idx - and the name is
+# built here, above both downloads, rather than beside one of them.
+_name = ("_".join(str(x) for x in [
+    _id.FAMILY.iat[0], ui.part_tag(_id.PART_TYPE.iat[0], with_title=False),
+    part]) if _id is not None and len(_id) else str(part))
 st.title(f"{part}")
 if _id is not None and len(_id):
     # THE DESCRIPTION ALWAYS COMES FROM THE EXTRACT, not from _id. Only one of
@@ -246,8 +432,10 @@ else:
     # page you came in by.
     #
     # 104 of 954 parts carry at least one flagged edit, and 4 have every one of
-    # theirs flagged. The Flagged? column already shows it per row - but the
-    # banner is what gets read first, and it was saying go.
+    # theirs flagged. This banner is now the ONLY place the flag reaches a
+    # reader on this page - the Flagged? column came out when the two tables
+    # were matched - so the count below is not a summary of a column, it is the
+    # whole signal. Per-row, the Review queue's master row updater carries it.
     _flagged = int(mine.REVIEW_FLAG.notna().sum())
     ui.verdict_banner(
         st,
@@ -258,8 +446,12 @@ else:
          f"ratio is outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI}, so the "
          f"change is large enough to want a second pair of eyes. "
          if _flagged else "")
-        + "MASTER_OPS_ROWID is the routing row to update so future work orders "
-          "inherit it.")
+        # NO MARKDOWN HERE: ui.verdict_banner escapes this string before it
+        # reaches the page, so asterisks would print as asterisks.
+        + "Master Ops RowID is this part's own routing row to update, so "
+          "future work orders inherit it. Where a change applies to the whole "
+          "family, every other part in it has a routing row of its own \u2014 "
+          "the Review queue's master row updater lists all of them.")
     # A HEADING AND ITS CAPTION, like every other table in this tool. This one
     # had neither: the page went from the green verdict straight into column
     # headers, which is what made it read as jammed against the banner rather
@@ -280,45 +472,55 @@ else:
     # takes one narrow column and matches the Review queue, which shows the same
     # state under the same header; the sentence moves into the tooltip, where it
     # is read once rather than repeated down the column.
-    _mine = mine.copy()
-    _mine["REVIEW_FLAG"] = _mine.REVIEW_FLAG.notna()
-    st.dataframe(
-        ui.swiss_grid(
-            _mine[["OPERATION", S, "TARGET_COLUMN", "RUN_TYPE", "ROUTE",
-                   "CURRENT", "RECOMMENDED", "CHANGE", "BASIS", "RATIO",
-                   "EVIDENCE_N", "MASTER_OPS_ROWID", "REVIEW_FLAG"]],
-            {"CURRENT": ",.2f", "RECOMMENDED": ",.2f", "CHANGE": ",.1f",
-             "RATIO": ",.3f", "EVIDENCE_N": ",.0f"}),
-        hide_index=True, width="stretch",
-        column_config={
-            "OPERATION": st.column_config.TextColumn("Operation"),
-            S: st.column_config.NumberColumn("Step", format="%d"),
-            "TARGET_COLUMN": st.column_config.TextColumn("Field"),
-            "RUN_TYPE": st.column_config.TextColumn("Run type"),
-            "ROUTE": st.column_config.TextColumn(
-                "Judged at", help="PART = this part had enough evidence alone. "
-                                  "FAMILY = its family supplied the evidence."),
-            "CURRENT": st.column_config.NumberColumn("Now"),
-            "RECOMMENDED": st.column_config.NumberColumn("Suggested"),
-            "CHANGE": st.column_config.NumberColumn("Change %"),
-            "BASIS": st.column_config.TextColumn("Basis"),
-            "RATIO": st.column_config.NumberColumn("Ratio"),
-            "EVIDENCE_N": st.column_config.NumberColumn("Work orders"),
-            # Left ungrouped on purpose - a routing row id is an identifier,
-            # not a quantity, and 1'234'567 invites reading it as one.
-            "MASTER_OPS_ROWID": st.column_config.NumberColumn("Routing row",
-                                                              format="%d"),
-            # Same header and same sentence as the Review queue's column.
-            "REVIEW_FLAG": st.column_config.CheckboxColumn(
-                "Flagged?",
-                help=f"Ratio outside {pipeline.REVIEW_LO}–"
-                     f"{pipeline.REVIEW_HI}. It passed all six rules, but the "
-                     f"change is large enough that a person should check it "
-                     f"before it is keyed in."),
-        })
+    # THE SAME TWELVE COLUMNS AS THE TABLE BELOW, filtered to the rows
+    # that change - asked for on 2026-09-02, and why steps_table exists.
+    #
+    # BUILT FROM data.edits, NOT by filtering part_steps, though the columns
+    # are the lower table's. edits() is the update list: one row per part per
+    # unit, carrying the value that gets keyed against that part's routing row.
+    # Filtering part_steps would have been fewer lines and would have printed
+    # the family's pooled figures on every family row - the worked example is
+    # on steps_table above.
+    #
+    # HOURS_DELTA AND VERDICT are the two the update list does not carry, so
+    # they are joined from part_steps on the unit AND the level. The level is
+    # not optional in that key: a part can hold both a PART row and a FAMILY
+    # row for one operation and step, and they are different pools. Checked
+    # over the whole extract on 2026-09-02 - all 2'468 edit rows across 954
+    # parts matched exactly one steps row, none unmatched, none duplicated.
+    #
+    # Delta Hours on a family row is the FAMILY's, exactly as in the table
+    # below. The caption under this heading says so.
+    #
+    # ROUTING ROW AND FLAGGED? CAME OUT with everything else that was not in
+    # the lower table. They were the only two columns this table had that the
+    # other did not, and MASTER_OPS_ROWID is now on neither - see the banner
+    # above, which still names it.
+    _mine = mine.rename(columns={"TARGET_COLUMN": "TARGET", "ROUTE": "LEVEL",
+                                 "EVIDENCE_N": "N_WO", "CURRENT": "NOW",
+                                 "RECOMMENDED": "SUGGESTED",
+                                 "CHANGE": "CHANGE_PCT"})
+    _key = ["OPERATION", S, "TARGET", "RUN_TYPE", "LEVEL"]
+    _n = len(_mine)
+    # HOURS_DELTA only now. VERDICT was joined here too until the column was
+    # swapped for the routing row; nothing on this table reads it any more.
+    _mine = _mine.merge(steps[_key + ["HOURS_DELTA"]], on=_key, how="left")
+    assert len(_mine) == _n, "the steps join changed the row count"
+    # THIS TABLE IS FOR READING, NOT FOR KEYING - decided 2026-09-02. It briefly
+    # had a download of its own, added when matching the lower table's columns
+    # had taken MASTER_OPS_ROWID off the screen and the id needed to live
+    # somewhere. Putting the id back in the table settled that, and a second
+    # download a scroll above the page's own download was two buttons answering
+    # one question.
+    #
+    # REVIEW_FLAG WENT WITH IT and is now nowhere on this page as a column. The
+    # count still reaches the reader through the verdict banner above, which
+    # says how many are flagged and why. The list somebody actually keys from
+    # is the Review queue's master row updater, which carries the flag per row.
+    steps_table(_mine, part, "MASTER_OPS_ROWID")
     if (~mine.ROWID_FOUND.fillna(False)).any():
-        st.warning("Some rows have no routing row id and cannot be applied "
-                   "from this list.", icon=":material/warning:")
+        st.warning("Some rows have a blank routing row and cannot be keyed "
+                   "until one is found for them.", icon=":material/warning:")
 
 st.divider()
 st.subheader("Every step of this part that was examined")
@@ -359,86 +561,7 @@ st.caption("Including the ones left alone. **Verdict** distinguishes 'tested "
 # one of the three anyone acts on; Ratio is the same pair as a proportion. The
 # per-work-order rows they summarise are one click away in Inspect, which is
 # where a reader who wants the two absolutes should be looking anyway.
-cols = ["OPERATION", S, "ANALYSIS", "APPLIES_TO", "N_WO", "HOURS_DELTA",
-        "NOW", "SUGGESTED", "RATIO", "EFFECT", "CHANGE_PCT", "VERDICT"]
-shown_steps = steps.copy()
-shown_steps["ANALYSIS"] = [ui.analysis_name(t, r)
-                           for t, r in zip(steps.TARGET, steps.RUN_TYPE)]
-shown_steps["APPLIES_TO"] = [ui.applies_to(part, lv) for lv in steps.LEVEL]
-shown_steps["EFFECT"] = [ui.effect_from_ratio(r) for r in steps.RATIO]
-st.dataframe(
-    ui.swiss_grid(
-        shown_steps[cols],
-        # Both signed figures carry their sign, the same way the Review queue
-        # and Overview's Net column do: a change and a delta printed bare read
-        # as totals.
-        {"N_WO": ",.0f", "HOURS_DELTA": "+,.1f", "NOW": ",.2f",
-         "SUGGESTED": ",.2f", "RATIO": ",.3f", "CHANGE_PCT": "+,.1f"}),
-    hide_index=True, width="stretch",
-    column_config={
-        "OPERATION": st.column_config.TextColumn("Operation"),
-        S: st.column_config.NumberColumn("Step", format="%d"),
-        # Same header, same three strings and the same helper as the Review
-        # queue - see ui.analysis_name for why naming the analysis also names
-        # the field it edits.
-        # NOT width="small": that clipped "Run PCS/HR" to "Run PCS/HI" and
-        # "whole family" to "whole famil", turning both columns into things the
-        # reader has to guess at.
-        "ANALYSIS": st.column_config.TextColumn(
-            "Analysis",
-            help="Which of the three this row came from, which also says which "
-                 "field it is about: both run analyses judge RUN, setup judges "
-                 "SETUP_HRS. Setup is only ever judged per family."),
-        # THE PART NUMBER, the same as the Review queue's column of this
-        # name - see ui.applies_to. It repeats the page title on those rows,
-        # which is the price of the two screens saying a thing one way.
-        "APPLIES_TO": st.column_config.TextColumn(
-            "Applies to",
-            help="The part number where this part had enough work orders to be "
-                 "judged on its own; the whole family where its family supplied "
-                 "the evidence. On a whole family row every figure beside it is "
-                 "the family's."),
-        "N_WO": st.column_config.NumberColumn(
-            "Work orders", help="How many the figures on this row are based "
-                                "on. For setup, the real setups left after the "
-                                "skipped ones and the crew mismatches come out."),
-        # "Δ Hours", the same header the Review queue uses for the same
-        # column. It read "Δ h" here and "Hours" there.
-        "HOURS_DELTA": st.column_config.NumberColumn(
-            "Δ Hours",
-            help=f"From the start of {pipeline.FY_LABEL} to the last booking in "
-                 f"the extract — a running total, not a rate. Positive means "
-                 f"the jobs take longer than the master allows."),
-        "NOW": st.column_config.NumberColumn(
-            "Now", help="The value the master carries today."),
-        # BLANK IS A STATEMENT HERE, not a gap. Two of the three analyses write
-        # a suggested value only where they propose one, and the family rollups
-        # write one even where their own verdict says nothing could be judged -
-        # which data.part_steps strips back out. So: a number appears only
-        # where the analysis stands behind it, and Ratio carries the size of
-        # the gap on every other row.
-        "SUGGESTED": st.column_config.NumberColumn(
-            "Suggested",
-            help="Only where the analysis proposes one. Blank does not mean "
-                 "zero and does not mean the standard is right — Verdict says "
-                 "which, and Ratio says how far off it was measured."),
-        "RATIO": st.column_config.NumberColumn(
-            "Ratio", help="Actual hours divided by master hours, across the "
-                          "work orders that counted. It is on every row, "
-                          "including the ones with nothing to key."),
-        "EFFECT": st.column_config.TextColumn(
-            "Effect",
-            help="What the measurement says about the time the standard should "
-                 "allow, which is not the direction the field's own number "
-                 "moves — slowing down a PCS/HR standard means a lower rate. "
-                 "It describes the measurement, not an instruction: Verdict "
-                 "says whether anything is being proposed."),
-        "CHANGE_PCT": st.column_config.NumberColumn(
-            "Change %",
-            help="How much the field's own number changes, which is not how "
-                 "the hours change. Blank wherever Suggested is."),
-        "VERDICT": st.column_config.TextColumn("Verdict", width="medium"),
-    })
+shown_steps = steps_table(steps, part, "VERDICT")
 # ONE LABEL PER ROW, not per step. The table now carries up to three analyses
 # and two levels at the same operation and step, and Inspect opens a different
 # unit for each - so a label naming only the operation and the step would have
@@ -469,18 +592,8 @@ if jump != "—":
 # sorted by part number and told the reader nothing about what any of them was
 # until it was opened.
 #
-# Only the fields that MEAN anything here. A By part download covers every
-# operation and every step of one part, so Inspect's operation, sequence and
-# route have no single value to print - what is left is family, part type and
-# the part, in that order, most specific last.
-#
-# ui.part_tag for the type, with_title=False: ADV / ANDV, the same two words
-# the subtitle above and the Overview rankings use, rather than the 23
-# characters of "ARTICOLO NON DI VENDITA" carrying one bit.
-_name = "_".join(str(x) for x in [
-    _idx.FAMILY.iat[0], ui.part_tag(_idx.PART_TYPE.iat[0], with_title=False),
-    part])
+# _name is built once, up beside _id - see there for what goes into it.
 st.download_button("Download this part's steps as CSV",
-                   shown_steps[cols].to_csv(index=False).encode("utf-8"),
+                   shown_steps.to_csv(index=False).encode("utf-8"),
                    file_name=f"fts_by_part_{pipeline.slug(_name)}.csv",
                    mime="text/csv", icon=":material/download:")

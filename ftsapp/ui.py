@@ -663,6 +663,80 @@ def applies_to(part_id, level):
     return str(part_id) if str(level).upper() == "PART" else WHOLE_INLINE
 
 
+# WHAT THE VERDICT SHOULD HAVE SAID ALL ALONG: which scope, and which ERP
+# field. The pipeline writes five different UPDATE phrasings, and they name its
+# own sheets rather than anything the reader can act on:
+#
+#   UPDATE RUN_MASTER       run PCS/HR,   one part      -> OPERATION.RUN
+#   UPDATE RUN              run HRS/LOAD, one part      -> OPERATION.RUN
+#   UPDATE FAMILY STANDARD  run PCS/HR,   whole family  -> OPERATION.RUN
+#   UPDATE FAMILY RUN       run HRS/LOAD, whole family  -> OPERATION.RUN
+#   UPDATE SETUP_HRS        setup,        whole family  -> OPERATION.SETUP_HRS
+#
+# Four of the five are the same edit to the same column. RUN_MASTER is not an
+# ERP field at all - it is this analysis's name for the master's RUN value - so
+# "UPDATE RUN_MASTER" beside "UPDATE RUN" invites reading two different fields
+# where there is one. Checked over all 2'468 edit rows on 2026-09-02: the
+# verdict is fully determined by the analysis and the level, in both
+# directions, so nothing is lost by collapsing five strings into three.
+#
+# WHICH ANALYSIS PRODUCED THE ROW IS NOT THROWN AWAY. It moves to where it was
+# already being read - the Analysis column, which says "Run PCS/HR" or "Run
+# HRS/LOAD" in the app's own three words rather than in the sheet's.
+#
+# DISPLAY ONLY, deliberately. These strings are control flow at twenty call
+# sites across five pipeline scripts - fts_analysis, fts_family_view,
+# fts_setup_view, fts_load_view and fts_update_list all filter frames on them
+# by equality. Renaming them at source is a real change needing a full re-run
+# and rewriting every workbook; renaming them here is a caption. The workbooks
+# therefore keep the five, which matters to anyone filtering the .xlsx by hand.
+#
+# evidence.outcome() is unaffected either way: it tests startswith("UPDATE"),
+# and it reads the raw verdict, not this.
+_VERDICTS = {
+    "UPDATE RUN_MASTER": "UPDATE PART RUN",
+    "UPDATE RUN": "UPDATE PART RUN",
+    "UPDATE FAMILY STANDARD": "UPDATE FAMILY RUN",
+    "UPDATE FAMILY RUN": "UPDATE FAMILY RUN",
+    "UPDATE SETUP_HRS": "UPDATE FAMILY SETUP_HRS",
+}
+
+
+def verdict_name(verdict, run_type=None):
+    """The workbook's verdict, said as scope + field + analysis.
+
+    ONLY THE UPDATE VERDICTS ARE MAPPED. The rest - "insufficient data (n<6)",
+    "family OK - not different", "watch - master changed recently" - already
+    say what they mean, and they are most of the rows on a table that lists
+    every step examined rather than only the ones that change.
+
+    THE ANALYSIS IS NAMED IN THE STRING because scope and field alone do not
+    separate the two run analyses, and those two behave OPPOSITELY on the same
+    ERP column: PCS/HR RUN is a rate and the correction divides, HRS/LOAD RUN
+    is a duration and it multiplies. Without the qualifier a verdict read on
+    its own - sorted in a downloaded file, pasted into a mail - covers both.
+    The Analysis column beside it says the same thing, and that redundancy is
+    the point: each row has to survive being read one row at a time.
+
+    IT COMES FROM THE ROW, not from the mapping. Each workbook string does in
+    fact belong to exactly one analysis today, so this could have been folded
+    into _VERDICTS - but then the label would keep asserting an analysis the
+    row no longer had if that ever stopped being true. RUN_TYPE is the same
+    column ui.analysis_name reads, so the two cannot disagree.
+    """
+    if verdict is None or pd.isna(verdict):
+        return verdict
+    base = _VERDICTS.get(str(verdict).strip())
+    if base is None:
+        return verdict
+    # Setup carries RUN_TYPE "-" and its verdict already names SETUP_HRS, which
+    # only one analysis ever writes - so there is nothing to disambiguate.
+    if base.endswith("RUN") and run_type is not None and not pd.isna(run_type) \
+            and str(run_type) not in ("", "-"):
+        return f"{base} ({run_type})"
+    return base
+
+
 def effect_from_ratio(ratio):
     """"slow down" / "speed up" - what the change does to the time the standard
     allows, which is NOT the direction the field's own number moves.

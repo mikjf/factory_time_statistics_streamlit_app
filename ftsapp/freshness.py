@@ -143,7 +143,21 @@ def problems():
             f"({paths.stamp(paths.EXTRACT)} against "
             f"{paths.stamp(paths.CACHE)}). A new extract has landed and the "
             "analysis has not been re-run against it, so everything below "
-            "would describe the previous one. Re-run the pipeline."))
+            "would describe the previous one.\n\n"
+            # NAMING THE COMMAND, since 2026-09-02. This said "Re-run the
+            # pipeline" and stopped, while the missing-update-list message two
+            # branches up has always named `python fts_update_list.py`. The
+            # reader of this screen is the one least likely to know: it fires
+            # when an extract has been put in place by hand, which is not the
+            # route the analysis repo documents.
+            #
+            # BOTH COMMANDS, because which one is right depends on how the file
+            # got here and this side cannot tell. new_extract.py looks for
+            # fts_new.xlsx; once somebody has renamed it to fts.xlsx that route
+            # is closed and run_all.py is the one that works.
+            "In the analysis folder, `python new_extract.py` if the export is "
+            "still sitting there as `fts_new.xlsx`, or `python run_all.py` if "
+            "it has already been renamed into place."))
 
     if _older(paths.UPDATE_LIST, paths.CACHE):
         out.append((

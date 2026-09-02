@@ -45,6 +45,33 @@ authentication in this tool, and what is on screen is the confidential data
 above. Serving it to other people is a decision to take deliberately, not one to
 inherit from a default.
 
+### Refreshing what it reads
+
+This tool never refreshes anything itself — see
+[It writes nothing](#it-writes-nothing). Every file above is produced by the
+analysis repository, and a new ERP export goes in **there**, not here:
+
+| | |
+|---|---|
+| put the export in the analysis folder as **`fts_new.xlsx`** | and the query beside it as **`fts_new.sql`** if the query changed |
+| `python new_extract.py --dry-run` | validates the incoming workbook and changes nothing |
+| `python new_extract.py` | archives the outgoing generation, promotes the new one, runs the whole pipeline |
+
+The `_new` names matter. `new_extract.py` looks for them, and the point of the
+two-name dance is that the incoming file is validated and the outgoing
+generation archived **before** anything is overwritten — so a bad export is
+caught while it is still just a file with a funny name.
+
+If somebody has already renamed the export to `fts.xlsx` by hand, that route is
+closed: `new_extract.py` will not find a `_new` file, and `python run_all.py` is
+what re-runs the pipeline over whatever is in place. It refuses until the
+outgoing generation has been banked with `python archive_current.py`, which is a
+guard rather than an obstacle — one generation was lost that way.
+
+The full procedure, including what happens when the columns change, is in the
+analysis repository's README under **Running it**. It is deliberately not
+repeated here: two copies of a refresh procedure is how they stop agreeing.
+
 ## The idea
 
 The analysis applies **six rules** in order, and a standard only changes if it
