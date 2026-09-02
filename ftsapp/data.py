@@ -398,8 +398,8 @@ def edits():
         # The Review queue has always shown the family's count, because
         # 01_Actions carries its N_WO - so the same standard was reported with
         # two different evidence counts depending on which page you opened, and
-        # the smaller one was under a header reading "Work orders". All 423
-        # setup rows now match 01_Actions exactly.
+        # the smaller one was under a header reading "Work orders". Every
+        # setup row now matches 01_Actions exactly.
         #
         # WO_REAL, matching part_steps: performed setups with the crew
         # mismatches taken out, which is the count MIN_SETUPS is tested against.
@@ -438,34 +438,41 @@ _UNIT = ["FAMILY", "PART_TYPE", "OPERATION", SEQ, "TARGET", "RUN_TYPE", "LEVEL"]
 def actions_by_part(acts):
     """The Review queue's rows, one per PART rather than one per decision.
 
-    01_Actions is one row per DECISION - 238 of them - and on the 167 family
-    rows its PART_ID holds a phrase, "every part of this family...", not a part
-    number. That is why the Review queue can show "operations rows to edit" and
-    "absolute misstated hours" but cannot show a distinct-part count: the sheet
-    it reads has no part numbers on two rows in three.
+    01_Actions is one row per DECISION, and on the family rows its PART_ID
+    holds a phrase, "every part of this family...", not a part number. That is
+    why the Review queue can show "operations rows to edit" and "absolute
+    misstated hours" but cannot show a distinct-part count: the sheet it reads
+    has no part numbers on two rows in three.
 
-    The execution sheets do. edits() is one row per part per unit - 2,468 of
-    them, which is exactly what the "Operations rows to edit" tile counts - so
-    joining the two turns each family decision into the parts it actually
-    covers, each carrying ITS OWN current and recommended value.
+    The execution sheets do. edits() is one row per part per unit, which is
+    exactly what the "Operations rows to edit" tile counts - so joining the two
+    turns each family decision into the parts it actually covers, each carrying
+    ITS OWN current and recommended value.
 
     That last point is the reason this is a join and not a repeat of the
     action's own figures. Where a family runs several different current values
-    the action has no single Now or Suggested to give - 20 of the 238 rows show
-    blank there, and the Review queue prints a caption explaining why. Every one
-    of those blanks has real per-part numbers underneath it, and they are what
+    the action has no single Now or Suggested to give - some rows show blank
+    there, and the Review queue prints a caption explaining why. Every one of
+    those blanks has real per-part numbers underneath it, and they are what
     somebody keying the change needs.
 
-    THE JOIN IS LEVEL-AWARE, and has to be. 53 part-level actions share a unit
-    key with another and are told apart only by PART_ID - two parts of one
+    THE JOIN IS LEVEL-AWARE, and has to be. Some part-level actions share a
+    unit key with another and are told apart only by PART_ID - two parts of one
     family, each judged on its own evidence at the same operation and step.
-    Joining on the unit alone gave each of them every part of the family: 2,612
-    rows where 2,468 are right. So a part-level action keeps only its own part.
+    Joining on the unit alone gave each of them every part of the family, far
+    more rows than are right. So a part-level action keeps only its own part.
 
-    Checked on the full extract: 2,468 rows out, N_PARTS matched on all 238
-    actions, 954 distinct parts - the same three figures the Overview tiles
-    carry. Under a filter the count follows `acts`, so it must always equal the
-    page's own "Operations rows to edit" tile.
+    Checked on the full extract: N_PARTS matches on every action, and the rows
+    out and the distinct parts equal the Overview tiles. Under a filter the
+    count follows `acts`, so it must always equal the page's own "Operations
+    rows to edit" tile.
+
+    NO COUNTS ARE QUOTED IN THIS DOCSTRING, on purpose. It used to carry six -
+    2,468 rows, 954 parts, 20 blanks, 53 shared keys, 167 family rows, 2,612
+    from the bad join - and the 2026-09-02 extract moved every one of them
+    while every assertion around them stayed true. Nothing recomputes a
+    comment, so the invariants are written down and the arithmetic is left to
+    the tiles, which read it from the data.
     """
     e = edits().rename(columns={"TARGET_COLUMN": "TARGET", "ROUTE": "LEVEL"})
     j = acts.merge(e[_UNIT + ["PART_ID", "MASTER_OPS_ROWID",
@@ -721,7 +728,7 @@ def _step_index(key):
               .dropna(subset=["PART_ID"]).drop_duplicates())
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def _master_hours(key):
     """Master hours each family carried over the fiscal year.
 

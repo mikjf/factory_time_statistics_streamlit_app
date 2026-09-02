@@ -81,9 +81,11 @@ c[1].metric("Distinct parts affected", ui.num(edits.PART_ID.nunique()),
                  "edit.")
 c[2].metric("Operations rows to edit", ui.num(len(edits)),
             # SHARED WITH THE REVIEW QUEUE, which carries this tile too and had
-            # drifted to a second wording of the same fact. The two reach 2'422
-            # by different routes - this counts rows in the execution sheets,
-            # that sums N_PARTS over 01_Actions - and agree.
+            # drifted to a second wording of the same fact. The two reach the
+            # same figure by different routes - this counts rows in the
+            # execution sheets, that sums N_PARTS over 01_Actions - and agree.
+            # The figure itself is deliberately not quoted here: it moves with
+            # every extract, and nothing recomputes a comment.
             help=text.ROWS_TO_EDIT_HELP)
 c[3].metric("Absolute misstated hours",
             ui.hrs(total.HOURS_DELTA_ABSOLUTE),
