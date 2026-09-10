@@ -22,8 +22,9 @@ fts.parquet             the extract, cached
 fts.xlsx                the extract as exported
 FTS_UPDATE_LIST.xlsx    the consolidated decisions
 FTS_SETUP.xlsx          optional
-FTS_LOAD.xlsx           optional
-FTS_<OPERATION>_PARTS.xlsx / _FAMILY.xlsx   one pair per operation
+FTS_RUN_HRS_LOAD.xlsx   optional
+outputs_run_pcs_hr/     one FTS_<OPERATION>_PARTS.xlsx / _FAMILY.xlsx
+                        pair per operation, PCS/HR run only
 ```
 
 **None of those are in this repository, and none ever should be.** They contain

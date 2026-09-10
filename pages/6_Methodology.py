@@ -52,8 +52,8 @@ with st.sidebar:
     #
     # This replaced five filenames and their modification times. Those said
     # "is it current?" in the language of the folder rather than the data -
-    # nobody outside this project can place FTS_LOAD.xlsx - and five stamps
-    # within half an hour of each other carried one fact between them.
+    # nobody outside this project can place FTS_RUN_HRS_LOAD.xlsx - and five
+    # stamps within half an hour of each other carried one fact between them.
     ui.kv(st, "Key dates", [
         ("First labour ticket", f"{facts['first']:%d %b %Y}"),
         ("Last labour ticket", f"{facts['last']:%d %b %Y}"),

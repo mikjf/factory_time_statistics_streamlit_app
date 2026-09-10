@@ -1,8 +1,8 @@
 """The work orders behind one recommendation, rebuilt from the extract.
 
-The workbooks do not carry this. FTS_SETUP.xlsx and FTS_LOAD.xlsx each have
-a 05_Evidence sheet, but the PCS/HR run analysis writes per-work-order rows only
-for the units it acted on (06_ActionDetail), so most of the analysis has no
+The workbooks do not carry this. FTS_SETUP.xlsx and FTS_RUN_HRS_LOAD.xlsx each
+have a 05_Evidence sheet, but the PCS/HR run analysis writes per-work-order rows
+only for the units it acted on (06_ActionDetail), so most of the analysis has no
 persisted evidence at all.
 
 Rebuilding it from fts.parquet is the better answer anyway. A viewer that read

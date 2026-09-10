@@ -22,12 +22,14 @@ ROOT = pathlib.Path(os.environ.get("FTS_ROOT") or APP_DIR.parent).resolve()
 
 EXTRACT = ROOT / "fts.xlsx"          # the export out of the ERP
 CACHE = ROOT / "fts.parquet"         # what every script actually reads
-# The per-operation workbooks moved out of the root on 2026-08-28 - see
-# the note in fts_analysis.py. The three deliverables did not.
-OUTPUTS = ROOT / "outputs"
+# The per-operation workbooks moved out of the root on 2026-08-28, and the
+# folder was renamed from `outputs` on 2026-09-10 to say which run type it
+# holds - see the note in fts_analysis.py. The three deliverables did not
+# move, and no other run type is in there.
+OUTPUTS = ROOT / "outputs_run_pcs_hr"
 UPDATE_LIST = ROOT / "FTS_UPDATE_LIST.xlsx"
-SETUP = ROOT / "FTS_SETUP.xlsx"      # optional input, same as in the pipeline
-LOAD = ROOT / "FTS_LOAD.xlsx"        # optional input, same as in the pipeline
+SETUP = ROOT / "FTS_SETUP.xlsx"         # optional input, same as the pipeline
+LOAD = ROOT / "FTS_RUN_HRS_LOAD.xlsx"   # optional input, same as the pipeline
 
 
 def mtime(path):
