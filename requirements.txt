@@ -1,8 +1,20 @@
 # The analysis pipeline's own dependencies, plus streamlit. Altair arrives as a
 # streamlit dependency, so the charts need nothing extra.
-streamlit>=1.36
-pandas>=2.0
-numpy>=1.24
-scipy>=1.11
-pyarrow>=14
-openpyxl>=3.1
+#
+# Floors, not pins. The version after each line is the one the app was proven
+# on: the `fts` environment, 2026-09-11, Python 3.12.14 - all seven pages
+# rendered with no exceptions and element-for-element the same as the previous
+# environment. requirements-lock.txt pins every package at exactly those versions.
+#
+# The pipeline's notebook packages (nbclient, ipykernel, matplotlib, ...) are
+# not listed: the viewer imports the pipeline's modules, never the notebook.
+streamlit>=1.36      # 1.63.0   (altair 6.2.2 with it)
+pandas>=2.0          # 3.0.5
+numpy>=1.24          # 2.5.3
+scipy>=1.11          # 1.18.1
+pyarrow>=14          # 25.0.1
+openpyxl>=3.1        # 3.1.5
+jinja2>=3.1.5        # 3.1.6    pandas' .style needs it (ui.swiss_grid, the Swiss
+                     #          separators). Altair brings it today; listed so a
+                     #          streamlit or altair release that drops it cannot
+                     #          break the tables. 3.1.5 is pandas 3's own floor.
