@@ -128,8 +128,9 @@ def problems():
     """Every ordering violation, worst first. Empty means the chain is sound."""
     out = []
     if paths.mtime(paths.CACHE) is None:
-        out.append(("stop", f"`{paths.CACHE.name}` is missing. Nothing can be "
-                            "shown until the pipeline has been run."))
+        out.append(("stop", f"`{paths.CACHE.name}` is missing from "
+                            f"`{paths.ROOT}`. Nothing can be shown until the "
+                            "pipeline has been run there."))
         return out
     if paths.mtime(paths.UPDATE_LIST) is None:
         out.append(("stop", f"`{paths.UPDATE_LIST.name}` is missing. Run "

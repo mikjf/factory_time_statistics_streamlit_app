@@ -15,22 +15,27 @@ from the extract so the two can be compared.
 
 ## What it needs to run
 
-The analysis outputs, sitting in a folder next to this one:
+The pipeline repository, `factory_time_statistics`, cloned beside this one and
+run at least once. The app imports its code, and the run writes everything the
+app reads:
 
 ```
-fts.parquet             the extract, cached
-fts.xlsx                the extract as exported
-FTS_UPDATE_LIST.xlsx    the consolidated decisions
-FTS_SETUP.xlsx          optional
-FTS_RUN_HRS_LOAD.xlsx   optional
-outputs_run_pcs_hr/     one FTS_<OPERATION>_PARTS.xlsx / _FAMILY.xlsx
-                        pair per operation, PCS/HR run only
+factory_time_statistics/    the pipeline, and after a run:
+  fts.parquet               the extract, cached
+  fts.xlsx                  the extract as exported
+  FTS_UPDATE_LIST.xlsx      the consolidated decisions
+  FTS_SETUP.xlsx            optional
+  FTS_RUN_HRS_LOAD.xlsx     optional
+  outputs_run_pcs_hr/       one FTS_<OPERATION>_PARTS.xlsx / _FAMILY.xlsx
+                            pair per operation, PCS/HR run only
+factory_time_statistics_streamlit_app/    this repository
 ```
 
-**None of those are in this repository, and none ever should be.** They contain
-part numbers, customer-identifiable family names, work order numbers and real job
-durations. `ftsapp/paths.py` resolves them relative to the parent folder; set
-`FTS_ROOT` to point somewhere else.
+**None of those data files are in either repository, and none ever should be.**
+They contain part numbers, customer-identifiable family names, work order
+numbers and real job durations. `ftsapp/paths.py` finds the pipeline on its own -
+beside this repository, or in the folder above it - and `FTS_ROOT` overrides
+both, which is how a container or any other layout points it somewhere else.
 
 ```bash
 python -m pip install -r requirements.txt

@@ -30,6 +30,15 @@ from . import paths
 # and the cost is a few milliseconds of parse time per launch.
 sys.dont_write_bytecode = True
 
+# THE PIPELINE'S CODE IS CHECKED FOR BEFORE IT IS IMPORTED. Without this a
+# wrong root surfaced as a bare "No module named 'fts_analysis'", naming neither
+# the folder that was searched nor how it was chosen nor how to fix it.
+if not (paths.ROOT / paths.MARKER).exists():
+    raise ImportError(
+        f"The pipeline's code is not in {paths.ROOT} (found via: "
+        f"{paths.ROOT_FOUND_BY}). Clone {paths.PIPELINE_REPO} beside this app, "
+        f"or set FTS_ROOT to the folder that holds {paths.MARKER}.")
+
 # The analysis scripts sit in the project root and are imported, not copied.
 if str(paths.ROOT) not in sys.path:
     sys.path.insert(0, str(paths.ROOT))
