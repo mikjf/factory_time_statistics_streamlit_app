@@ -141,6 +141,13 @@ acts["ANALYSIS"] = [ui.analysis_name(t, r)
                     for t, r in zip(acts.TARGET, acts.RUN_TYPE)]
 acts["EFFECT"] = acts.DIRECTION.astype(str).str.replace(
     " the standard", "", regex=False)
+# STATUS, from 01_Actions' ACTION_STATUS (2026-10-06): whether today's master
+# already holds the value proposed - see fts_update_list.action_progress. An
+# action stays an action when it is done; this says so beside it. Blank on an
+# update list written before the column existed.
+if "ACTION_STATUS" not in acts.columns:
+    acts["ACTION_STATUS"] = ""
+acts["STATUS"] = acts.ACTION_STATUS.map(ui.status_name)
 
 
 def applies_to(part_id, level):
@@ -268,8 +275,19 @@ with st.sidebar:
              f"can never pass −100%, so flagging on the change would catch "
              f"only increases.")
 
+    # OFF BY DEFAULT, so the counts above the table keep matching Overview's
+    # until somebody asks otherwise. Hides ALREADY done only: a partly done
+    # decision still has parts to key, so it stays.
+    hide_done = st.toggle(
+        "Hide already done", value=False,
+        help="Hides the decisions today's master already carries: every part "
+             "holds a value within 10% of the one proposed. Partly done stays "
+             "- some of its parts are still to key.")
+
 if only_review:
     d = d[d.NEEDS_REVIEW]
+if hide_done:
+    d = d[d.STATUS != "already done"]
 if big_first:
     d = d.reindex(d.HOURS_DELTA.abs().sort_values(ascending=False).index)
 
@@ -397,9 +415,13 @@ detail = st.toggle("Show the statistics columns", value=False,
 #
 # NEEDS_REVIEW IS NOT HERE. It was False on 230 of 238 rows; the rail toggle,
 # the tile and ui.review_warning on the detail card all still carry it.
+#
+# STATUS LAST, after Change %: the decision first, then whether the ERP already
+# carries it. It qualifies the whole WHAT TO DO block rather than any one value
+# in it, and at the end it never splits the Now / Suggested comparison.
 base = ["FAMILY", "PART_TYPE", "OPERATION", S, "ANALYSIS",
         "PART_ID", "N_PARTS", "N_WO", "HOURS_DELTA",
-        "CURRENT_VALUE", "TO_KEY", "EFFECT", "TO_KEY_CHANGE_PCT"]
+        "CURRENT_VALUE", "TO_KEY", "EFFECT", "TO_KEY_CHANGE_PCT", "STATUS"]
 extra = ["RATIO", "CI95_LOW_PER_WO", "CI95_HIGH_PER_WO"]
 cols = base + (extra if detail else [])
 
@@ -425,17 +447,23 @@ event = st.dataframe(
     # DIRECTION - used to fall through this dict and render their raw database
     # name to a reader who has no schema.
     column_config={
+        # NO FIXED WIDTHS ON ANY COLUMN (user, 2026-10-06): every column is
+        # auto-sized, as the starting point for deciding the table's widths
+        # column by column. Family, Part type, Applies to and Status each had
+        # one until then. Set since, in pixels, by the user: Part type 60,
+        # Step, Parts, Δ Hours and Now 55; Family "medium" put back as it was;
+        # Applies to and Status 125.
         "FAMILY": st.column_config.TextColumn("Family", width="medium"),
         "PART_TYPE": st.column_config.TextColumn(
-            "Part type", width="small",
+            "Part type", width=60,
             help="ADV finished, ANDV semi-finished. Both are analysed, never "
                  "in the same pool — same family, different physical job."),
         # No width - sized to content, same as Family, and the same treatment
         # Additional findings gives its operation columns.
         "OPERATION": st.column_config.TextColumn("Operation"),
-        S: st.column_config.NumberColumn("Step", format="%d"),
+        S: st.column_config.NumberColumn("Step", format="%d", width=55),
         "PART_ID": st.column_config.TextColumn(
-            "Applies to", width="small",
+            "Applies to", width=125,
             help="A part number, where the part had enough work orders to be "
                  "judged on its own. Otherwise the whole family, and how many "
                  "of its parts were flagged on their own and so left out of "
@@ -463,7 +491,7 @@ event = st.dataframe(
                  "down a PCS/HR standard means a lower rate."),
         # No `format` on these: the Styler above owns the display, and a
         # NumberColumn format would override it and put the commas back.
-        "CURRENT_VALUE": st.column_config.NumberColumn("Now"),
+        "CURRENT_VALUE": st.column_config.NumberColumn("Now", width=55),
         # RM_RECOMMENDED from the execution sheets, which is what a reviewer
         # actually keys. Since 2026-08-27 it equals 01_Actions' SUGGESTED_VALUE
         # on EVERY row, part and family alike - RM_RECOMMENDED is RM_SUGGESTED
@@ -485,8 +513,15 @@ event = st.dataframe(
                  "the hours change. A PCS/HR rate that falls by 70% means the "
                  "standard allows more time, not less. The Effect on the "
                  "standard column says which direction."),
+        "STATUS": st.column_config.TextColumn(
+            "Status", width=125,
+            help="Whether today's master already holds the value proposed. "
+                 "Already done: every part is within 10% of it. Partly done: "
+                 "some parts are, the rest are still to key — By part shows "
+                 "which. To key: none is. Now is what the work orders ran "
+                 "with, not necessarily what the master holds today."),
         "N_PARTS": st.column_config.NumberColumn(
-            "Parts",
+            "Parts", width=55,
             help="How many parts this one decision covers. Each needs the "
                  "value keyed against its own routing row, so adding this "
                  "column up gives the operations rows to edit above."),
@@ -514,7 +549,7 @@ event = st.dataframe(
         # a header - it has room to name the window, and the slower/faster word
         # under the figure says which direction without a symbol.
         "HOURS_DELTA": st.column_config.NumberColumn(
-            "Δ Hours",
+            "Δ Hours", width=55,
             # LEADS WITH THE PERIOD, because the header now carries the rest.
             # It opened "Actual minus master for this standard", which the Δ
             # says in one character - so the tooltip spent its first line
@@ -635,6 +670,19 @@ if rows:
             f"**Do this:** {_apply}"
             + (f" (it is {ui.fmt(r.CURRENT_VALUE)} now)"
                if pd.notna(r.CURRENT_VALUE) else "") + ".")
+        # WHAT TODAY'S MASTER SAYS, only when it changes what to do. Inspect
+        # carries the full picture - moved values, the check against today -
+        # one click below.
+        if r.STATUS == "already done":
+            st.info("**Already done in today's master** — every part already "
+                    "holds a value within 10% of this. Nothing left to key.",
+                    icon=":material/task_alt:")
+        elif r.STATUS.startswith("partly done"):
+            _p = re.match(r"partly done \((\d+) of (\d+)\)", r.STATUS)
+            st.info(f"**Partly done** — {_p.group(1)} of {_p.group(2)} parts "
+                    f"already hold a value within 10% of this in today's "
+                    f"master; the rest are still to key. The master row "
+                    f"updater below marks each.", icon=":material/task_alt:")
         # Caption, matching Inspect: the same sentence should not be body text
         # on one page and a note on the next.
         st.caption(ui.direction_note(r.TARGET, r.RUN_TYPE))
@@ -670,7 +718,10 @@ else:
 # file already holds what they were made from: EFFECT is DIRECTION with three
 # words removed, ANALYSIS is TARGET and RUN_TYPE glued together. A spreadsheet
 # is where somebody pivots, and pivoting wants the two source columns.
-_dl = d.drop(columns=["EFFECT", "ANALYSIS"])
+#
+# STATUS joins them for the same reason: it is ACTION_STATUS shortened, and
+# ACTION_STATUS (with N_PARTS_ALREADY_DONE) is already in the file.
+_dl = d.drop(columns=["EFFECT", "ANALYSIS", "STATUS"])
 st.download_button(
     "Download this view as CSV", _dl.to_csv(index=False).encode("utf-8"),
     file_name="fts_review_queue.csv", mime="text/csv",
@@ -713,7 +764,10 @@ st.caption(
     "row. This one is one row per **routing row**: every part a decision "
     "covers, with that part's own current and suggested value, the "
     "`MASTER_OPS_ROWID` it is keyed against, and a ready-made `UPDATE` "
-    "statement for it.\n\n"
+    "statement for it. `TODAY` and `TODAY_STATUS` say what that row holds "
+    "in today's master and whether the suggestion is already in it; rows "
+    "marked *already done* carry no statement, since there is nothing left "
+    "to key on them.\n\n"
     "The statement is a **spreadsheet formula**, not finished text — it reads "
     "the Suggested cell beside it, so correcting a value in the sheet corrects "
     "the statement with it. Nothing here runs anything: it produces the SQL and "
@@ -771,14 +825,30 @@ _by_part = data.actions_by_part(d)
 # TARGET rides along unrendered - it is dropped again once the statement
 # below is built. It is the ERP COLUMN NAME, "RUN" or "SETUP_HRS", which is
 # exactly what that statement has to name.
-_cols = ["MASTER_OPS_ROWID", "FAMILY", "PART_TYPE", "OPERATION", S, "ANALYSIS",
-         "APPLIES_TO", "PART_ID", "CURRENT", "RECOMMENDED", "RATIO", "EFFECT",
-         "HOW_TO_APPLY", "TARGET"]
+#
+# TODAY AND TODAY_STATUS, after EFFECT (2026-10-06): this routing row's value
+# in today's master, and whether the suggestion is already in it - so whoever
+# keys from this file can skip the rows that are done. NOW stays what the work
+# orders ran with. On a row already done the statement is left empty (user,
+# 2026-10-06) - see SQL_UPDATE below; the row itself stays in the file.
+#
+# THE PART BEFORE THE STEP (user, 2026-10-06): routing row, family, part number,
+# what the part is, part type - then operation, step and the rest as before.
+# PART_DESCRIPTION is the extract's, through data.part_index - the same line By
+# part shows under its title.
+_cols = ["MASTER_OPS_ROWID", "FAMILY", "PART_ID", "PART_DESCRIPTION",
+         "PART_TYPE", "OPERATION", S, "ANALYSIS", "APPLIES_TO",
+         "CURRENT", "RECOMMENDED", "RATIO", "EFFECT",
+         "STANDARD_TODAY", "TODAY_STATUS", "HOW_TO_APPLY", "TARGET"]
+_by_part["PART_DESCRIPTION"] = _by_part.PART_ID.map(
+    data.part_index().set_index("PART_ID").PART_DESCRIPTION)
+_RENAME = {"CURRENT": "NOW", "RECOMMENDED": "SUGGESTED",
+           "STANDARD_TODAY": "TODAY"}
 _by_part["APPLIES_TO"] = [applies_to(p, lv)
                           for p, lv in zip(_by_part.PART_ID_DECISION,
                                            _by_part.LEVEL)]
-_by_part = _by_part[_cols].rename(columns={S: "STEP", "CURRENT": "NOW",
-                                           "RECOMMENDED": "SUGGESTED"})
+_by_part["TODAY_STATUS"] = _by_part.TODAY_STATUS.map(ui.status_name)
+_by_part = _by_part[_cols].rename(columns={S: "STEP", **_RENAME})
 # BY THE WORK, NOT BY THE PART. Family and part type first, then the routing
 # step - so every part going through one step sits in a single block, which is
 # how the change actually gets keyed: one step at a time, down the list of
@@ -831,7 +901,7 @@ _by_part = _by_part.sort_values(
 # decimals that get keyed - but it does mean NOW reads 0.50 where the master
 # holds 0.5001. It is a display of the current value, not a figure anybody
 # keys, so the consistency is worth more than the fourth decimal.
-_by_part = _by_part.round({"NOW": 2, "SUGGESTED": 2, "RATIO": 3})
+_by_part = _by_part.round({"NOW": 2, "SUGGESTED": 2, "TODAY": 2, "RATIO": 3})
 
 # ---- the statement, as a live spreadsheet formula ---------------------------
 # NOT THE FINISHED TEXT. This wrote the statement out fully rendered until
@@ -858,20 +928,24 @@ _by_part = _by_part.round({"NOW": 2, "SUGGESTED": 2, "RATIO": 3})
 # in the file rather than off the frame's index, which the sort left unordered.
 # Row 1 is the header, so the first data row is 2.
 _out = [c for c in _cols if c != "TARGET"]
-_out = ["STEP" if c == S else {"CURRENT": "NOW",
-                               "RECOMMENDED": "SUGGESTED"}.get(c, c)
-        for c in _out]
+_out = ["STEP" if c == S else _RENAME.get(c, c) for c in _out]
 assert len(_out) <= 26, "past column Z - the letters below need two characters"
 _val, _rid = (chr(ord("A") + _out.index("SUGGESTED")),
               chr(ord("A") + _out.index("MASTER_OPS_ROWID")))
 # A NaN would leave the formula building "SET RUN = ''", a live statement that
 # blanks a standard. There are none today on any of the 2'468 rows; the cell is
 # left empty rather than trusted, because an empty cell is a visible nothing.
+#
+# EMPTY ON AN ALREADY-DONE ROW TOO (user, 2026-10-06). Today's master is within
+# 10% of SUGGESTED there, so the statement would only nudge a value already
+# keyed; left in, it is one more live line for somebody to run by accident. The
+# row stays in the file with TODAY_STATUS saying why its statement is blank.
 _by_part["SQL_UPDATE"] = [
-    "" if pd.isna(v) or pd.isna(rid) else
+    "" if pd.isna(v) or pd.isna(rid) or s == "already done" else
     f'''="UPDATE OPERATION SET {t} = '"&{_val}{n}&"' WHERE ROWID = "&{_rid}{n}&";"'''
-    for n, (t, v, rid) in enumerate(zip(_by_part.TARGET, _by_part.SUGGESTED,
-                                        _by_part.MASTER_OPS_ROWID), start=2)]
+    for n, (t, v, rid, s) in enumerate(zip(_by_part.TARGET, _by_part.SUGGESTED,
+                                           _by_part.MASTER_OPS_ROWID,
+                                           _by_part.TODAY_STATUS), start=2)]
 _by_part = _by_part.drop(columns=["TARGET"])
 st.download_button(
     "Download master row updater as CSV",

@@ -18,6 +18,7 @@ something the screen already says.
 """
 
 import html
+import re
 
 import pandas as pd
 import streamlit as st
@@ -663,6 +664,33 @@ def side_note(container, text):
 # width actually costs something.
 WHOLE = "Whole family"
 WHOLE_INLINE = "whole family"
+
+def status_name(status):
+    """ACTION_STATUS (per decision) or TODAY_STATUS (per routing row) as a
+    table cell - the workbook's words, shortened only where they repeat what
+    the column header already says.
+
+        already done - within 10% of today's master   -> already done
+        partly done - 31 of 32 parts                  -> partly done (31 of 32)
+        check - run type changed on today's master    -> check: run type changed
+        to key                                        -> to key
+
+    Blank stays blank: an update list written before the pipeline added the
+    column has no status, and "to key" would claim one. Anything unrecognised
+    passes through unchanged, the same fallback rule as part_tag.
+    """
+    if status is None or pd.isna(status) or not str(status).strip():
+        return ""
+    s = str(status).strip()
+    if s.startswith("already done"):
+        return "already done"
+    m = re.match(r"partly done - (\d+) of (\d+)", s)
+    if m:
+        return f"partly done ({m.group(1)} of {m.group(2)})"
+    if s.startswith("check - run type changed"):
+        return "check: run type changed"
+    return s
+
 
 def applies_to(part_id, level):
     """A part number, or "whole family", from the workbook's own LEVEL.

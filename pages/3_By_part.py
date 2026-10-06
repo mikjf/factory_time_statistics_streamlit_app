@@ -75,7 +75,8 @@ STEP_TABLE_COLS = ["OPERATION", S, "ANALYSIS", "APPLIES_TO", "N_WO",
 # Both signed figures carry their sign, the same way the Review queue and
 # Overview's Net column do: a change and a delta printed bare read as totals.
 STEP_TABLE_FMT = {"N_WO": ",.0f", "HOURS_DELTA": "+,.1f", "NOW": ",.2f",
-                  "SUGGESTED": ",.2f", "RATIO": ",.3f", "CHANGE_PCT": "+,.1f"}
+                  "SUGGESTED": ",.2f", "RATIO": ",.3f", "CHANGE_PCT": "+,.1f",
+                  "TODAY": ",.2f"}
 
 STEP_TABLE_CONFIG = {
     "OPERATION": st.column_config.TextColumn("Operation"),
@@ -140,6 +141,20 @@ STEP_TABLE_CONFIG = {
         help="How much the field's own number changes, which is not how "
              "the hours change. Blank wherever Suggested is."),
     "VERDICT": st.column_config.TextColumn("Verdict", width="medium"),
+    # TODAY AND STATUS, upper table only (2026-10-06): this part's routing row
+    # as today's master holds it, and whether the suggestion is already in it.
+    # From the update list's STANDARD_TODAY / TODAY_STATUS, never recomputed.
+    "TODAY": st.column_config.NumberColumn(
+        "Today",
+        help="What this part's routing row holds in today's master. Now is "
+             "what the work orders ran with; the two differ where the master "
+             "moved since."),
+    # Fixed width for the reason the Review queue's Status has one: auto-sizing
+    # fits the first rows, which usually read "to key".
+    "STATUS": st.column_config.TextColumn(
+        "Status", width="medium",
+        help="Already done: today's master is within 10% of Suggested, so "
+             "there is nothing left to key on this row. To key: it is not."),
     # Left ungrouped on purpose - a routing row id is an identifier, not a
     # quantity, and 1'234'567 invites reading it as one.
     #
@@ -171,12 +186,14 @@ STEP_TABLE_CONFIG = {
 
 
 def steps_table(df, part, last):
-    """Render the table. `last` is the twelfth column - see STEP_TABLE_COLS.
+    """Render the table. `last` is the twelfth column - see STEP_TABLE_COLS -
+    or a list of the columns that end it (the upper table's Today, Status and
+    routing row).
 
     Returns the frame that was shown, so a caller can hand it straight to a
     download rather than rebuilding the same selection.
     """
-    cols = STEP_TABLE_COLS + [last]
+    cols = STEP_TABLE_COLS + ([last] if isinstance(last, str) else list(last))
     shown = df.copy()
     shown["ANALYSIS"] = [ui.analysis_name(t, r)
                          for t, r in zip(df.TARGET, df.RUN_TYPE)]
@@ -437,6 +454,11 @@ else:
     # were matched - so the count below is not a summary of a column, it is the
     # whole signal. Per-row, the Review queue's master row updater carries it.
     _flagged = int(mine.REVIEW_FLAG.notna().sum())
+    # ALREADY DONE, counted from the update list's TODAY_STATUS: rows whose
+    # suggestion today's master already carries. Still counted as standards
+    # to change - an action stays an action - and said beside the count.
+    _done = int(mine.TODAY_STATUS.astype(str).str.startswith(
+        "already done").sum())
     ui.verdict_banner(
         st,
         f"{len(mine)} standard(s) to change"
@@ -446,6 +468,10 @@ else:
          f"ratio is outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI}, so the "
          f"change is large enough to want a second pair of eyes. "
          if _flagged else "")
+        + (f"{_done} of them {'is' if _done == 1 else 'are'} already done in "
+           f"today's master — within 10% of the value suggested, so Status "
+           f"says there is nothing left to key on that row. "
+           if _done else "")
         # NO MARKDOWN HERE: ui.verdict_banner escapes this string before it
         # reaches the page, so asterisks would print as asterisks.
         + "Master Ops RowID is this part's own routing row to update, so "
@@ -517,7 +543,12 @@ else:
     # count still reaches the reader through the verdict banner above, which
     # says how many are flagged and why. The list somebody actually keys from
     # is the Review queue's master row updater, which carries the flag per row.
-    steps_table(_mine, part, "MASTER_OPS_ROWID")
+    # TODAY AND STATUS before the routing row: the two read with Suggested -
+    # what to key, what the master holds now, so whether to key it - and the
+    # id stays last, where it is looked up rather than read.
+    _mine["TODAY"] = _mine.STANDARD_TODAY
+    _mine["STATUS"] = _mine.TODAY_STATUS.map(ui.status_name)
+    steps_table(_mine, part, ["TODAY", "STATUS", "MASTER_OPS_ROWID"])
     if (~mine.ROWID_FOUND.fillna(False)).any():
         st.warning("Some rows have a blank routing row and cannot be keyed "
                    "until one is found for them.", icon=":material/warning:")

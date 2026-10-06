@@ -500,10 +500,18 @@ def edits():
             CHANGE=ld.CHANGE_PCT, RUN_TYPE="HRS/LOAD",
             EVIDENCE_N=ld.N_WO_EVIDENCE,
             BASIS=np.where(ld.ROUTE == "PART", "part", "family")))
+    # STANDARD_TODAY and TODAY_STATUS ride along since 2026-10-06 - today's
+    # master on this part's routing row, and whether the change is already in
+    # it - for By part and the master row updater. Blank on an update list
+    # written before the pipeline added them. Every caller picks its columns
+    # by name, so two more here change nothing for the others.
     cols = ["OPERATION", "FAMILY", "PART_TYPE", "PART_ID", SEQ, "ROUTE",
             "TARGET_COLUMN", "RUN_TYPE", "MASTER_OPS_ROWID", "ROWID_FOUND",
             "CURRENT", "RECOMMENDED", "CHANGE", "BASIS", "RATIO", "EVIDENCE_N",
-            "REVIEW_FLAG", "LAST_DATE"]
+            "REVIEW_FLAG", "LAST_DATE", "STANDARD_TODAY", "TODAY_STATUS"]
+    frames = [f if {"STANDARD_TODAY", "TODAY_STATUS"} <= set(f.columns)
+              else f.assign(STANDARD_TODAY=np.nan, TODAY_STATUS=np.nan)
+              for f in frames]
     return pd.concat([f[cols] for f in frames], ignore_index=True)
 
 
@@ -554,7 +562,8 @@ def actions_by_part(acts):
     """
     e = edits().rename(columns={"TARGET_COLUMN": "TARGET", "ROUTE": "LEVEL"})
     j = acts.merge(e[_UNIT + ["PART_ID", "MASTER_OPS_ROWID",
-                              "CURRENT", "RECOMMENDED", "CHANGE"]],
+                              "CURRENT", "RECOMMENDED", "CHANGE",
+                              "STANDARD_TODAY", "TODAY_STATUS"]],
                    on=_UNIT, how="inner", suffixes=("_DECISION", ""))
     keep = (j.LEVEL != "PART") | (j.PART_ID == j.PART_ID_DECISION)
     return j[keep].reset_index(drop=True)
