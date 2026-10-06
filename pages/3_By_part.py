@@ -151,7 +151,7 @@ STEP_TABLE_CONFIG = {
     # as today's master holds it, and whether the suggestion is already in it.
     # From the update list's STANDARD_TODAY / TODAY_STATUS, never recomputed.
     "TODAY": st.column_config.NumberColumn(
-        "Today",
+        "Std today",
         help="What this part's routing row holds in today's master. Std WO "
              "is what the work orders ran with; the two differ where the master "
              "moved since."),
@@ -191,15 +191,19 @@ STEP_TABLE_CONFIG = {
 }
 
 
-def steps_table(df, part, last):
+def steps_table(df, part, last, today=False):
     """Render the table. `last` is the twelfth column - see STEP_TABLE_COLS -
-    or a list of the columns that end it (the upper table's Today, Status and
-    routing row).
+    or a list of the columns that end it (the upper table's Status and
+    routing row). today=True puts Std today between Std WO and Suggested,
+    the order the Review queue reads in: what the jobs ran with, what the
+    master holds now, what to key.
 
     Returns the frame that was shown, so a caller can hand it straight to a
     download rather than rebuilding the same selection.
     """
     cols = STEP_TABLE_COLS + ([last] if isinstance(last, str) else list(last))
+    if today:
+        cols.insert(cols.index("SUGGESTED"), "TODAY")
     shown = df.copy()
     shown["ANALYSIS"] = [ui.analysis_name(t, r)
                          for t, r in zip(df.TARGET, df.RUN_TYPE)]
@@ -465,11 +469,18 @@ else:
     # to change - an action stays an action - and said beside the count.
     _done = int(mine.TODAY_STATUS.astype(str).str.startswith(
         "already done").sum())
+    # FLAGGED AGAINST TODAY'S MASTER (2026-10-06): the proposal is outside the
+    # review band of the value the master holds now, or the run type changed.
+    # Same amber as the review flag, and the box under the table says which.
+    _ft = (mine.REVIEW_FLAG_TODAY.notna()
+           & (mine.REVIEW_FLAG_TODAY.astype(str).str.strip() != ""))
+    _flagged_today = int(_ft.sum())
+    _amber = bool(_flagged or _flagged_today)
     ui.verdict_banner(
         st,
         f"{len(mine)} standard(s) to change"
-        + (" — check before keying" if _flagged else ""),
-        "review" if _flagged else "act",
+        + (" — check before keying" if _amber else ""),
+        "review" if _amber else "act",
         (f"{_flagged} of them {'is' if _flagged == 1 else 'are'} flagged: the "
          f"ratio is outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI}, so the "
          f"change is large enough to want a second pair of eyes. "
@@ -478,6 +489,9 @@ else:
            f"today's master — within 10% of the value suggested, so Status "
            f"says there is nothing left to key on that row. "
            if _done else "")
+        + (f"{_flagged_today} of them {'needs' if _flagged_today == 1 else 'need'}"
+           f" a check against today's master — see the box under the table. "
+           if _flagged_today else "")
         # NO MARKDOWN HERE: ui.verdict_banner escapes this string before it
         # reaches the page, so asterisks would print as asterisks.
         + "Master Ops RowID is this part's own routing row to update, so "
@@ -549,12 +563,34 @@ else:
     # count still reaches the reader through the verdict banner above, which
     # says how many are flagged and why. The list somebody actually keys from
     # is the Review queue's master row updater, which carries the flag per row.
-    # TODAY AND STATUS before the routing row: the two read with Suggested -
-    # what to key, what the master holds now, so whether to key it - and the
-    # id stays last, where it is looked up rather than read.
+    # STD TODAY BETWEEN STD WO AND SUGGESTED (user, 2026-10-06), as on the
+    # Review queue; STATUS before the routing row, and the id stays last,
+    # where it is looked up rather than read.
     _mine["TODAY"] = _mine.STANDARD_TODAY
     _mine["STATUS"] = _mine.TODAY_STATUS.map(ui.status_name)
-    steps_table(_mine, part, ["TODAY", "STATUS", "MASTER_OPS_ROWID"])
+    steps_table(_mine, part, ["STATUS", "MASTER_OPS_ROWID"], today=True)
+    # THE AMBER CHECK, as on Inspect and in its words (ui.today_check): each
+    # row whose proposal is far from what today's master holds, named by its
+    # step and analysis because this page is one part across many steps.
+    if _flagged_today:
+        _fl = _mine[_ft.values]
+        _band = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("outside")]
+        _typ = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("run type")]
+
+        def _unit(target, run_type):
+            return "h" if target == "SETUP_HRS" else str(run_type)
+
+        ui.today_check(
+            st,
+            [(None if len(_mine) == 1 else
+              f"{r.OPERATION} step {int(r[S])} "
+              f"({ui.analysis_name(r.TARGET, r.RUN_TYPE)})",
+              f"{ui.fmt(r.SUGGESTED)} {_unit(r.TARGET, r.RUN_TYPE)}",
+              f"{ui.fmt(r.STANDARD_TODAY)} {_unit(r.TARGET, r.RUN_TYPE)}",
+              r.SUGGESTED / r.STANDARD_TODAY if r.STANDARD_TODAY else None)
+             for _, r in _band.head(3).iterrows()],
+            max(len(_band) - 3, 0), len(_typ), len(_mine), "rows",
+            pipeline.REVIEW_LO, pipeline.REVIEW_HI)
     if (~mine.ROWID_FOUND.fillna(False)).any():
         st.warning("Some rows have a blank routing row and cannot be keyed "
                    "until one is found for them.", icon=":material/warning:")

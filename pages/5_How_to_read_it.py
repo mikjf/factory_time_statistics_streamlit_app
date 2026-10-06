@@ -290,7 +290,9 @@ if len(_ex_pool):
                                         _ex.SEQUENCE,
                                         _ex.PART_ID if _ex.LEVEL == "PART"
                                         else None)), _kind)
-                    st.markdown(
+                    # Fixed column widths, as on Inspect - see
+                    # .st-key-fts-decided-table in ui.CSS.
+                    st.container(key="fts-decided-table").markdown(
                         f"| | ratio | as the jobs ran it |\n"
                         f"|---|---|---|\n"
                         f"| **standard** | 1.000 | {_now} |\n"

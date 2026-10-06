@@ -339,6 +339,7 @@ _exec = (data.today_rows(target, run_type, operation, family, part_type, seq,
                          part_id) if _act is not None else None)
 if _exec is not None and len(_exec):
     td = data.today_summary(_exec)
+    _tframe = _exec
     _chk = evidence.today_parts(_tkind, operation, seq, _exec.PART_ID)
     _m = _exec[["PART_ID", "STANDARD_WO", "STANDARD_TODAY",
                 "STANDARD_CHANGE"]].merge(
@@ -358,7 +359,8 @@ if _exec is not None and len(_exec):
     td_action = True
 else:
     _parts = [part_id] if part_id else rows.PART_ID.dropna().unique().tolist()
-    td = data.today_summary(evidence.today_parts(_tkind, operation, seq, _parts))
+    _tframe = evidence.today_parts(_tkind, operation, seq, _parts)
+    td = data.today_summary(_tframe)
     _today_bad = 0
     td_action = False
 _unit_word = "part" if part_id else "family"
@@ -411,6 +413,30 @@ detail = {
     "blocked": (rule_state[blocker]["value"] if blocker is not None else ""),
     "unknown": "The workbook has no row for this combination.",
 }[kindof]
+
+# ALREADY DONE SAYS SO IN THE BANNER (user, 2026-10-06). With every part of the
+# action within 10% in today's master, a green "Change this standard - edit
+# RUN" on top and "nothing left to key" further down were two opposite
+# instructions, and the banner is the one that gets read. The action, its
+# figures and its place in every list stay; only the headline tells the truth
+# about what is left to do. Still green: the six rules did pass.
+#
+# PARTLY DONE KEEPS "Change this standard" - some parts are still to key - and
+# says the split in the detail line.
+_all_done = bool(kindof == "act" and td is not None and td_action
+                 and td["done"] and td["done"] == td["n"])
+_part_done = bool(kindof == "act" and td is not None and td_action
+                  and td["done"] and td["done"] < td["n"])
+if _all_done:
+    headline = "Already done in today's master — nothing left to key"
+    detail = ("It passed all six rules. "
+              + (f"Today's master holds {ui.fmt(td['value'])}, "
+                 if td["value"] is not None else
+                 "Every part already holds a value ")
+              + f"within 10% of the {ui.fmt(w['suggested'])} proposed.")
+elif _part_done:
+    detail += (f" Partly done: {td['done']} of {td['n']} parts already hold "
+               f"it in today's master.")
 ui.verdict_banner(st, headline, "review" if needs_human else kindof, detail)
 if needs_human:
     ui.review_warning(st, w["current"], w["suggested"], stats.get("RATIO"),
@@ -443,22 +469,29 @@ else:
         st.metric(
             "Standard today",
             (ui.fmt(td["value"]) if td["value"] is not None
-             else f"{td['n_values']} values" if td["n_values"]
+             # "n vals" and "m of n moved" (user, 2026-10-06): shorter, and
+             # the count leads, so the tile reads at a glance.
+             else f"{td['n_values']} vals" if td["n_values"]
              else "no line"),
             delta=("no line today" if _nl == td["n"]
                    else "unchanged" if td["moved"] == 0
                    else "moved" if td["moved"] == td["n"]
-                   else f"moved on {td['moved']} of {td['n']}"),
+                   else f"{td['moved']} of {td['n']} moved"),
             delta_color="off",
-            help=(f"The master as it stands in the latest extract, on the "
-                  f"part's current revision ({', '.join(td['cur_rev']) or '—'}); "
-                  f"the work orders ran on revision "
+            # NO SEMICOLONS (user, 2026-10-06): full stops between the
+            # sentences, commas inside a list.
+            help=(f"The master as it stands in the latest extract, on "
+                  f"{'each' if td['n'] > 1 else 'the'} part's current "
+                  f"revision ({', '.join(td['cur_rev']) or '—'}). The work "
+                  f"orders ran on "
+                  f"{'revisions' if len(td['wo_rev']) > 1 else 'revision'} "
                   f"{', '.join(td['wo_rev']) or '—'}. "
                   + ("Unchanged since the jobs ran."
                      if td["moved"] == 0 and not _nl else
-                     "; ".join(f"{n} {h}" if td["n"] > 1 else h
-                               for h, n in td["how"].items()
-                               if h != "unchanged") + ".")
+                     (lambda s: s[:1].upper() + s[1:])(
+                         ", ".join(f"{n} {h}" if td["n"] > 1 else h
+                                   for h, n in td["how"].items()
+                                   if h != "unchanged") + "."))
                   + (f" Across the {td['n']} parts it holds "
                      f"{td['n_values']} different values."
                      if td["value"] is None and td["n_values"] > 1 else "")
@@ -610,7 +643,9 @@ def _with_unit(v):
 if td is not None and td_action:
     _n, _d, _mv = td["n"], td["done"], td["moved"]
     _of = "" if _n == 1 else f" ({_n} parts)"
-    if _d and _d == _n:
+    if _d and _d == _n and _all_done:
+        pass        # the banner says it - see _all_done above
+    elif _d and _d == _n:
         st.info(f"**Already done in today's master.** "
                 + (f"It holds {ui.fmt(td['value'])}, " if td["value"] is not None
                    else "Every part already holds a value ")
@@ -640,28 +675,16 @@ if td is not None and td_action:
                     & (_exec.REVIEW_FLAG_TODAY.astype(str) != "")]
         _band = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("outside")]
         _typ = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("run type")]
-        _said = []
-        for r in _band.head(3).itertuples():
-            _v, _t = getattr(r, _rec), r.STANDARD_TODAY
-            _x = f" — {_v / _t:.1f}×" if _t else ""
-            _said.append(("the proposal is " if _n == 1 else
-                          f"on {r.PART_ID} the proposal is ")
-                         + f"{_with_unit(_v)} against {_with_unit(_t)} in "
-                           f"today's master{_x}")
-        _txt = "; ".join(_said)
-        if len(_band) > 3:
-            _txt += f"; and {len(_band) - 3} more of the {_n} parts"
-        _msg = "**Check this against today's master.** "
-        if _said:
-            _msg += (_txt[0].upper() + _txt[1:]
-                     + f" — outside the {pipeline.REVIEW_LO}–"
-                       f"{pipeline.REVIEW_HI} band where a change is flagged "
-                       f"for manual review.")
-        if len(_typ):
-            _msg += (f" On {len(_typ)} of {_n} parts today's master no longer "
-                     f"holds this run type, so the value proposed does not "
-                     f"apply as it stands.")
-        st.warning(_msg, icon=":material/pan_tool:")
+        # The wording is ui.today_check's, shared with By part.
+        ui.today_check(
+            st,
+            [(None if _n == 1 else r.PART_ID,
+              _with_unit(getattr(r, _rec)), _with_unit(r.STANDARD_TODAY),
+              getattr(r, _rec) / r.STANDARD_TODAY if r.STANDARD_TODAY
+              else None)
+             for r in _band.head(3).itertuples()],
+            max(len(_band) - 3, 0), len(_typ), _n, "parts",
+            pipeline.REVIEW_LO, pipeline.REVIEW_HI)
 if _today_bad:
     st.error(f"**Today's master disagrees between the update list and the "
              f"extract** on {_today_bad} of {len(_exec)} parts. Either the "
@@ -669,6 +692,59 @@ if _today_bad:
              f"page's rebuild has drifted from the pipeline. Do not rely on "
              f"\"Standard today\" or the status shown until the pipeline has "
              f"been re-run.", icon=":material/report:")
+
+# TODAY'S MASTER, PART BY PART (user, 2026-10-06). On a family unit the tile's
+# tooltip lists the revisions but cannot say which part is on which - and a
+# tooltip is the wrong place for 29 or 73 part numbers. A collapsed table:
+# each part's work-order revision and value, its current revision and value,
+# and on an action whether it is already done. The same rows the tile and the
+# notes above were computed from (_tframe), so it cannot disagree with them.
+if part_id is None and _tframe is not None and len(_tframe):
+    with st.expander(f"Today's master, part by part ({len(_tframe)} parts)"):
+        _pp = pd.DataFrame({
+            "PART_ID": _tframe.PART_ID.astype(str).values,
+            # What the part is, from the extract - the same text By part
+            # shows under its title and the master row updater carries.
+            "PART_DESCRIPTION": _tframe.PART_ID.astype(str).map(
+                data.part_index().set_index("PART_ID")
+                .PART_DESCRIPTION).values,
+            "WO_REV": _tframe.WO_REV.map(evidence._rev).values,
+            "STANDARD_WO": pd.to_numeric(_tframe.STANDARD_WO,
+                                         errors="coerce").values,
+            "CURRENT_REV": _tframe.CURRENT_REV.map(evidence._rev).values,
+            "STANDARD_TODAY": pd.to_numeric(_tframe.STANDARD_TODAY,
+                                            errors="coerce").values,
+        })
+        _pcfg = {
+            "PART_ID": st.column_config.TextColumn("Part"),
+            "PART_DESCRIPTION": st.column_config.TextColumn(
+                "Part description"),
+            "WO_REV": st.column_config.TextColumn(
+                "WO rev", help="The revision of the part's most recent work "
+                               "order - the one Std WO comes from."),
+            "STANDARD_WO": st.column_config.NumberColumn("Std WO"),
+            "CURRENT_REV": st.column_config.TextColumn(
+                "Current rev", help="The part's current revision - the one "
+                                    "today's master is read from."),
+            "STANDARD_TODAY": st.column_config.NumberColumn("Std today"),
+        }
+        # SUGGESTED BEFORE STATUS (user, 2026-10-06): Status is "is Std today
+        # within 10% of Suggested", so the row has to carry both to be
+        # checkable - and on setup and HRS/LOAD every part has its own,
+        # its own value times the family's ratio. The Review queue's order.
+        if td_action:
+            _rc = next(c for c in ("RM_RECOMMENDED", "SETUP_HRS_RECOMMENDED",
+                                   "RUN_RECOMMENDED") if c in _tframe.columns)
+            _pp["SUGGESTED"] = pd.to_numeric(_tframe[_rc],
+                                             errors="coerce").values
+            _pcfg["SUGGESTED"] = st.column_config.NumberColumn("Suggested")
+            _pp["STATUS"] = _tframe.TODAY_STATUS.map(ui.status_name).values
+            _pcfg["STATUS"] = st.column_config.TextColumn("Status")
+        _pp = _pp.sort_values("PART_ID").reset_index(drop=True)
+        st.dataframe(ui.swiss_grid(_pp, {"STANDARD_WO": ",.2f",
+                                         "STANDARD_TODAY": ",.2f",
+                                         "SUGGESTED": ",.2f"}),
+                     hide_index=True, width="stretch", column_config=_pcfg)
 
 # WHY "CHANGE IT TO" IS NOT WHAT THIS PART MEASURED. On these units the rail
 # says a part number and the metrics show a measured value the recommendation
@@ -815,7 +891,8 @@ with _tc:
     # definition (evidence.today_row) shared with the example on How to read it.
     _today_row = evidence.today_row(td, _mk)
 
-    st.markdown(
+    # Fixed column widths - see .st-key-fts-decided-table in ui.CSS.
+    st.container(key="fts-decided-table").markdown(
         f"| | ratio | as the jobs ran it |\n"
         f"|---|---|---|\n"
         f"| **standard** | 1.000 | {_now} |\n"

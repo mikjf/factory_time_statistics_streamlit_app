@@ -500,17 +500,19 @@ def edits():
             CHANGE=ld.CHANGE_PCT, RUN_TYPE="HRS/LOAD",
             EVIDENCE_N=ld.N_WO_EVIDENCE,
             BASIS=np.where(ld.ROUTE == "PART", "part", "family")))
-    # STANDARD_TODAY and TODAY_STATUS ride along since 2026-10-06 - today's
-    # master on this part's routing row, and whether the change is already in
-    # it - for By part and the master row updater. Blank on an update list
+    # STANDARD_TODAY, TODAY_STATUS and REVIEW_FLAG_TODAY ride along since
+    # 2026-10-06 - today's master on this part's routing row, whether the
+    # change is already in it, and whether the jump from it needs a check -
+    # for By part and the master row updater. Blank on an update list
     # written before the pipeline added them. Every caller picks its columns
     # by name, so two more here change nothing for the others.
     cols = ["OPERATION", "FAMILY", "PART_TYPE", "PART_ID", SEQ, "ROUTE",
             "TARGET_COLUMN", "RUN_TYPE", "MASTER_OPS_ROWID", "ROWID_FOUND",
             "CURRENT", "RECOMMENDED", "CHANGE", "BASIS", "RATIO", "EVIDENCE_N",
-            "REVIEW_FLAG", "LAST_DATE", "STANDARD_TODAY", "TODAY_STATUS"]
-    frames = [f if {"STANDARD_TODAY", "TODAY_STATUS"} <= set(f.columns)
-              else f.assign(STANDARD_TODAY=np.nan, TODAY_STATUS=np.nan)
+            "REVIEW_FLAG", "LAST_DATE", "STANDARD_TODAY", "TODAY_STATUS",
+            "REVIEW_FLAG_TODAY"]
+    _today = ("STANDARD_TODAY", "TODAY_STATUS", "REVIEW_FLAG_TODAY")
+    frames = [f.assign(**{c: np.nan for c in _today if c not in f.columns})
               for f in frames]
     return pd.concat([f[cols] for f in frames], ignore_index=True)
 

@@ -272,6 +272,14 @@ CSS = """
    Scoped to stMarkdown so it cannot reach the Vega tooltip, which is also a
    table and is appended outside the app tree. */
 [data-testid="stMarkdown"] table { width: 100%; }
+/* THE DECISION TABLE'S COLUMNS, fixed (user, 2026-10-06): Inspect's "How this
+   was decided" table and its copy on How to read it. Left to the browser, the
+   long third column took the width and "master today" or "2.016 (+101.6%)"
+   wrapped, differently on every unit. Only tables inside this keyed container. */
+.st-key-fts-decided-table table { table-layout:fixed; }
+.st-key-fts-decided-table th:nth-child(1) { width:18%; }
+.st-key-fts-decided-table th:nth-child(2) { width:20%; }
+.st-key-fts-decided-table th:nth-child(3) { width:62%; }
 
 /* Vega draws its tooltip as a two-column table and leaves the cells at the
    default vertical-align:middle. Fine while every value is one line; wrong the
@@ -664,6 +672,39 @@ def side_note(container, text):
 # width actually costs something.
 WHOLE = "Whole family"
 WHOLE_INLINE = "whole family"
+
+def today_check(container, entries, more, n_type, total, noun, lo, hi):
+    """The amber "check this against today's master" box - one wording for
+    Inspect (one unit, its parts) and By part (one part, its rows).
+
+    entries  up to three flagged rows as (where, proposed, today, multiple):
+             `where` names the row - a part number on Inspect, "<operation>
+             step <n> (<analysis>)" on By part - or is None when the unit has
+             a single row; proposed and
+             today are formatted with their unit; multiple is proposed/today,
+             or None when today is zero
+    more     how many further band-flagged rows were not named
+    n_type   rows whose master no longer holds the analysed run type
+    total    how many rows the unit has, and `noun` what they are called
+    """
+    said = [(f"on {w} the proposal is " if w else "the proposal is ")
+            + f"{p} against {t} in today's master"
+            + (f" — {m:.1f}×" if m is not None else "")
+            for w, p, t, m in entries]
+    txt = "; ".join(said)
+    if more:
+        txt += f"; and {more} more of the {total} {noun}"
+    msg = "**Check this against today's master.** "
+    if said:
+        msg += (txt[0].upper() + txt[1:]
+                + f" — outside the {lo}–{hi} band where a change is flagged "
+                  f"for manual review.")
+    if n_type:
+        msg += (f" On {n_type} of {total} {noun} today's master no longer "
+                f"holds this run type, so the value proposed does not apply "
+                f"as it stands.")
+    container.warning(msg, icon=":material/pan_tool:")
+
 
 def status_name(status):
     """ACTION_STATUS (per decision) or TODAY_STATUS (per routing row) as a
