@@ -92,10 +92,10 @@ evidence to say — instead of by whoever built the analysis.
 
 | Page | |
 |---|---|
-| **Overview** | Headline numbers, and where the hours sit by operation and family |
-| **Review queue** | Every standard proposed for change, filterable |
-| **Inspect** | One recommendation opened up: how it was decided, the work orders behind it, and where each sits against the master |
-| **By part** | Everything proposed for one part — and every step examined and left alone, with the reason |
+| **Overview** | Headline numbers, how much of them today's master already carries, and where the hours sit by operation and family |
+| **Review queue** | Every standard proposed for change, filterable, with Std WO, Std today and whether it is already done; the master row updater file |
+| **Inspect** | One recommendation opened up: how it was decided, the work orders behind it, where each sits against the master, and today's master part by part |
+| **By part** | Everything proposed for one part, with today's master and status per row — and every step examined and left alone, with the reason |
 | **Additional findings** | Hours charged for work with no evidence it happened. Real, but a routing and booking question |
 | **How to read it** | How to read a recommendation, worked through one real unit |
 | **Methodology** | The method, and what the numbers are computed over |
@@ -150,13 +150,26 @@ Two words, everywhere, never paraphrased: **master** for the standard the ERP
 holds, **actual** for what was booked. They are the names the workbook and the
 query use, so any figure on screen can be traced back without translation.
 
+The master comes in two copies, and the app names them apart:
+
+| | |
+|---|---|
+| **Std WO** | the work orders' own copy of the routing — what the jobs ran with, and what the six rules test against |
+| **Std today** | the master as it stands in the latest extract, on each part's current revision |
+
+**Already done** means today's master has moved and now sits within the
+materiality threshold (rule 5) of the value proposed, so there is nothing left
+to key. An action that is already done **stays an action** — on the list and in
+every count — and is marked as done. Methodology explains all three.
+
 Colour carries meaning and is never decoration:
 
 | | |
 |---|---|
 | **green ✓** | the rule was satisfied |
 | **red ✕** | the rule was not |
-| **amber !** | passed everything, but large enough to want a human first |
+| **amber !** | passed everything, but large enough to want a human first — or far from what today's master holds |
+| **blue** | information, not a rule outcome: a standard left alone, or a fact about the ERP — already done, partly done, the master moved |
 
 Where more than one rule fails, all of them are red and the **first** is marked
 `(STOPPED)`. That is not a display nicety: `recommend()` returns at the
@@ -241,6 +254,34 @@ number as measured and another as the value to key.
 The band row states whether it **excludes 1.000**, which is rule 4 and the
 band's only job. Where the line falls relative to the band is deliberately not
 reported: the two estimators can disagree, and nothing depends on it.
+
+## The master row updater
+
+The Review queue's second download is the file somebody keys from: **one row per
+routing row** rather than per decision, so a family decision covering many parts
+becomes one row for each of them. It follows the page's filters. Columns, in
+order:
+
+| | |
+|---|---|
+| `MASTER_OPS_ROWID` | the routing row the value is keyed against |
+| `FAMILY`, `PART_ID`, `PART_DESCRIPTION`, `PART_TYPE` | which part |
+| `OPERATION`, `STEP`, `ANALYSIS`, `APPLIES_TO` | which step, which analysis, part or whole family |
+| `STANDARD_WO` | what the work orders ran with |
+| `STANDARD_TODAY` | what the routing row holds in today's master |
+| `SUGGESTED` | the value to key |
+| `RATIO`, `EFFECT` | the measurement, and which way it moves the time allowed |
+| `TODAY_STATUS` | *already done* or *to key* |
+| `HOW_TO_APPLY` | the workbook's own instruction |
+| `SQL_UPDATE` | a ready-made `UPDATE` statement |
+
+`SQL_UPDATE` is a **spreadsheet formula**, not finished text: it reads the
+`SUGGESTED` and `MASTER_OPS_ROWID` cells of its own row, so correcting a value
+in the sheet corrects the statement with it. Its column letters are derived
+from the column order, so a reordered file still points at the right cells. It
+is **left empty on a row already done**, so there is nothing to run by accident;
+the row stays in the file. Nothing here runs anything — it produces the SQL and
+leaves running it to a person who has read it.
 
 ## Layout
 
