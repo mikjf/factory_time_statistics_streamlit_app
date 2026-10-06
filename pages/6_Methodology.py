@@ -507,6 +507,57 @@ st.caption(
 
 st.divider()
 
+# ---- standard WO and standard today -------------------------------------------
+# ADDED 2026-10-06. Four pages now show Std WO beside Std today, mark actions
+# "already done" and raise an amber check against today's master, and this page
+# - the one somebody opens when they doubt a word - did not say what any of it
+# means. After the reconciliation because it qualifies those counts without
+# changing them: the six rules decide, the counts above follow, and today's
+# master then says how much of that the ERP already carries.
+#
+# EVERY FIGURE READ, NONE WRITTEN DOWN: the counts move with every extract, and
+# MIN_EFFECT and the review band come from the scripts that apply them.
+st.subheader("Standard WO and standard today", anchor="today")
+_as = (acts.ACTION_STATUS.astype(str) if "ACTION_STATUS" in acts.columns
+       else pd.Series("", index=acts.index))
+_n_done = int((_as == "already done").sum())
+_n_partly = int(_as.str.startswith("partly done").sum())
+_rows_done = (int(pd.to_numeric(acts.N_PARTS_ALREADY_DONE, errors="coerce")
+                  .fillna(0).sum())
+              if "N_PARTS_ALREADY_DONE" in acts.columns else 0)
+st.markdown(
+    f"Every work order carries **its own copy of the routing**, taken when it "
+    f"was released, and that copy is what the six rules test against: a job "
+    f"can only be measured against the standard it actually ran with. The app "
+    f"calls it **Std WO**.\n\n"
+    f"The master can move on after those jobs, through a new revision or an "
+    f"edit in place. **Std today** is the master as it stands in the latest "
+    f"extract, on each part's current revision. It is shown beside Std WO "
+    f"wherever a standard is, and it never changes what the six rules "
+    f"decided. Compared part by part, the two give one of three answers:\n\n"
+    f"- **unchanged**: the master still holds what the jobs ran with.\n"
+    f"- **moved**: it holds a different value now, in the same revision or a "
+    f"newer one.\n"
+    f"- **already done**: it moved, and now sits within "
+    f"{pipeline.MIN_EFFECT:.0%} of the value proposed. Keying the proposal "
+    f"would change it by less than rule 5 would ever propose, so there is "
+    f"nothing left to key.\n\n"
+    f"**An action that is already done stays an action**: on the list, in "
+    f"every count above, and marked as done. Today "
+    f"{ui.num(_n_done)} of the {ui.num(len(acts))} decisions are already done "
+    f"and {ui.num(_n_partly)} partly done, which covers {ui.num(_rows_done)} of "
+    f"the {ui.num(_te)} rows to edit. Inspect says so in its banner, the Review "
+    f"queue in its Status column and on its tiles, By part on each row, and "
+    f"the master row updater leaves the `UPDATE` statement empty on those "
+    f"rows.\n\n"
+    f"**One more check runs against today's master.** Where the master moved, "
+    f"a proposal outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI} of today's "
+    f"value is flagged: the jump from today's master is then far larger than "
+    f"the one the six rules tested. Inspect and By part show it in amber, "
+    f"naming the part, the value proposed and today's value.")
+
+st.divider()
+
 # ---- coverage ---------------------------------------------------------------
 # COLLAPSED, because this is the appendix and the rest of the page is an
 # argument. Its columns are the funnel's own stages broken out per operation, so
