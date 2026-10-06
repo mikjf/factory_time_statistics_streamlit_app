@@ -247,7 +247,8 @@ CSS = """
    arrow from a leading minus, so both readings carry the same UP arrow - an
    arrow pointing up beside the word "faster". The word already says the
    direction; the arrow can only contradict it. */
-.st-key-fts-inline-delta-hours [data-testid="stMetricDelta"] svg { display: none; }
+.st-key-fts-inline-delta-hours [data-testid="stMetricDelta"] svg,
+.st-key-fts-inline-delta-today [data-testid="stMetricDelta"] svg { display: none; }
 
 /* The line under a page title that says WHICH unit this is: part type, step,
    and whether one part or a whole family. It was st.caption - 14px at 60%

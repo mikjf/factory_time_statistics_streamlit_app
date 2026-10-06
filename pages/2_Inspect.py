@@ -311,6 +311,24 @@ _from_family = (_act is not None and pd.notna(_own)
                 and pd.notna(w["suggested"])
                 and abs(float(_own) - float(w["suggested"])) > 0.101)
 
+# TODAY'S MASTER, beside the standard the jobs ran under. "Standard now" used to
+# be the only standard on this page and it was never the master: it is the
+# work orders' own copy of the routing, which is what the six rules test and
+# what stays the yardstick here. The master can have moved since - a new
+# revision, or an edit in place - and on some actions it already holds the
+# value proposed. The pipeline works all of that out per part; this only reads
+# it (data.today_rows), and only for actions, because the update list is where
+# it is written and an action is what it qualifies.
+#
+# AN ACTION STAYS AN ACTION when it is already done. The banner, the value to
+# key and every figure the six rules produced are untouched; the status is
+# stated beside them, the way ACTION_STATUS sits beside the action in the
+# workbook.
+td = (data.today_summary(data.today_rows(target, run_type, operation, family,
+                                         part_type, seq, part_id))
+      if _act is not None else None)
+_unit_word = "part" if part_id else "family"
+
 # Does the queue flag this one for a human? The band is on the RATIO, not on
 # the percentage change, because the change is asymmetric - a rate that
 # quadruples reads +300% while one cut to a quarter reads -75% and can never
@@ -364,13 +382,91 @@ if needs_human:
     ui.review_warning(st, w["current"], w["suggested"], stats.get("RATIO"),
                       pipeline.REVIEW_LO, pipeline.REVIEW_HI)
 
+# WHAT TODAY'S MASTER SAYS ABOUT THIS ACTION, in the same words as
+# TODAY_STATUS: "already done" means today's master is within MIN_EFFECT (10%)
+# of the value proposed. Blue, not green - green is "rule passed" on this page,
+# and this is a fact about the ERP, not a verdict.
+if td is not None:
+    _n, _d, _mv = td["n"], td["done"], td["moved"]
+    _of = "" if _n == 1 else f" ({_n} parts)"
+    if _d and _d == _n:
+        st.info(f"**Already done in today's master.** "
+                + (f"It holds {ui.fmt(td['value'])}, " if td["value"] is not None
+                   else "Every part already holds a value ")
+                + f"within 10% of the {ui.fmt(w['suggested'])} proposed — "
+                  f"nothing left to key on this {_unit_word}{_of}.",
+                icon=":material/task_alt:")
+    elif _d:
+        _left = _n - _d
+        st.info(f"**Partly done — {_d} of {_n} parts** already hold a value "
+                f"within 10% of the proposal in today's master. "
+                + (f"The other {_left} are" if _left > 1 else "The other one is")
+                + " still to key; **By part** lists which.",
+                icon=":material/task_alt:")
+    elif _mv:
+        st.info(f"**Today's master has moved since these jobs ran**"
+                + ("" if _mv == _n else f", on {_mv} of {_n} parts")
+                + f", but not to within 10% of the proposal, so this is still "
+                  f"to key."
+                + (f" Against today's master the change is "
+                   f"**{td['change_pct']:+.1f}%**."
+                   if td["change_pct"] is not None else ""),
+                icon=":material/history:")
+    if td["review"]:
+        st.warning(f"**Check this against today's master.** "
+                   + ("The proposal sits" if _n == 1 else
+                      f"On {td['review']} of {_n} parts the proposal sits")
+                   + f" outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI} of "
+                     f"the value the master holds today, so the jump from "
+                     f"today's master is far larger than the one the six "
+                     f"rules tested.", icon=":material/pan_tool:")
+
 # Only show a keyable number when the verdict is to key one in. Rendering the
 # workbook's SUGGESTED beside "Leave this standard alone" put a live-looking
 # 172.82 and a green +8.1% under a banner saying to do nothing - and it was
 # inconsistent about it too, so nobody could learn when the number meant "do
 # this". The arithmetic stays available below, labelled as what it is.
-k = st.columns([1, 1, 1.1, 1, 1])
-k[0].metric("Standard now", ui.fmt(w["current"]))
+#
+# SIX TILES since "Standard today" joined: the two standards side by side, then
+# the argument. `k` is shifted by one after the second tile, so k[1]..k[4]
+# below still name Measured, Change it to, Hours and Work orders counted.
+k = st.columns([1, 1, 1, 1.1, 1, 1])
+# "Standard WO", not "Standard now". It is the work orders' copy, and "now"
+# invited reading it as the master today - which is the tile beside it.
+k[0].metric("Standard WO", ui.fmt(w["current"]),
+            help="The standard the work orders ran under: each work order's "
+                 "own copy of the routing, taken from the latest one completed. "
+                 "This is what the six rules test, and what every figure on "
+                 "this page is measured against.")
+if td is None:
+    k[1].metric("Standard today", "—",
+                help="Today's master is read from the update list, which only "
+                     "carries standards with a proposed change. This unit has "
+                     "none, so it is not shown here.")
+else:
+    with k[1].container(key="fts-inline-delta-today"):
+        st.metric(
+            "Standard today",
+            (ui.fmt(td["value"]) if td["value"] is not None
+             else f"{td['n_values']} values" if td["n_values"] else "—"),
+            delta=("unchanged" if td["moved"] == 0
+                   else "moved" if td["moved"] == td["n"]
+                   else f"moved on {td['moved']} of {td['n']}"),
+            delta_color="off",
+            help=(f"The master as it stands in the latest extract, on the "
+                  f"part's current revision ({', '.join(td['cur_rev']) or '—'}); "
+                  f"the work orders ran on revision "
+                  f"{', '.join(td['wo_rev']) or '—'}. "
+                  + ("Unchanged since the jobs ran."
+                     if td["moved"] == 0 else
+                     "; ".join(f"{n} {h}" if td["n"] > 1 else h
+                               for h, n in td["how"].items()
+                               if h != "unchanged") + ".")
+                  + (f" Across the {td['n']} parts it holds "
+                     f"{td['n_values']} different values; By part lists "
+                     f"each." if td["value"] is None and td["n_values"] > 1
+                     else "")))
+k = k[1:]
 
 # MEASURED, between the standard and the decision. The row now reads as the
 # argument it is: this is the standard, this is what the jobs actually came to,
@@ -443,7 +539,7 @@ _hd = stats.get("HOURS_DELTA", 0)
 # furniture: the same element as the "+17.8%" two columns left, so the two can
 # no longer drift apart under a Streamlit upgrade. One word - "than the master"
 # is the only thing it could be measured against on a row whose other metrics
-# are called Standard now and Measured, and the pill it lines up with says
+# are called Standard WO and Measured, and the pill it lines up with says
 # "+17.8%", not "+17.8% against the standard".
 #
 # delta_color is "off" here for the reason it is off there: this is a fact about
@@ -565,7 +661,7 @@ st.divider()
 #
 # A HEADING, BUT NO CAPTIONS. The two blocks are self-describing - six ticks
 # and crosses against six named rules, and a table whose own header says "ratio"
-# and "as the routing holds it" - so the three lines of caption that used to
+# and "as the jobs ran it" - so the three lines of caption that used to
 # introduce them were paying rent above the fold for nothing. The heading is a
 # different matter: it names what the pair IS, and without one the section sat
 # between the verdict and the chart with nothing to say which question it
@@ -630,8 +726,28 @@ with _tc:
            + (f" — {int(stats['N_PARTS'])} parts pooled"
               if stats.get("N_PARTS") else ""))
 
+    # "as the jobs ran it", not "as the routing holds it": the standard row is
+    # the work orders' copy, and the routing as it holds it TODAY is the
+    # master-today row - only on actions, where the update list states it.
+    _today_row = ""
+    if td is not None:
+        if td["value"] is not None:
+            _tv = evidence.rate_txt(td["value"], _mk)
+        elif td["n_values"]:
+            _tv = f"{td['n_values']} different values across {td['n']} parts"
+        else:
+            _tv = "—"
+        _bits = (["unchanged since the jobs ran"] if td["moved"] == 0 else
+                 ["moved since the jobs ran" + ("" if td["moved"] == td["n"]
+                  else f" on {td['moved']} of {td['n']} parts")])
+        if td["done"]:
+            _bits.append("**already done**" if td["done"] == td["n"]
+                         else f"**already done on {td['done']} of "
+                              f"{td['n']} parts**")
+        _today_row = f"| **master today** | | {_tv} — {', '.join(_bits)} |\n"
+
     st.markdown(
-        f"| | ratio | as the routing holds it |\n"
+        f"| | ratio | as the jobs ran it |\n"
         f"|---|---|---|\n"
         f"| **standard** | 1.000 | {_now} |\n"
         f"| **measured** | {ui.fmt(_ratio, '.3f')}"
@@ -642,7 +758,8 @@ with _tc:
         + f" |\n"
         f"| **95% band** | {_band} | {_band_says} |\n"
         f"| **to key** | | {_key} |\n"
-        f"| **judged at** | | {_at} |")
+        + _today_row
+        + f"| **judged at** | | {_at} |")
 
 st.divider()
 
@@ -688,7 +805,7 @@ if spread is not None and pd.notna(spread) and int(spread) > 1 \
         and kindof != "act":
     st.caption(f"For information: the parts in this pool run "
                f"**{int(spread)} different current values**, so "
-               f"'Standard now' is the hours-weighted blend rather than any "
+               f"'Standard WO' is the hours-weighted blend rather than any "
                f"one stored figure. Nothing to apply — this unit is not "
                f"proposed for change.")
 

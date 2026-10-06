@@ -372,6 +372,76 @@ def action_row(target, run_type, operation, family, part_type, seq,
     return hit.iloc[0] if len(hit) else None
 
 
+# Which execution sheet holds a unit's field edits, by what it edits.
+_EXEC_SHEET = {("RUN", "PCS/HR"): "02_RunUpdateList",
+               ("SETUP_HRS", "-"): "03_SetupUpdateList",
+               ("RUN", "HRS/LOAD"): "04_LoadUpdateList"}
+
+
+def today_rows(target, run_type, operation, family, part_type, seq,
+               part_id=None):
+    """One unit's field edits, with today's master beside the jobs' standard.
+
+    THREE STANDARDS, AND THIS IS WHERE TWO OF THEM MEET. STANDARD_WO is the
+    value the work orders ran under - each work order's own copy of the
+    routing - and it is what the six rules test against. STANDARD_TODAY is
+    the master as it stands now, on the part's current revision. The pipeline
+    writes both, with STANDARD_CHANGE, CHANGE_PCT_TODAY and TODAY_STATUS, onto
+    every row of the three execution sheets; this only reads them, so the app
+    cannot reach a different answer than the workbook about what is done.
+
+    One row per part: a part action has one, a family action one per part.
+    Matched on ROUTE as well, for the reason action_row matches on LEVEL.
+
+    None when there is nothing to read - an analysis whose workbook is absent,
+    or an update list written before these columns existed.
+    """
+    sheet = _EXEC_SHEET.get((target, run_type))
+    if sheet is None or (sheet.startswith("03") and not has_setup()) \
+            or (sheet.startswith("04") and not has_load()):
+        return None
+    d = update_list(sheet)
+    if "STANDARD_TODAY" not in d.columns:
+        return None
+    m = ((d.OPERATION == operation) & (d.FAMILY == family)
+         & (d.PART_TYPE == part_type) & (d[SEQ] == seq)
+         & (d.ROUTE.astype(str).str.upper()
+            == ("PART" if part_id is not None else "FAMILY")))
+    if part_id is not None:
+        m &= (d.PART_ID == part_id)
+    return d[m]
+
+
+def today_summary(rows):
+    """today_rows() reduced to what Inspect states about it, or None.
+
+    A family action spans parts that can sit on different revisions and so
+    hold different values today; `value` is set only when every part agrees,
+    and `n_values` says how many there are when they do not.
+    """
+    if rows is None or rows.empty:
+        return None
+    t = rows.STANDARD_TODAY
+    vals = sorted(set(t.dropna().round(4)))
+    pct = rows.CHANGE_PCT_TODAY
+    pcts = sorted(set(pct.dropna().round(1)))
+    return {
+        "n": len(rows),
+        "value": vals[0] if len(vals) == 1 and t.notna().all() else None,
+        "n_values": len(vals),
+        "missing": int(t.isna().sum()),
+        "moved": int((rows.STANDARD_CHANGE.astype(str) != "unchanged").sum()),
+        "done": int(rows.TODAY_STATUS.astype(str)
+                    .str.startswith("already done").sum()),
+        "change_pct": (pcts[0] if len(pcts) == 1 and pct.notna().all()
+                       else None),
+        "review": int(rows.REVIEW_FLAG_TODAY.notna().sum()),
+        "how": rows.STANDARD_CHANGE.astype(str).value_counts().to_dict(),
+        "wo_rev": sorted(set(rows.WO_REV.dropna().astype(str))),
+        "cur_rev": sorted(set(rows.CURRENT_REV.dropna().astype(str))),
+    }
+
+
 def edits():
     """Every field edit across the three execution sheets, one shape.
 
