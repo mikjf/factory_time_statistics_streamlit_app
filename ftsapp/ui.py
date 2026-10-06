@@ -209,9 +209,10 @@ CSS = """
    carries 4px under the pill that would otherwise have to be subtracted here,
    and dissolving it keeps the arithmetic to one term.
    OPT-IN, by st.container(key="fts-inline-delta-..."), which Streamlit renders
-   as a .st-key- class. Applied globally it would also catch the review queue's
-   filtered count - "18 of 238" and the like - where the delta is a DENOMINATOR
-   and belongs under the count it qualifies rather than beside it. */
+   as a .st-key- class. Applied globally it would also catch every other
+   metric's delta. (The review queue's filtered "of 238" sat under its count
+   for that reason until 2026-10-06, when its tile joined the inline pills at
+   the user's request, sharing the pill with "n already done".) */
 /* A CAPTION AND THE BUTTON IT NAMES, read as one thing. Streamlit's block gap
    separates every element by the same amount, which is right between sections
    and far too much between a sentence ending "clear it to go back" and the
@@ -250,6 +251,10 @@ CSS = """
    direction; the arrow can only contradict it. */
 .st-key-fts-inline-delta-hours [data-testid="stMetricDelta"] svg,
 .st-key-fts-inline-delta-today [data-testid="stMetricDelta"] svg { display: none; }
+/* The "n already done" pills on Overview and the Review queue, beside the value
+   like the ones above (same container prefix, same spacing): a count, not a
+   trend, so no arrow either. */
+[class*="st-key-fts-inline-delta-pill"] [data-testid="stMetricDelta"] svg { display: none; }
 
 /* The line under a page title that says WHICH unit this is: part type, step,
    and whether one part or a whole family. It was st.caption - 14px at 60%
@@ -672,6 +677,34 @@ def side_note(container, text):
 # width actually costs something.
 WHOLE = "Whole family"
 WHOLE_INLINE = "whole family"
+
+def done_pill(n_done):
+    """The "n already done" pill on the Standards / Operations rows tiles of
+    Overview and the Review queue, or None when there is nothing done. The
+    number beside it is unchanged - an action stays an action - and the pill
+    says how much of it today's master already carries."""
+    return f"{num(n_done)} already done" if n_done else None
+
+
+def done_help(n_done, n_partly=None, noun="standards"):
+    """The sentence those tiles' tooltips gain, or "" - one wording for both
+    pages. n_partly only applies to decisions; a routing row is either done
+    or not."""
+    if not n_done and not n_partly:
+        return ""
+    first = n_done or n_partly
+    verb = "is" if first == 1 else "are"
+    if n_done:
+        what = f"{num(n_done)} of these {noun} {verb} already done"
+        if n_partly:
+            what += f" and {num(n_partly)} partly done"
+        where = ""
+    else:
+        what = f"{num(n_partly)} of these {noun} {verb} partly done"
+        where = " on some of their parts"
+    return (f" In today's master, {what}: it holds the value proposed to "
+            f"within 10%{where}. They are still counted here.")
+
 
 def today_check(container, entries, more, n_type, total, noun, lo, hi):
     """The amber "check this against today's master" box - one wording for

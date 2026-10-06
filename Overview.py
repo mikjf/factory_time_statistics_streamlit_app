@@ -73,20 +73,37 @@ n_pcs = int(((acts.TARGET == "RUN") & (acts.RUN_TYPE == "PCS/HR")).sum())
 n_hrl = int(((acts.TARGET == "RUN") & (acts.RUN_TYPE == "HRS/LOAD")).sum())
 n_set = int((acts.TARGET == "SETUP_HRS").sum())
 
+# "n already done" (2026-10-06): how much of the list today's master already
+# carries - ACTION_STATUS per decision, TODAY_STATUS per routing row. The
+# counts themselves are unchanged: an action stays an action. Same helper and
+# words as the Review queue's tiles, which follow its filters.
+_st = (acts.ACTION_STATUS.astype(str) if "ACTION_STATUS" in acts.columns
+       else pd.Series("", index=acts.index))
+_n_done = int((_st == "already done").sum())
+_n_partly = int(_st.str.startswith("partly done").sum())
+_rows_done = int(edits.TODAY_STATUS.astype(str).str.startswith(
+    "already done").sum())
+
 c = st.columns(4)
-c[0].metric("Standards to review", ui.num(len(acts)),
-            help=f"{n_pcs} run PCS/HR, {n_hrl} run HRS/LOAD, {n_set} setup.")
+with c[0].container(key="fts-inline-delta-pill-standards"):
+    st.metric("Standards to review", ui.num(len(acts)),
+              delta=ui.done_pill(_n_done), delta_color="off",
+              help=f"{n_pcs} run PCS/HR, {n_hrl} run HRS/LOAD, {n_set} setup."
+              + ui.done_help(_n_done, _n_partly))
 c[1].metric("Distinct parts affected", ui.num(edits.PART_ID.nunique()),
             help="Parts have multiple operations and each one could need an "
                  "edit.")
-c[2].metric("Operations rows to edit", ui.num(len(edits)),
-            # SHARED WITH THE REVIEW QUEUE, which carries this tile too and had
-            # drifted to a second wording of the same fact. The two reach the
-            # same figure by different routes - this counts rows in the
-            # execution sheets, that sums N_PARTS over 01_Actions - and agree.
-            # The figure itself is deliberately not quoted here: it moves with
-            # every extract, and nothing recomputes a comment.
-            help=text.ROWS_TO_EDIT_HELP)
+with c[2].container(key="fts-inline-delta-pill-rows"):
+    st.metric("Operations rows to edit", ui.num(len(edits)),
+              delta=ui.done_pill(_rows_done), delta_color="off",
+              # SHARED WITH THE REVIEW QUEUE, which carries this tile too and
+              # had drifted to a second wording of the same fact. The two
+              # reach the same figure by different routes - this counts rows
+              # in the execution sheets, that sums N_PARTS over 01_Actions -
+              # and agree. The figure itself is deliberately not quoted here:
+              # it moves with every extract, and nothing recomputes a comment.
+              help=text.ROWS_TO_EDIT_HELP
+              + ui.done_help(_rows_done, noun="rows"))
 c[3].metric("Absolute misstated hours",
             ui.hrs(total.HOURS_DELTA_ABSOLUTE),
             # SHARED WITH THE REVIEW QUEUE, which shows the same figure under

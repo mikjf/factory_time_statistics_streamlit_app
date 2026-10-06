@@ -326,27 +326,44 @@ if big_first:
 # takes the slot because it is what this page adds: it pairs with the rail's
 # toggle and the Check? column, neither of which Overview has.
 m = st.columns(4)
-m[0].metric("Standards to review", ui.num(len(d)),
-            delta=f"of {ui.num(len(acts))}" if len(d) != len(acts) else None,
-            # NOT the inline-delta container Inspect uses. See ui.py: this
-            # delta is a denominator, not a qualifier on the value, so it
-            # belongs under the count rather than beside it.
-            delta_color="off",
-            # Counted off TARGET/RUN_TYPE, not off the derived display column.
-            # Comparing against display strings meant this silently returned
-            # zero for both run analyses the moment that column's wording
-            # changed - which it then did twice.
-            help=f"{int(((d.TARGET == 'RUN') & (d.RUN_TYPE == 'PCS/HR')).sum())}"
-                 f" run PCS/HR, "
-                 f"{int(((d.TARGET == 'RUN') & (d.RUN_TYPE == 'HRS/LOAD')).sum())}"
-                 f" run HRS/LOAD, "
-                 f"{int((d.TARGET == 'SETUP_HRS').sum())} setup.")
+# "n already done" (2026-10-06), following the filter like the counts do: of the
+# decisions shown, how many today's master already carries. Same helper and
+# words as Overview's tiles. On the first tile it shares the pill with "of N".
+_n_done = int((d.STATUS == "already done").sum())
+_n_partly = int(d.STATUS.str.startswith("partly done").sum())
+_rows_done = (int(pd.to_numeric(d.N_PARTS_ALREADY_DONE, errors="coerce")
+                  .fillna(0).sum())
+              if "N_PARTS_ALREADY_DONE" in d.columns else 0)
+_pill0 = " · ".join(x for x in [
+    f"of {ui.num(len(acts))}" if len(d) != len(acts) else None,
+    ui.done_pill(_n_done)] if x) or None
+with m[0].container(key="fts-inline-delta-pill-standards"):
+    st.metric(
+        "Standards to review", ui.num(len(d)),
+        delta=_pill0,
+        # THE INLINE-DELTA CONTAINER Inspect uses, since 2026-10-06 (user):
+        # the "n already done" pill reads beside the count with the same
+        # spacing as Inspect's, and "of N" rides in it when filtered.
+        delta_color="off",
+        # Counted off TARGET/RUN_TYPE, not off the derived display column.
+        # Comparing against display strings meant this silently returned
+        # zero for both run analyses the moment that column's wording
+        # changed - which it then did twice.
+        help=f"{int(((d.TARGET == 'RUN') & (d.RUN_TYPE == 'PCS/HR')).sum())}"
+             f" run PCS/HR, "
+             f"{int(((d.TARGET == 'RUN') & (d.RUN_TYPE == 'HRS/LOAD')).sum())}"
+             f" run HRS/LOAD, "
+             f"{int((d.TARGET == 'SETUP_HRS').sum())} setup."
+             + ui.done_help(_n_done, _n_partly))
 # N_PARTS summed is a count of FIELD EDITS, not of parts: a part is edited once
 # per operation it runs, so summing it across actions counts the same part
 # several times. It sat one click from Home's distinct-part count under a
 # near-identical label, reading as a contradiction.
-m[1].metric("Operations rows to edit", ui.num(d.N_PARTS.sum()),
-            help=text.ROWS_TO_EDIT_HELP)
+with m[1].container(key="fts-inline-delta-pill-rows"):
+    st.metric("Operations rows to edit", ui.num(d.N_PARTS.sum()),
+              delta=ui.done_pill(_rows_done), delta_color="off",
+              help=text.ROWS_TO_EDIT_HELP
+              + ui.done_help(_rows_done, noun="rows"))
 m[2].metric("Absolute misstated hours", ui.hrs(d.HOURS_DELTA.abs().sum()),
             help=text.ABSOLUTE_MISSTATED_HELP)
 # "Flagged for manual review", following How to read it, whose section on this
