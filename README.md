@@ -144,6 +144,14 @@ The comparison is always against the workbook that **computed** the figure, neve
 the consolidated update list, whose ratios are rounded to three decimals for
 reading.
 
+**After every new extract, run `python app_checks.py`** from this folder. It
+renders every page headless and checks what the screen and the downloads say
+against the update list: Std today and Status per decision, the two copies of
+today's master on every action, Status on every part row, and every statement
+in the master row updater. One line per check, exit 0 when all pass. It is the
+app's counterpart to the pipeline's `fts_checks.py`, which `run_all.py` already
+runs for you.
+
 ## Vocabulary and colour
 
 Two words, everywhere, never paraphrased: **master** for the standard the ERP
@@ -294,6 +302,7 @@ pages/3_By_part.py        one part, changed and unchanged steps alike
 pages/4_Additional_findings.py  hours charged for work with no evidence
 pages/5_How_to_read_it.py how to read a recommendation
 pages/6_Methodology.py    the method, and what it is computed over
+app_checks.py             run after every extract: pages render, figures match
 
 ftsapp/paths.py      where the analysis lives; imports nothing from it
 ftsapp/pipeline.py   imports the analysis scripts; re-exports their thresholds
