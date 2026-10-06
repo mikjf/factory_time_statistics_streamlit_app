@@ -112,8 +112,14 @@ STEP_TABLE_CONFIG = {
         help=f"From the start of {pipeline.FY_LABEL} to the last booking in "
              f"the extract — a running total, not a rate. Positive means "
              f"the jobs take longer than the master allows."),
+    # "Std WO", as on Inspect and the Review queue (2026-10-06). Its help said
+    # "the value the master carries today", which was wrong: it is the value
+    # the work orders ran with. Today's master is the upper table's Today.
     "NOW": st.column_config.NumberColumn(
-        "Now", help="The value the master carries today."),
+        "Std WO",
+        help="The standard the work orders ran with: the latest completed "
+             "work order's value (setup: the year's largest). Not "
+             "necessarily what the master holds today."),
     # BLANK IS A STATEMENT HERE, not a gap. Two of the three analyses write
     # a suggested value only where they propose one, and the family rollups
     # write one even where their own verdict says nothing could be judged -
@@ -146,8 +152,8 @@ STEP_TABLE_CONFIG = {
     # From the update list's STANDARD_TODAY / TODAY_STATUS, never recomputed.
     "TODAY": st.column_config.NumberColumn(
         "Today",
-        help="What this part's routing row holds in today's master. Now is "
-             "what the work orders ran with; the two differ where the master "
+        help="What this part's routing row holds in today's master. Std WO "
+             "is what the work orders ran with; the two differ where the master "
              "moved since."),
     # Fixed width for the reason the Review queue's Status has one: auto-sizing
     # fits the first rows, which usually read "to key".

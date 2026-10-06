@@ -149,6 +149,23 @@ if "ACTION_STATUS" not in acts.columns:
     acts["ACTION_STATUS"] = ""
 acts["STATUS"] = acts.ACTION_STATUS.map(ui.status_name)
 
+# STANDARD_TODAY per decision (user, 2026-10-06): today's master across the
+# parts the decision covers, read from the execution sheets through edits().
+# One value when every part holds the same; blank when they differ - the rule
+# CURRENT_VALUE (Std WO) already follows, and for the same reason: there is no
+# single number to show. By part and the master row updater carry each part's.
+_e = data.edits().rename(columns={"TARGET_COLUMN": "TARGET", "ROUTE": "LEVEL"})
+_k = ["FAMILY", "PART_TYPE", "OPERATION", S, "TARGET", "RUN_TYPE", "LEVEL",
+      "_PK"]
+_e["_PK"] = _e.PART_ID.where(_e.LEVEL == "PART", "")
+_t = (_e.groupby(_k).STANDARD_TODAY
+      .agg(lambda s: s.iloc[0] if s.notna().all() and s.round(4).nunique() == 1
+           else float("nan")).rename("STANDARD_TODAY").reset_index())
+acts["_PK"] = acts.PART_ID.where(acts.LEVEL == "PART", "")
+_n = len(acts)
+acts = acts.merge(_t, on=_k, how="left").drop(columns="_PK")
+assert len(acts) == _n, "the today join changed the number of decisions"
+
 
 def applies_to(part_id, level):
     """PART_ID as a table cell rather than as a sentence.
@@ -421,7 +438,8 @@ detail = st.toggle("Show the statistics columns", value=False,
 # in it, and at the end it never splits the Now / Suggested comparison.
 base = ["FAMILY", "PART_TYPE", "OPERATION", S, "ANALYSIS",
         "PART_ID", "N_PARTS", "N_WO", "HOURS_DELTA",
-        "CURRENT_VALUE", "TO_KEY", "EFFECT", "TO_KEY_CHANGE_PCT", "STATUS"]
+        "CURRENT_VALUE", "STANDARD_TODAY", "TO_KEY", "EFFECT",
+        "TO_KEY_CHANGE_PCT", "STATUS"]
 extra = ["RATIO", "CI95_LOW_PER_WO", "CI95_HIGH_PER_WO"]
 cols = base + (extra if detail else [])
 
@@ -436,7 +454,8 @@ event = st.dataframe(
     # Both signed figures carry their sign, the same way Overview's Net column
     # does: a change and a delta printed bare read as totals.
     ui.swiss_grid(show, {"N_WO": ",.0f", "N_PARTS": ",.0f",
-                         "CURRENT_VALUE": ",.2f", "TO_KEY": ",.2f",
+                         "CURRENT_VALUE": ",.2f", "STANDARD_TODAY": ",.2f",
+                         "TO_KEY": ",.2f",
                          "TO_KEY_CHANGE_PCT": "+,.1f",
                          "HOURS_DELTA": "+,.0f",
                          "RATIO": ",.3f", "CI95_LOW_PER_WO": ",.3f",
@@ -450,18 +469,18 @@ event = st.dataframe(
         # NO FIXED WIDTHS ON ANY COLUMN (user, 2026-10-06): every column is
         # auto-sized, as the starting point for deciding the table's widths
         # column by column. Family, Part type, Applies to and Status each had
-        # one until then. Set since, in pixels, by the user: Part type 60,
-        # Step, Parts, Δ Hours and Now 55; Family "medium" put back as it was;
+        # one until then. Set since, in pixels, by the user: Part type 65,
+        # Step 45, Parts, Δ Hours and Std WO 55, Std today 65; Family "medium" put back as it was;
         # Applies to and Status 125.
         "FAMILY": st.column_config.TextColumn("Family", width="medium"),
         "PART_TYPE": st.column_config.TextColumn(
-            "Part type", width=60,
+            "Part type", width=65,
             help="ADV finished, ANDV semi-finished. Both are analysed, never "
                  "in the same pool — same family, different physical job."),
         # No width - sized to content, same as Family, and the same treatment
         # Additional findings gives its operation columns.
         "OPERATION": st.column_config.TextColumn("Operation"),
-        S: st.column_config.NumberColumn("Step", format="%d", width=55),
+        S: st.column_config.NumberColumn("Step", format="%d", width=45),
         "PART_ID": st.column_config.TextColumn(
             "Applies to", width=125,
             help="A part number, where the part had enough work orders to be "
@@ -491,7 +510,22 @@ event = st.dataframe(
                  "down a PCS/HR standard means a lower rate."),
         # No `format` on these: the Styler above owns the display, and a
         # NumberColumn format would override it and put the commas back.
-        "CURRENT_VALUE": st.column_config.NumberColumn("Now", width=55),
+        # "Std WO", not "Now" (user, 2026-10-06) - the same value Inspect calls
+        # Standard WO. "Now" read as today's master, which it is not.
+        "CURRENT_VALUE": st.column_config.NumberColumn(
+            "Std WO", width=55,
+            help="The standard the work orders ran with: the latest completed "
+                 "work order's value (setup: the year's largest). Not "
+                 "necessarily what the master holds today — Status says "
+                 "whether that already carries the suggestion."),
+        # Between Std WO and Suggested: what the jobs ran with, what the
+        # master holds now, what to key - read left to right.
+        "STANDARD_TODAY": st.column_config.NumberColumn(
+            "Std today", width=65,
+            help="What today's master holds for the parts this decision "
+                 "covers. Blank where they hold different values — By part "
+                 "and the master row updater show each part's. Status says "
+                 "whether it is already within 10% of Suggested."),
         # RM_RECOMMENDED from the execution sheets, which is what a reviewer
         # actually keys. Since 2026-08-27 it equals 01_Actions' SUGGESTED_VALUE
         # on EVERY row, part and family alike - RM_RECOMMENDED is RM_SUGGESTED
@@ -518,8 +552,8 @@ event = st.dataframe(
             help="Whether today's master already holds the value proposed. "
                  "Already done: every part is within 10% of it. Partly done: "
                  "some parts are, the rest are still to key — By part shows "
-                 "which. To key: none is. Now is what the work orders ran "
-                 "with, not necessarily what the master holds today."),
+                 "which. To key: none is. Std WO is what the work orders "
+                 "ran with, not necessarily what the master holds today."),
         "N_PARTS": st.column_config.NumberColumn(
             "Parts", width=55,
             help="How many parts this one decision covers. Each needs the "
@@ -603,10 +637,17 @@ if _no_value:
     # the reader can see, and "every part moves by the same proportion" is why
     # a Change % on a row with no other numbers is trustworthy rather than a
     # leftover. Without that second clause it reads as a bare assertion.
-    _note = (f"**{_no_value} rows** show no *Now* or *Suggested* — their family "
+    _note = (f"**{_no_value} rows** show no *Std WO* or *Suggested* — their family "
              f"runs several current values, so there is no single number to "
              f"key. *Change %* still holds: every part moves by the same "
              f"proportion. ")
+# STD TODAY HAS BLANKS OF ITS OWN, on a different set of rows: a family can
+# have run one value and hold several today, or the reverse. Said separately,
+# so neither count is read as the other.
+_no_today = int(d.STANDARD_TODAY.isna().sum())
+if _no_today:
+    _note += (f"**{_no_today} rows** show no *Std today* — their parts hold "
+              f"different values in today's master; By part shows each. ")
 
 # WHY PROPOSED IS NOT WHAT THIS PART MEASURED, on the rows where it is not.
 # These are judged at PART level - the rail says a part number, not the family -
@@ -668,7 +709,7 @@ if rows:
             unsafe_allow_html=True)
         st.markdown(
             f"**Do this:** {_apply}"
-            + (f" (it is {ui.fmt(r.CURRENT_VALUE)} now)"
+            + (f" (the work orders ran with {ui.fmt(r.CURRENT_VALUE)})"
                if pd.notna(r.CURRENT_VALUE) else "") + ".")
         # WHAT TODAY'S MASTER SAYS, only when it changes what to do. Inspect
         # carries the full picture - moved values, the check against today -
@@ -764,8 +805,8 @@ st.caption(
     "row. This one is one row per **routing row**: every part a decision "
     "covers, with that part's own current and suggested value, the "
     "`MASTER_OPS_ROWID` it is keyed against, and a ready-made `UPDATE` "
-    "statement for it. `TODAY` and `TODAY_STATUS` say what that row holds "
-    "in today's master and whether the suggestion is already in it; rows "
+    "statement for it. `STANDARD_TODAY` and `TODAY_STATUS` say what that row "
+    "holds in today's master and whether the suggestion is already in it; rows "
     "marked *already done* carry no statement, since there is nothing left "
     "to key on them.\n\n"
     "The statement is a **spreadsheet formula**, not finished text — it reads "
@@ -826,10 +867,11 @@ _by_part = data.actions_by_part(d)
 # below is built. It is the ERP COLUMN NAME, "RUN" or "SETUP_HRS", which is
 # exactly what that statement has to name.
 #
-# TODAY AND TODAY_STATUS, after EFFECT (2026-10-06): this routing row's value
-# in today's master, and whether the suggestion is already in it - so whoever
-# keys from this file can skip the rows that are done. NOW stays what the work
-# orders ran with. On a row already done the statement is left empty (user,
+# STANDARD_TODAY AND TODAY_STATUS (2026-10-06): this routing row's value in
+# today's master, and whether the suggestion is already in it - so whoever keys
+# from this file can skip the rows that are done. STANDARD_TODAY sits between
+# STANDARD_WO and SUGGESTED, the order of the table above (user): what the jobs
+# ran with, what the master holds now, what to key. On a row already done the statement is left empty (user,
 # 2026-10-06) - see SQL_UPDATE below; the row itself stays in the file.
 #
 # THE PART BEFORE THE STEP (user, 2026-10-06): routing row, family, part number,
@@ -838,12 +880,13 @@ _by_part = data.actions_by_part(d)
 # part shows under its title.
 _cols = ["MASTER_OPS_ROWID", "FAMILY", "PART_ID", "PART_DESCRIPTION",
          "PART_TYPE", "OPERATION", S, "ANALYSIS", "APPLIES_TO",
-         "CURRENT", "RECOMMENDED", "RATIO", "EFFECT",
-         "STANDARD_TODAY", "TODAY_STATUS", "HOW_TO_APPLY", "TARGET"]
+         "CURRENT", "STANDARD_TODAY", "RECOMMENDED", "RATIO", "EFFECT",
+         "TODAY_STATUS", "HOW_TO_APPLY", "TARGET"]
 _by_part["PART_DESCRIPTION"] = _by_part.PART_ID.map(
     data.part_index().set_index("PART_ID").PART_DESCRIPTION)
-_RENAME = {"CURRENT": "NOW", "RECOMMENDED": "SUGGESTED",
-           "STANDARD_TODAY": "TODAY"}
+# STANDARD_WO, not NOW (user, 2026-10-06): what the work orders ran with,
+# beside STANDARD_TODAY, what the master holds now. NOW read as the second.
+_RENAME = {"CURRENT": "STANDARD_WO", "RECOMMENDED": "SUGGESTED"}
 _by_part["APPLIES_TO"] = [applies_to(p, lv)
                           for p, lv in zip(_by_part.PART_ID_DECISION,
                                            _by_part.LEVEL)]
@@ -901,7 +944,8 @@ _by_part = _by_part.sort_values(
 # decimals that get keyed - but it does mean NOW reads 0.50 where the master
 # holds 0.5001. It is a display of the current value, not a figure anybody
 # keys, so the consistency is worth more than the fourth decimal.
-_by_part = _by_part.round({"NOW": 2, "SUGGESTED": 2, "TODAY": 2, "RATIO": 3})
+_by_part = _by_part.round({"STANDARD_WO": 2, "SUGGESTED": 2, "STANDARD_TODAY": 2,
+                           "RATIO": 3})
 
 # ---- the statement, as a live spreadsheet formula ---------------------------
 # NOT THE FINISHED TEXT. This wrote the statement out fully rendered until
