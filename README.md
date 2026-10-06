@@ -209,13 +209,22 @@ while master hours show the crew-scaled one — `Setup 0.50 h` against a master 
 The chart's axis is a ratio. The thing somebody keys into the ERP is a rate or a
 duration. Inspect and "How to read it" both carry the mapping between them:
 
-| | ratio | as the routing holds it |
+| | ratio | as the jobs ran it |
 |---|---|---|
 | **standard** | 1.000 | Run 10.00 PCS/HR |
 | **measured** | 1.181 (+18.1%) | Run 8.47 PCS/HR (−15.3%) |
 | **95% band** | 1.067 – 1.244 | excludes 1.000 |
 | **to key** | | 8.47 — edit `RUN_MASTER` |
+| **master today** | | Run 10.00 PCS/HR — unchanged since the jobs ran |
 | **judged at** | | one part, or family as a whole |
+
+**"As the jobs ran it", because the standard row is the work orders' own copy
+of the routing** — what the six rules test against. The master can have moved
+since: **master today** is the routing line on the part's current revision as
+it stands in the latest extract, and says whether it moved. On an action it is
+read from the update list, which also says whether the change is already done;
+on any other unit it is rebuilt from the extract with the same definitions, and
+on an action the page checks the two copies agree.
 
 Read down either column and the correction directions are simply there: the
 ratio rises 18.1%, the rate falls 15.3%, one event. A duration moves the same

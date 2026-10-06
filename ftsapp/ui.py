@@ -295,6 +295,22 @@ CSS = """
     .fts-rules { grid-template-columns:repeat(2, 1fr); } }
 @media (max-width: 600px) {
     .fts-rules { grid-template-columns:1fr; } }
+/* FILL - the six results end level with the table beside them (Inspect, since
+   the "master today" row made that table a row taller than the cards). The
+   column already stretches to the row's height; these carry that height down
+   through Streamlit's wrappers to the grid, whose 1fr rows then share it. */
+[data-testid="stElementContainer"]:has(.fts-rules-fill) { flex:1 1 auto; }
+[data-testid="stElementContainer"]:has(.fts-rules-fill) > [data-testid="stMarkdown"],
+[data-testid="stMarkdown"]:has(.fts-rules-fill) > div,
+[data-testid="stMarkdownContainer"]:has(> .fts-rules-fill),
+.fts-rules-fill { height:100%; }
+/* Streamlit centres that wrapper and gives the markdown block a -1rem bottom
+   margin, which together push the grid 8px below the table's top edge. */
+[data-testid="stMarkdown"]:has(.fts-rules-fill) > div { align-items:flex-start; }
+[data-testid="stMarkdownContainer"]:has(> .fts-rules-fill) { margin-bottom:0; }
+/* Stretched, each card is taller than its two lines, so they sit in its
+   middle rather than at its top (user, 2026-10-06). */
+.fts-rules-fill .fts-rule { justify-content:center; }
 .fts-rule { border:1px solid rgba(128,128,128,.35); border-radius:.55rem;
            padding:.85rem 1rem; display:flex; flex-direction:column;
            gap:.5rem; }
@@ -522,7 +538,7 @@ def rule_cards(container, rules, per_row=3, methods=None):
         unsafe_allow_html=True)
 
 
-def rule_results(container, results, per_row=2):
+def rule_results(container, results, per_row=2, fill=False):
     """The six rules with this unit's own figure, and nothing else.
 
     The same six cards as rule_cards, minus the explanation of what each rule
@@ -540,6 +556,9 @@ def rule_results(container, results, per_row=2):
     Its own CSS grid, not st.columns - st.columns(2) lays out two columns of
     three and sizes each box to its own content, so the six come out six
     different heights. grid-auto-rows:1fr is what makes them equal.
+
+    fill=True stretches the grid to the height of its column, so the cards end
+    level with whatever sits beside them - see .fts-rules-fill in CSS.
     """
     blocker = next((i for i, g in enumerate(results) if not g["passed"]), None)
     cards = []
@@ -563,7 +582,8 @@ def rule_results(container, results, per_row=2):
             f'<div class="fts-rule-val">{_e(g.get("value", ""))}</div>'
             f'</div>')
     container.markdown(
-        f'<div class="fts-rules" style="--fts-cols:{per_row}">'
+        f'<div class="fts-rules{" fts-rules-fill" if fill else ""}" '
+        f'style="--fts-cols:{per_row}">'
         f'{"".join(cards)}</div>', unsafe_allow_html=True)
     return blocker
 

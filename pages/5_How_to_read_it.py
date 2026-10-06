@@ -226,7 +226,9 @@ if len(_ex_pool):
                     # Same six cards Inspect draws, minus the explanations -
                     # one definition in ui, so a reader who meets them on both
                     # pages meets the same six.
-                    ui.rule_results(st, text.rule_status(_stats, _q), per_row=2)
+                    # fill: ends level with the table, as on Inspect.
+                    ui.rule_results(st, text.rule_status(_stats, _q), per_row=2,
+                                    fill=True)
 
                 with _tc:
                     # ---- the two scales, side by side ------------------
@@ -278,8 +280,18 @@ if len(_ex_pool):
                     # Nothing is lost by moving it down, because the expander
                     # title and the paragraph above have both already named the
                     # part before anybody reaches the table.
+                    # THE SAME TABLE AS INSPECT'S (2026-10-06): "as the jobs
+                    # ran it", and the "master today" row read the same way -
+                    # this example is always an action, so from the update
+                    # list. The row is "" when that list predates the column.
+                    _today = evidence.today_row(data.today_summary(
+                        data.today_rows(_ex.TARGET, _ex.RUN_TYPE, _ex.OPERATION,
+                                        _ex.FAMILY, _ex.PART_TYPE,
+                                        _ex.SEQUENCE,
+                                        _ex.PART_ID if _ex.LEVEL == "PART"
+                                        else None)), _kind)
                     st.markdown(
-                        f"| | ratio | as the routing holds it |\n"
+                        f"| | ratio | as the jobs ran it |\n"
                         f"|---|---|---|\n"
                         f"| **standard** | 1.000 | {_now} |\n"
                         f"| **measured** | {_ex.RATIO:.3f} "
@@ -289,7 +301,8 @@ if len(_ex_pool):
                         f"{_ex.CI95_HIGH_PER_WO:.3f} | excludes 1.000 |\n"
                         f"| **to key** | | **{_ex.SUGGESTED_VALUE:g}** — "
                         f"{_ex.HOW_TO_APPLY} |\n"
-                        f"| **judged at** | | {_at} |")
+                        + _today
+                        + f"| **judged at** | | {_at} |")
 
                 # ---- the evidence the two blocks above rest on ---------
                 st.markdown("")

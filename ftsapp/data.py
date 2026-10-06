@@ -413,7 +413,8 @@ def today_rows(target, run_type, operation, family, part_type, seq,
 
 
 def today_summary(rows):
-    """today_rows() reduced to what Inspect states about it, or None.
+    """today_rows() - or evidence.today_parts(), which has the same shape -
+    reduced to what Inspect states about it, or None.
 
     A family action spans parts that can sit on different revisions and so
     hold different values today; `value` is set only when every part agrees,
@@ -427,10 +428,17 @@ def today_summary(rows):
     pcts = sorted(set(pct.dropna().round(1)))
     return {
         "n": len(rows),
-        "value": vals[0] if len(vals) == 1 and t.notna().all() else None,
+        # One value across the parts that HAVE a line; parts without one are
+        # counted in no_line and said separately.
+        "value": vals[0] if len(vals) == 1 else None,
         "n_values": len(vals),
         "missing": int(t.isna().sum()),
-        "moved": int((rows.STANDARD_CHANGE.astype(str) != "unchanged").sum()),
+        # "no master line today" is not a move - fts_update_list.attach_today
+        # counts it out the same way.
+        "moved": int((~rows.STANDARD_CHANGE.astype(str).isin(
+            ["unchanged", "no master line today"])).sum()),
+        "no_line": int((rows.STANDARD_CHANGE.astype(str)
+                        == "no master line today").sum()),
         "done": int(rows.TODAY_STATUS.astype(str)
                     .str.startswith("already done").sum()),
         "change_pct": (pcts[0] if len(pcts) == 1 and pct.notna().all()

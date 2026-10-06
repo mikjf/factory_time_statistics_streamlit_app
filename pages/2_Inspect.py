@@ -316,17 +316,51 @@ _from_family = (_act is not None and pd.notna(_own)
 # work orders' own copy of the routing, which is what the six rules test and
 # what stays the yardstick here. The master can have moved since - a new
 # revision, or an edit in place - and on some actions it already holds the
-# value proposed. The pipeline works all of that out per part; this only reads
-# it (data.today_rows), and only for actions, because the update list is where
-# it is written and an action is what it qualifies.
+# value proposed. The pipeline works all of that out per part for every action,
+# and on an action this page reads it from the update list (data.today_rows).
 #
 # AN ACTION STAYS AN ACTION when it is already done. The banner, the value to
 # key and every figure the six rules produced are untouched; the status is
 # stated beside them, the way ACTION_STATUS sits beside the action in the
 # workbook.
-td = (data.today_summary(data.today_rows(target, run_type, operation, family,
-                                         part_type, seq, part_id))
-      if _act is not None else None)
+#
+# EVERY OTHER UNIT GETS IT TOO, rebuilt from the extract (evidence.today_parts)
+# for the parts in this unit's evidence. That is the page somebody opens to ask
+# why their part is NOT on the list, and whether the master has moved since is
+# part of the answer. Only the action-specific notes - already done, partly
+# done, still to key, check - stay on actions.
+#
+# ON AN ACTION BOTH COPIES EXIST, and they are compared part by part: the same
+# Standard WO, the same Standard today, the same kind of change. The update
+# list stays the one shown; a disagreement is an error on screen, never
+# resolved quietly in either direction.
+_tkind = evidence.kind_of(target, run_type)
+_exec = (data.today_rows(target, run_type, operation, family, part_type, seq,
+                         part_id) if _act is not None else None)
+if _exec is not None and len(_exec):
+    td = data.today_summary(_exec)
+    _chk = evidence.today_parts(_tkind, operation, seq, _exec.PART_ID)
+    _m = _exec[["PART_ID", "STANDARD_WO", "STANDARD_TODAY",
+                "STANDARD_CHANGE"]].merge(
+        _chk if _chk is not None else
+        pd.DataFrame(columns=["PART_ID", "STANDARD_WO", "STANDARD_TODAY",
+                              "STANDARD_CHANGE"]),
+        on="PART_ID", how="left", suffixes=("", "_X"))
+
+    def _same(x, y):
+        x, y = pd.to_numeric(x, errors="coerce"), pd.to_numeric(y, errors="coerce")
+        return ((x - y).abs() <= 1e-4) | (x.isna() & y.isna())
+
+    _today_bad = int((~(_same(_m.STANDARD_WO, _m.STANDARD_WO_X)
+                        & _same(_m.STANDARD_TODAY, _m.STANDARD_TODAY_X)
+                        & (_m.STANDARD_CHANGE.astype(str)
+                           == _m.STANDARD_CHANGE_X.astype(str)))).sum())
+    td_action = True
+else:
+    _parts = [part_id] if part_id else rows.PART_ID.dropna().unique().tolist()
+    td = data.today_summary(evidence.today_parts(_tkind, operation, seq, _parts))
+    _today_bad = 0
+    td_action = False
 _unit_word = "part" if part_id else "family"
 
 # Does the queue flag this one for a human? The band is on the RATIO, not on
@@ -382,45 +416,6 @@ if needs_human:
     ui.review_warning(st, w["current"], w["suggested"], stats.get("RATIO"),
                       pipeline.REVIEW_LO, pipeline.REVIEW_HI)
 
-# WHAT TODAY'S MASTER SAYS ABOUT THIS ACTION, in the same words as
-# TODAY_STATUS: "already done" means today's master is within MIN_EFFECT (10%)
-# of the value proposed. Blue, not green - green is "rule passed" on this page,
-# and this is a fact about the ERP, not a verdict.
-if td is not None:
-    _n, _d, _mv = td["n"], td["done"], td["moved"]
-    _of = "" if _n == 1 else f" ({_n} parts)"
-    if _d and _d == _n:
-        st.info(f"**Already done in today's master.** "
-                + (f"It holds {ui.fmt(td['value'])}, " if td["value"] is not None
-                   else "Every part already holds a value ")
-                + f"within 10% of the {ui.fmt(w['suggested'])} proposed — "
-                  f"nothing left to key on this {_unit_word}{_of}.",
-                icon=":material/task_alt:")
-    elif _d:
-        _left = _n - _d
-        st.info(f"**Partly done — {_d} of {_n} parts** already hold a value "
-                f"within 10% of the proposal in today's master. "
-                + (f"The other {_left} are" if _left > 1 else "The other one is")
-                + " still to key; **By part** lists which.",
-                icon=":material/task_alt:")
-    elif _mv:
-        st.info(f"**Today's master has moved since these jobs ran**"
-                + ("" if _mv == _n else f", on {_mv} of {_n} parts")
-                + f", but not to within 10% of the proposal, so this is still "
-                  f"to key."
-                + (f" Against today's master the change is "
-                   f"**{td['change_pct']:+.1f}%**."
-                   if td["change_pct"] is not None else ""),
-                icon=":material/history:")
-    if td["review"]:
-        st.warning(f"**Check this against today's master.** "
-                   + ("The proposal sits" if _n == 1 else
-                      f"On {td['review']} of {_n} parts the proposal sits")
-                   + f" outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI} of "
-                     f"the value the master holds today, so the jump from "
-                     f"today's master is far larger than the one the six "
-                     f"rules tested.", icon=":material/pan_tool:")
-
 # Only show a keyable number when the verdict is to key one in. Rendering the
 # workbook's SUGGESTED beside "Leave this standard alone" put a live-looking
 # 172.82 and a green +8.1% under a banner saying to do nothing - and it was
@@ -440,16 +435,18 @@ k[0].metric("Standard WO", ui.fmt(w["current"]),
                  "this page is measured against.")
 if td is None:
     k[1].metric("Standard today", "—",
-                help="Today's master is read from the update list, which only "
-                     "carries standards with a proposed change. This unit has "
-                     "none, so it is not shown here.")
+                help="No master line for this step was found in the extract "
+                     "for these parts, so there is no value to show.")
 else:
+    _nl = td["no_line"]
     with k[1].container(key="fts-inline-delta-today"):
         st.metric(
             "Standard today",
             (ui.fmt(td["value"]) if td["value"] is not None
-             else f"{td['n_values']} values" if td["n_values"] else "—"),
-            delta=("unchanged" if td["moved"] == 0
+             else f"{td['n_values']} values" if td["n_values"]
+             else "no line"),
+            delta=("no line today" if _nl == td["n"]
+                   else "unchanged" if td["moved"] == 0
                    else "moved" if td["moved"] == td["n"]
                    else f"moved on {td['moved']} of {td['n']}"),
             delta_color="off",
@@ -458,14 +455,16 @@ else:
                   f"the work orders ran on revision "
                   f"{', '.join(td['wo_rev']) or '—'}. "
                   + ("Unchanged since the jobs ran."
-                     if td["moved"] == 0 else
+                     if td["moved"] == 0 and not _nl else
                      "; ".join(f"{n} {h}" if td["n"] > 1 else h
                                for h, n in td["how"].items()
                                if h != "unchanged") + ".")
                   + (f" Across the {td['n']} parts it holds "
-                     f"{td['n_values']} different values; By part lists "
-                     f"each." if td["value"] is None and td["n_values"] > 1
-                     else "")))
+                     f"{td['n_values']} different values."
+                     if td["value"] is None and td["n_values"] > 1 else "")
+                  + ("" if td_action else
+                     " Read from the extract: this unit is not on the update "
+                     "list.")))
 k = k[1:]
 
 # MEASURED, between the standard and the decision. The row now reads as the
@@ -589,6 +588,88 @@ k[4].metric("Work orders counted", ui.num(stats.get("N_COUNTED", 0)),
 # A caption is what every other note-about-the-numbers on this page is.
 st.caption(ui.direction_note(target, run_type))
 
+# WHAT TODAY'S MASTER SAYS ABOUT THIS ACTION, in the same words as
+# TODAY_STATUS: "already done" means today's master is within MIN_EFFECT (10%)
+# of the value proposed. Blue, not green - green is "rule passed" on this page,
+# and this is a fact about the ERP, not a verdict. Actions only: on any other
+# unit there is nothing proposed to be done or still to key.
+#
+# BELOW THE METRIC ROW AND ITS RATE/DURATION NOTE, not under the banner (user,
+# 2026-10-06): they qualify the two standards on the left of that row, so they
+# are read after them; the banner keeps only what the six rules decided.
+#
+# THE CHECK NAMES ITS NUMBERS. "Outside 0.25-4.0 of the value the master holds
+# today" was accurate and abstract; the reader has to see the part, the value
+# proposed, today's value and the multiple between them to judge it. The first
+# three flagged parts are named, the rest counted.
+_runit = evidence.UNITS[_mk][1]
+
+
+def _with_unit(v):
+    return f"{ui.fmt(v)} {_runit}"
+if td is not None and td_action:
+    _n, _d, _mv = td["n"], td["done"], td["moved"]
+    _of = "" if _n == 1 else f" ({_n} parts)"
+    if _d and _d == _n:
+        st.info(f"**Already done in today's master.** "
+                + (f"It holds {ui.fmt(td['value'])}, " if td["value"] is not None
+                   else "Every part already holds a value ")
+                + f"within 10% of the {ui.fmt(w['suggested'])} proposed — "
+                  f"nothing left to key on this {_unit_word}{_of}.",
+                icon=":material/task_alt:")
+    elif _d:
+        _left = _n - _d
+        st.info(f"**Partly done — {_d} of {_n} parts** already hold a value "
+                f"within 10% of the proposal in today's master. "
+                + (f"The other {_left} are" if _left > 1 else "The other one is")
+                + " still to key; **By part** lists which.",
+                icon=":material/task_alt:")
+    elif _mv:
+        st.info(f"**Today's master has moved since these jobs ran**"
+                + ("" if _mv == _n else f", on {_mv} of {_n} parts")
+                + f", but not to within 10% of the proposal, so this is still "
+                  f"to key."
+                + (f" Against today's master the change is "
+                   f"**{td['change_pct']:+.1f}%**."
+                   if td["change_pct"] is not None else ""),
+                icon=":material/history:")
+    if td["review"]:
+        _rec = next(c for c in ("RM_RECOMMENDED", "SETUP_HRS_RECOMMENDED",
+                                "RUN_RECOMMENDED") if c in _exec.columns)
+        _fl = _exec[_exec.REVIEW_FLAG_TODAY.notna()
+                    & (_exec.REVIEW_FLAG_TODAY.astype(str) != "")]
+        _band = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("outside")]
+        _typ = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("run type")]
+        _said = []
+        for r in _band.head(3).itertuples():
+            _v, _t = getattr(r, _rec), r.STANDARD_TODAY
+            _x = f" — {_v / _t:.1f}×" if _t else ""
+            _said.append(("the proposal is " if _n == 1 else
+                          f"on {r.PART_ID} the proposal is ")
+                         + f"{_with_unit(_v)} against {_with_unit(_t)} in "
+                           f"today's master{_x}")
+        _txt = "; ".join(_said)
+        if len(_band) > 3:
+            _txt += f"; and {len(_band) - 3} more of the {_n} parts"
+        _msg = "**Check this against today's master.** "
+        if _said:
+            _msg += (_txt[0].upper() + _txt[1:]
+                     + f" — outside the {pipeline.REVIEW_LO}–"
+                       f"{pipeline.REVIEW_HI} band where a change is flagged "
+                       f"for manual review.")
+        if len(_typ):
+            _msg += (f" On {len(_typ)} of {_n} parts today's master no longer "
+                     f"holds this run type, so the value proposed does not "
+                     f"apply as it stands.")
+        st.warning(_msg, icon=":material/pan_tool:")
+if _today_bad:
+    st.error(f"**Today's master disagrees between the update list and the "
+             f"extract** on {_today_bad} of {len(_exec)} parts. Either the "
+             f"update list was written from a different extract, or this "
+             f"page's rebuild has drifted from the pipeline. Do not rely on "
+             f"\"Standard today\" or the status shown until the pipeline has "
+             f"been re-run.", icon=":material/report:")
+
 # WHY "CHANGE IT TO" IS NOT WHAT THIS PART MEASURED. On these units the rail
 # says a part number and the metrics show a measured value the recommendation
 # does not match, with nothing on screen accounting for the difference - which
@@ -677,7 +758,9 @@ st.subheader("How this was decided")
 _rc, _tc = st.columns(2)
 
 with _rc:
-    ui.rule_results(st, rule_state, per_row=2)
+    # fill: the six end level with the table, which is a row taller since
+    # "master today" joined it.
+    ui.rule_results(st, rule_state, per_row=2, fill=True)
 
 with _tc:
     # _mk and _measured come from the metric row above - one derivation per
@@ -728,23 +811,9 @@ with _tc:
 
     # "as the jobs ran it", not "as the routing holds it": the standard row is
     # the work orders' copy, and the routing as it holds it TODAY is the
-    # master-today row - only on actions, where the update list states it.
-    _today_row = ""
-    if td is not None:
-        if td["value"] is not None:
-            _tv = evidence.rate_txt(td["value"], _mk)
-        elif td["n_values"]:
-            _tv = f"{td['n_values']} different values across {td['n']} parts"
-        else:
-            _tv = "—"
-        _bits = (["unchanged since the jobs ran"] if td["moved"] == 0 else
-                 ["moved since the jobs ran" + ("" if td["moved"] == td["n"]
-                  else f" on {td['moved']} of {td['n']} parts")])
-        if td["done"]:
-            _bits.append("**already done**" if td["done"] == td["n"]
-                         else f"**already done on {td['done']} of "
-                              f"{td['n']} parts**")
-        _today_row = f"| **master today** | | {_tv} — {', '.join(_bits)} |\n"
+    # master-today row - on every unit where a master line was found. One
+    # definition (evidence.today_row) shared with the example on How to read it.
+    _today_row = evidence.today_row(td, _mk)
 
     st.markdown(
         f"| | ratio | as the jobs ran it |\n"

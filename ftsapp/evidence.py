@@ -723,6 +723,151 @@ def outcome(verdict, stats):
     return "hold"
 
 
+# ---------------------------------------------------------------------------
+# Today's master, for every unit
+# ---------------------------------------------------------------------------
+# The update list states today's master only for actions. Inspect also shows it
+# on every unit that is NOT an action, because "why is my part not on the list"
+# is a question about exactly those - and the master may have moved since the
+# jobs ran. So it is rebuilt here from the extract, per part, with the
+# pipeline's own definitions (fts_update_list.load_today / attach_today):
+#
+#   TODAY  the *_MASTER_TODAY value on the part's current master line at this
+#          step - one value per line, as fts.sql carries it
+#   WO     run: RUN_MASTER of the part's most recent work order this fiscal
+#          year (what *_CURRENT is); setup: the largest SETUP_HRS_STORED, the
+#          setup analysis's own per-part figure
+#   moved  WO and TODAY further apart than SAME_VALUE; "no master line today"
+#          is not a move
+#
+# Checked before it was written: on the 5 Oct extract this reproduced
+# STANDARD_WO, STANDARD_TODAY and moved/unchanged on all 2,652 rows of the three
+# execution sheets. Inspect keeps checking it - on an action unit both copies
+# exist, and a disagreement is shown as an error rather than resolved quietly.
+
+SAME_VALUE = 0.005      # must match fts_update_list.SAME_VALUE
+
+
+def _rev(v):
+    """A revision label as text - fts_update_list._rev, copied (it is not a
+    module the app imports). Compared for equality only, never sorted."""
+    if v is None or pd.isna(v):
+        return None
+    if isinstance(v, (int, float, np.integer, np.floating)):
+        return str(int(v)) if float(v).is_integer() else str(v)
+    s = str(v).strip()
+    if s.lower() in ("", "nan", "none"):
+        return None
+    return s[:-2] if s.endswith(".0") and s[:-2].isdigit() else s
+
+
+@st.cache_data(show_spinner=False)
+def _today_frames(key):
+    """Per-part WO and TODAY values for the three routes, keyed on
+    (PART_ID, OPERATION, SEQUENCE)."""
+    df = pipeline.read_extract()
+    if "RUN_MASTER_TODAY" not in df.columns:
+        return None                     # an extract older than 28 Sep 2026
+    df = df[df.MASTER_OPS_ROWID.notna()].copy()
+    df["RUN_TYPE_MASTER_TODAY"] = df.RUN_TYPE_MASTER_TODAY.map(
+        lambda v: None if pd.isna(v) else str(v).strip())
+    df["CURRENT_REV"] = df.CURRENT_REV.map(_rev)
+    df["WO_REV"] = df.WO_REV.map(_rev)
+    k = ["PART_ID", "OPERATION", "OPERATION_SEQUENCE"]
+    fy = df[df.LAST_TRANSACTION_DATE >= pd.Timestamp(pipeline.FY_START)]
+
+    def today(lt, col):
+        d = df[df.LT_TYPE == lt]
+        g = d.groupby(k)
+        out = pd.DataFrame({
+            "TODAY": g[col].max(),
+            "N_TODAY": g[col].nunique(),
+            "RUN_TYPE_TODAY": g.RUN_TYPE_MASTER_TODAY.max(),
+            "CURRENT_REV": g.CURRENT_REV.max(),
+        })
+        last = (fy[fy.LT_TYPE == lt].sort_values("LAST_TRANSACTION_DATE",
+                                                 kind="stable")
+                .groupby(k).tail(1).set_index(k).WO_REV)
+        return out.join(last.rename("WO_REV"))
+
+    def latest_run(run_type):
+        d = fy[(fy.LT_TYPE == "Run") & (fy.RUN_TYPE_MASTER == run_type)
+               & (fy.RUN_MASTER > 0)]
+        return (d.sort_values("LAST_TRANSACTION_DATE", kind="stable")
+                .groupby(k).tail(1).set_index(k).RUN_MASTER.rename("WO"))
+
+    run_today = today("Run", "RUN_MASTER_TODAY")
+    setup_wo = (_setup_frame(key).groupby(k).SETUP_HRS_STORED.max()
+                .rename("WO"))
+    return {
+        K_PCSHR: run_today.join(latest_run("PCS/HR"), how="inner"),
+        K_LOAD: run_today.join(latest_run("HRS/LOAD"), how="inner"),
+        K_SETUP: today("Setup", "SETUP_HRS_MASTER_TODAY").join(setup_wo,
+                                                                how="inner"),
+    }
+
+
+def today_parts(kind, operation, seq, part_ids):
+    """Today's master for these parts at one step, in the shape of the update
+    list's execution rows, so data.today_summary reads either. None when the
+    extract carries no today columns or none of the parts is found."""
+    frames = _today_frames(paths.cache_key(paths.CACHE))
+    if frames is None:
+        return None
+    f = frames[kind]
+    keys = [(p, operation, seq) for p in sorted(set(part_ids))]
+    t = f.reindex(pd.MultiIndex.from_tuples(
+        keys, names=["PART_ID", "OPERATION", "OPERATION_SEQUENCE"])).dropna(
+        how="all", subset=["WO", "TODAY"])
+    if t.empty:
+        return None
+    a, c = t.WO.astype(float), t.TODAY.astype(float)
+    run_type = None if kind == K_SETUP else kind
+    type_changed = (t.RUN_TYPE_TODAY.notna() & (run_type is not None)
+                    & (t.RUN_TYPE_TODAY != run_type))
+    change = np.select(
+        [c.isna(), type_changed, (a - c).abs() <= SAME_VALUE,
+         t.WO_REV.notna() & (t.WO_REV == t.CURRENT_REV)],
+        ["no master line today", "run type changed", "unchanged",
+         "changed within the same revision"],
+        "changed with a newer revision")
+    return pd.DataFrame({
+        "PART_ID": t.index.get_level_values(0),
+        "STANDARD_WO": a.to_numpy(), "STANDARD_TODAY": c.to_numpy(),
+        "N_TODAY": t.N_TODAY.to_numpy(),
+        "STANDARD_CHANGE": change,
+        "WO_REV": t.WO_REV.to_numpy(), "CURRENT_REV": t.CURRENT_REV.to_numpy(),
+        "CHANGE_PCT_TODAY": np.nan, "TODAY_STATUS": "",
+        "REVIEW_FLAG_TODAY": np.nan,
+    })
+
+
+def today_row(td, kind):
+    """The "master today" row of the decision table, from data.today_summary,
+    or "" when there is nothing to state. One definition, so Inspect and the
+    worked example on How to read it say the same words."""
+    if td is None:
+        return ""
+    if td["value"] is not None:
+        tv = rate_txt(td["value"], kind)
+    elif td["n_values"]:
+        tv = f"{td['n_values']} different values across {td['n']} parts"
+    else:
+        tv = "no master line today"
+    nl = td["no_line"]
+    bits = ([] if nl == td["n"] else
+            ["unchanged since the jobs ran"] if td["moved"] == 0 else
+            ["moved since the jobs ran" + ("" if td["moved"] == td["n"]
+             else f" on {td['moved']} of {td['n']} parts")])
+    if nl and nl < td["n"]:
+        bits.append(f"no master line today on {nl} of {td['n']} parts")
+    if td["done"]:
+        bits.append("**already done**" if td["done"] == td["n"]
+                    else f"**already done on {td['done']} of {td['n']} parts**")
+    return (f"| **master today** | | {tv}"
+            + (f" — {', '.join(bits)}" if bits else "") + " |\n")
+
+
 def reconcile(stats, stored_ratio, stored_n=None):
     """Compare the rebuilt figures with the ones the workbook stored.
 
