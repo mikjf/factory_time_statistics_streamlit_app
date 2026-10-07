@@ -388,8 +388,9 @@ not.
                      # Total h.
                      "SETUP_HRS_CURRENT": st.column_config.NumberColumn(
                          "Setup h", width=95,
-                         help="SETUP_HRS as the routing holds it, taken only "
-                              "from tickets whose crew matched the routing. "
+                         help="SETUP_HRS as the work orders ran it (Std "
+                              "WO), taken only from tickets whose crew "
+                              "matched the routing. "
                               "Skipped h and Total h count every ticket "
                               "regardless, so this will not always multiply "
                               "out to either."),
@@ -559,8 +560,8 @@ work orders are excluded from the test and reported here.
             # ERP VALUE, treated the way every other appearance of it is.
             "RUN_EFF": st.column_config.NumberColumn(
                 "HRS/LOAD", width=100,
-                help="RUN as the routing holds it: hours for one load of "
-                     "this part."),
+                help="RUN as the work orders ran it (Std WO): hours for "
+                     "one load of this part."),
             "LOAD_SIZE": st.column_config.NumberColumn(
                 "Load size",
                 help="Pieces of this part that fit in one basket - a "

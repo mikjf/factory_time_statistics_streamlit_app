@@ -29,6 +29,7 @@ the workbooks at run time - the commit guard refuses identifiers in code, and a
 check pinned to one part would stop checking anything the day it left scope.
 """
 
+import contextlib
 import io
 import logging
 import pathlib
@@ -74,15 +75,22 @@ def check(name, ok, detail=""):
 
 
 def render(page, unit=None, setup=None):
-    """Run one page; return the AppTest after it finished, downloads collected."""
+    """Run one page; return the AppTest after it finished, downloads collected.
+
+    THE PAGE'S OWN PRINTING IS SWALLOWED. The analysis functions a page calls
+    print as they go - "token bookings dropped: ..." on every rebuild - and
+    run from run_all those lines buried the PASS and FAIL lines between them.
+    What a page SHOWS is still checked in full; only its console chatter goes.
+    """
     DOWNLOADS.clear()
     at = AppTest.from_file(str(APP / page), default_timeout=300)
     if unit is not None:
         at.session_state["unit"] = unit
-    at.run()
-    if setup is not None and not at.exception:
-        setup(at)
+    with contextlib.redirect_stdout(io.StringIO()):
         at.run()
+        if setup is not None and not at.exception:
+            setup(at)
+            at.run()
     return at
 
 
