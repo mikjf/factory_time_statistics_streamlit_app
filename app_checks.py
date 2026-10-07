@@ -12,7 +12,8 @@ update list they came from.
        states, Inspect on every action and a sample of held units, By part on
        a sample of parts, Additional findings, How to read it, Methodology
     2. Review queue: Std today and Status equal the update list, decision by
-       decision
+       decision, and "Flagged for manual review" counts both reasons - the
+       ratio band and the check against today's master
     3. Inspect: the two copies of today's master - update list and extract -
        agree on every action (the red cross-check never fires), on every
        part row of the "part by part" table Status follows from the row itself,
@@ -198,6 +199,24 @@ def main():
             & (st_short.str.startswith("partly") == st_ref.str.startswith("partly"))
         check("Status equals ACTION_STATUS", bool(agree.all()),
               f"{int((~agree).sum())} differ")
+        # FLAGGED FOR MANUAL REVIEW counts a decision once for either reason
+        # (2026-10-07): its ratio outside the band, or any of its routing rows
+        # flagged against today's master. The pill counts the second.
+        ft = (e.assign(_F=e.REVIEW_FLAG_TODAY.notna()
+                       & (e.REVIEW_FLAG_TODAY.astype(str).str.strip() != ""))
+              .groupby(k)["_F"].any().rename("FT").reset_index())
+        a2 = a.merge(ft, on=k, how="left")
+        on_today = a2.FT.fillna(False).astype(bool)
+        band = (a2.RATIO < pipeline.REVIEW_LO) | (a2.RATIO > pipeline.REVIEW_HI)
+        want_n, want_t = int((band | on_today).sum()), int(on_today.sum())
+        flag_tile = next(x for x in at.metric
+                         if x.label == "Flagged for manual review")
+        check("Flagged for manual review counts both reasons",
+              flag_tile.value == f"{want_n:,}".replace(",", "'")
+              and (flag_tile.delta or "") == (f"{want_t} against today"
+                                              if want_t else ""),
+              f"tile {flag_tile.value} / {flag_tile.delta!r}, update list "
+              f"{want_n} ({want_t} against today)")
 
         # The master row updater.
         up = [d for n, d in DOWNLOADS if n and "updater" in n]

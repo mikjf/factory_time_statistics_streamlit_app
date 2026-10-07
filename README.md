@@ -168,10 +168,11 @@ The master comes in two copies, and the app names them apart:
 
 On a **whole family**, Std WO, Std today and Suggested show the one value every
 part holds, and stay empty where the parts differ. There is then no single
-number to key, and By part and the master row updater show each part's own.
-Inspect's Standard WO tile shows the number of values instead. Measured and the
-chart still work from the pool's hours-weighted blend, and say so where it
-differs.
+number to key, and By part, the Review queue's row card and the master row
+updater show each part's own. Inspect's Standard WO tile shows the number of
+values instead. Measured still works from the pool's own figure — an
+hours-weighted rate on PCS/HR, the average per work order on HRS/LOAD, the
+median across the setups on setup — and says which where it differs.
 
 **Already done** means today's master has moved and now sits within the
 materiality threshold (rule 5) of the value proposed, so there is nothing left

@@ -455,9 +455,16 @@ k = st.columns([1, 1, 1, 1.1, 1, 1])
 #
 # ON A WHOLE FAMILY IT IS ONE VALUE OR A COUNT (user, 2026-10-07), the rule the
 # Review queue and By part follow - data.one_value - and the way Standard today
-# beside it reads. It showed the pool's hours-weighted blend, a value no routing
-# line holds. The blend stays where it is arithmetic: Measured, the decision
-# table's standard row and the chart, each saying so when it differs.
+# beside it reads. It showed the pool's own figure, a value no routing line
+# holds. That figure stays where it is arithmetic - Measured and the decision
+# table's standard row - each saying so when it differs.
+#
+# WHICH FIGURE DEPENDS ON THE ANALYSIS: an hours-weighted rate on PCS/HR, the
+# average per work order on HRS/LOAD, the median across the setups on setup -
+# evidence.POOL_FIGURE. It was called "the hours-weighted blend" on all three
+# for one day, and the chart was said to use it, which it does not: the chart
+# draws ratios only.
+_pool_fig = evidence.POOL_FIGURE[evidence.kind_of(target, run_type)]
 _family_wo = part_id is None and td is not None
 _wo_shown = td["wo_value"] if _family_wo else w["current"]
 _blend_differs = bool(
@@ -473,8 +480,8 @@ k[0].metric("Standard WO",
                  + (f" Across the {td['n']} parts it is one value when every "
                     f"part ran with the same, and the number of values when "
                     f"they differ." if _family_wo else "")
-                 + (f" Measured and the chart work from the pool's "
-                    f"hours-weighted blend, {ui.fmt(w['current'])}."
+                 + (f" Measured works from the pool's {_pool_fig}, "
+                    f"{ui.fmt(w['current'])}."
                     if _blend_differs else ""))
 if td is None:
     k[1].metric("Standard today", "—",
@@ -538,8 +545,7 @@ _measured = evidence.measured_value(w["current"], stats.get("RATIO"), _mk)
 k[1].metric("Measured", ui.fmt(_measured),
             help=f"What this pool actually came to, in the same unit as the "
                  f"standard: "
-                 + ("the pool's hours-weighted standard, " if _blend_differs
-                    else "")
+                 + (f"the pool's {_pool_fig}, " if _blend_differs else "")
                  + f"{ui.fmt(w['current'])} {_op} "
                  f"{ui.fmt(stats.get('RATIO'), '.3f')}. "
                  # The blend is not what any part keys, so where it differs
@@ -872,10 +878,10 @@ with _tc:
     # _mk and _measured come from the metric row above - one derivation per
     # page, so the table and the metric can never show different numbers for
     # the same thing.
-    # The standard row stays the blend, since measured is computed from it, and
-    # says so where the Standard WO tile shows something else.
+    # The standard row stays the pool's own figure, since measured is computed
+    # from it, and says which figure where the Standard WO tile shows another.
     _now = (evidence.rate_txt(w["current"], _mk)
-            + (" — the pool's hours-weighted blend" if _blend_differs else ""))
+            + (f" — the pool's {_pool_fig}" if _blend_differs else ""))
     _then = evidence.rate_txt(_measured, _mk)
     _ratio = stats.get("RATIO")
     _lo, _hi = stats.get("CI_LOW"), stats.get("CI_HIGH")
@@ -983,10 +989,10 @@ spread = stats.get("N_DISTINCT_CURRENT")
 if spread is not None and pd.notna(spread) and int(spread) > 1 \
         and kindof != "act":
     st.caption(f"For information: the parts in this pool run "
-               f"**{int(spread)} different current values**, so Measured and "
-               f"the chart work from their hours-weighted blend rather than "
-               f"any one stored figure. Nothing to apply — this unit is not "
-               f"proposed for change.")
+               f"**{int(spread)} different current values**, so Measured "
+               f"works from the pool's {_pool_fig} rather than any one stored "
+               f"figure. Nothing to apply — this unit is not proposed for "
+               f"change.")
 
 st.divider()
 

@@ -283,8 +283,12 @@ def actions():
 
     So a family pool has no single number to key in those cases, and dropping
     the sheet's blended pair for one part's value would be a different error
-    from the one being fixed. That question is open and belongs with the blend
-    itself, not here.
+    from the one being fixed.
+
+    CLOSED AT THE SOURCE, 2026-10-07: fts_update_list.family_values now reads a
+    family action's pair off its own execution rows - the one value every part
+    holds, or blank where they differ - so a family row here needs no
+    correction either. The pool's own figure no longer reaches 01_Actions.
     """
     a = update_list("01_Actions").copy()
     a["NEEDS_REVIEW"] = ((a.RATIO < pipeline.REVIEW_LO)
@@ -418,7 +422,7 @@ def one_value(s):
     THE RULE FOR A WHOLE-FAMILY ROW, on every page (user, 2026-10-07): Std WO,
     Std today and Suggested show one number when every part the decision
     covers holds it, and stay empty when the parts differ - there is no single
-    number to key, and a blend of them is a value no routing line holds. A part
+    number to key, and the pool's own figure is a value no routing line holds. A part
     with no value is a part that does not hold the same one, so it empties the
     cell too. Compared at 4 decimals, the precision the sheets are written at.
     """

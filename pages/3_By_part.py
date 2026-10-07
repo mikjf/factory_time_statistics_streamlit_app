@@ -125,8 +125,8 @@ STEP_TABLE_CONFIG = {
     # the work orders ran with. Today's master is the upper table's Today.
     #
     # ON A WHOLE FAMILY ROW, ONE VALUE OR NOTHING (user, 2026-10-07) - the
-    # Review queue's rule, data.one_value. It was the pool's hours-weighted
-    # blend, a value no routing line holds; see family_rule below.
+    # Review queue's rule, data.one_value. It was the pool's own figure, a
+    # value no routing line holds; see family_rule below.
     "NOW": st.column_config.NumberColumn(
         "Std WO", width=55,
         help="The standard the work orders ran with: the latest completed "

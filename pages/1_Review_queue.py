@@ -154,19 +154,34 @@ acts["STATUS"] = acts.ACTION_STATUS.map(ui.status_name)
 # One value when every part holds the same; blank when they differ - the rule
 # data.one_value states for every page, and for the same reason: there is no
 # single number to show. By part and the master row updater carry each part's.
-# NOT YET CURRENT_VALUE (Std WO) on setup and HRS/LOAD family actions: 01_Actions
-# writes the pool's own value there even where the parts differ (8 of 174
-# family actions on 7 Oct 2026). Open, and a change of its own.
+# CURRENT_VALUE (Std WO) and SUGGESTED_VALUE follow the same rule on 01_Actions
+# itself since the pipeline's fts_update_list.family_values (2026-10-07).
+#
+# N_FLAG_TODAY rides the same join (2026-10-07): how many of the decision's
+# routing rows the update list flags against today's master - REVIEW_FLAG_TODAY,
+# the proposal outside the review band of what the master holds now, or a run
+# type that changed. This page counted only the flag against the work orders'
+# standard, so a decision with one part to raise ×6.3 over today's value read
+# "Flagged for manual review: 0" here while Inspect and By part showed amber.
 _e = data.edits().rename(columns={"TARGET_COLUMN": "TARGET", "ROUTE": "LEVEL"})
 _k = ["FAMILY", "PART_TYPE", "OPERATION", S, "TARGET", "RUN_TYPE", "LEVEL",
       "_PK"]
 _e["_PK"] = _e.PART_ID.where(_e.LEVEL == "PART", "")
-_t = (_e.groupby(_k).STANDARD_TODAY.agg(data.one_value)
-      .rename("STANDARD_TODAY").reset_index())
+_e["_FLAG_TODAY"] = (_e.REVIEW_FLAG_TODAY.notna()
+                     & (_e.REVIEW_FLAG_TODAY.astype(str).str.strip() != ""))
+_g = _e.groupby(_k)
+_t = pd.DataFrame({"STANDARD_TODAY": _g.STANDARD_TODAY.agg(data.one_value),
+                   "N_FLAG_TODAY": _g["_FLAG_TODAY"].sum()}).reset_index()
 acts["_PK"] = acts.PART_ID.where(acts.LEVEL == "PART", "")
 _n = len(acts)
 acts = acts.merge(_t, on=_k, how="left").drop(columns="_PK")
 assert len(acts) == _n, "the today join changed the number of decisions"
+acts["N_FLAG_TODAY"] = acts.N_FLAG_TODAY.fillna(0).astype(int)
+# ONE FLAG FOR THE PAGE: either reason puts a decision in front of a person.
+# The tile, the rail toggle and the row card all read it; the two reasons stay
+# apart in what they SAY - the review warning for the work orders' standard,
+# the amber "check against today's master" for today's.
+acts["FLAGGED"] = acts.NEEDS_REVIEW | (acts.N_FLAG_TODAY > 0)
 
 
 def applies_to(part_id, level):
@@ -288,11 +303,12 @@ with st.sidebar:
 
     only_review = st.toggle(
         "Only flagged for manual review", value=False,
-        help=f"Ratio outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI}. The "
-             f"test is on the ratio, not the percentage change: a rate that "
-             f"quadruples reads +300% but one cut to a quarter reads −75% and "
-             f"can never pass −100%, so flagging on the change would catch "
-             f"only increases.")
+        help=f"Ratio outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI}, or a "
+             f"part whose proposal is outside that band of what today's "
+             f"master holds. The test is on the ratio, not the percentage "
+             f"change: a rate that quadruples reads +300% but one cut to a "
+             f"quarter reads −75% and can never pass −100%, so flagging on "
+             f"the change would catch only increases.")
 
     # OFF BY DEFAULT, so the counts above the table keep matching Overview's
     # until somebody asks otherwise. Hides ALREADY done only: a partly done
@@ -304,7 +320,7 @@ with st.sidebar:
              "- some of its parts are still to key.")
 
 if only_review:
-    d = d[d.NEEDS_REVIEW]
+    d = d[d.FLAGGED]
 if hide_done:
     d = d[d.STATUS != "already done"]
 if big_first:
@@ -379,10 +395,25 @@ m[2].metric("Absolute misstated hours", ui.hrs(d.HOURS_DELTA.abs().sum()),
 # "Standards to review", so a reader meets "flagged for review" and reasonably
 # asks how it differs from the other 230. Manual is the difference: the six rules
 # cleared those automatically, these want a person.
-m[3].metric("Flagged for manual review", ui.num(d.NEEDS_REVIEW.sum()),
-            help=f"Ratio outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI}. "
-                 f"These passed all six rules, but the change is large enough "
-                 f"that a person should check it before it is keyed in.")
+#
+# TWO REASONS, ONE COUNT (2026-10-07). A decision is counted once whichever
+# applies; the pill says how many carry the newer one, against today's master,
+# in the same inline style as the "already done" pills beside it.
+_n_today = int((d.N_FLAG_TODAY > 0).sum())
+with m[3].container(key="fts-inline-delta-pill-flagged"):
+    st.metric("Flagged for manual review", ui.num(d.FLAGGED.sum()),
+              delta=(f"{ui.num(_n_today)} against today" if _n_today
+                     else None),
+              delta_color="off",
+              help=f"Ratio outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI}. "
+                   f"These passed all six rules, but the change is large "
+                   f"enough that a person should check it before it is keyed "
+                   f"in."
+                   + (f" {ui.num(_n_today)} of them are counted because a "
+                      f"part's proposal is outside that band of what today's "
+                      f"master holds, or today's master runs another run "
+                      f"type. Click the row to see which part."
+                      if _n_today else ""))
 
 if d.empty:
     st.info("Nothing matches those filters.", icon=":material/filter_alt_off:")
@@ -730,6 +761,30 @@ if rows:
             f"**Do this:** {_apply}"
             + (f" (the work orders ran with {ui.fmt(r.CURRENT_VALUE)})"
                if pd.notna(r.CURRENT_VALUE) else "") + ".")
+        # THE VALUES BEHIND AN EMPTY CELL (user, 2026-10-07). A whole-family
+        # decision whose parts differ shows no Std WO or Suggested - one row is
+        # one decision, so it is not split into a row per value - and the
+        # numbers are one click away here instead: each value the parts ran
+        # with, how many parts hold it and what it becomes, off the same rows
+        # the master row updater writes.
+        if r.LEVEL == "FAMILY" and pd.isna(r.TO_KEY):
+            _g = _e[(_e.FAMILY == r.FAMILY) & (_e.PART_TYPE == r.PART_TYPE)
+                    & (_e.OPERATION == r.OPERATION) & (_e[S] == r[S])
+                    & (_e.TARGET == r.TARGET) & (_e.RUN_TYPE == r.RUN_TYPE)
+                    & (_e.LEVEL.astype(str).str.upper() == "FAMILY")]
+            _grp = (_g.groupby(["CURRENT", "RECOMMENDED"]).PART_ID.nunique()
+                    .reset_index().sort_values(["PART_ID", "CURRENT"],
+                                               ascending=[False, True]))
+            if len(_grp):
+                _shown = [f"{n} part{'s' if n > 1 else ''} at {ui.fmt(c)} → "
+                          f"{ui.fmt(v)}"
+                          for c, v, n in _grp.head(5).itertuples(index=False)]
+                _rest = len(_grp) - len(_shown)
+                st.markdown(
+                    "**Each part's own value:** " + ", ".join(_shown)
+                    + (f", and {_rest} more value{'s' if _rest > 1 else ''}"
+                       if _rest else "")
+                    + ". The master row updater below lists every part.")
         # WHAT TODAY'S MASTER SAYS, only when it changes what to do. Inspect
         # carries the full picture - moved values, the check against today -
         # one click below.
@@ -752,6 +807,29 @@ if rows:
         if bool(r.NEEDS_REVIEW):
             ui.review_warning(st, r.CURRENT_VALUE, r.TO_KEY, r.RATIO,
                               pipeline.REVIEW_LO, pipeline.REVIEW_HI)
+        # THE CHECK AGAINST TODAY'S MASTER, in Inspect's and By part's words
+        # (ui.today_check), naming the flagged parts - up to three, then a
+        # count. The rows are the decision's own, off the same frame the
+        # N_FLAG_TODAY count came from.
+        if r.N_FLAG_TODAY > 0:
+            _pk = r.PART_ID if r.LEVEL == "PART" else ""
+            _rows = _e[(_e.FAMILY == r.FAMILY) & (_e.PART_TYPE == r.PART_TYPE)
+                       & (_e.OPERATION == r.OPERATION) & (_e[S] == r[S])
+                       & (_e.TARGET == r.TARGET) & (_e.RUN_TYPE == r.RUN_TYPE)
+                       & (_e.LEVEL == r.LEVEL) & (_e["_PK"] == _pk)]
+            _fl = _rows[_rows["_FLAG_TODAY"]]
+            _band = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("outside")]
+            _typ = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("run type")]
+            _u = "h" if r.TARGET == "SETUP_HRS" else str(r.RUN_TYPE)
+            ui.today_check(
+                st,
+                [(None if len(_rows) == 1 else f"part {x.PART_ID}",
+                  f"{ui.fmt(x.RECOMMENDED)} {_u}",
+                  f"{ui.fmt(x.STANDARD_TODAY)} {_u}",
+                  x.RECOMMENDED / x.STANDARD_TODAY if x.STANDARD_TODAY else None)
+                 for x in _band.head(3).itertuples()],
+                max(len(_band) - 3, 0), len(_typ), len(_rows), "parts",
+                pipeline.REVIEW_LO, pipeline.REVIEW_HI)
         st.page_link("pages/2_Inspect.py",
                      label="Open the evidence behind this",
                      icon=":material/query_stats:")
@@ -781,7 +859,11 @@ else:
 #
 # STATUS joins them for the same reason: it is ACTION_STATUS shortened, and
 # ACTION_STATUS (with N_PARTS_ALREADY_DONE) is already in the file.
-_dl = d.drop(columns=["EFFECT", "ANALYSIS", "STATUS"])
+#
+# FLAGGED too (2026-10-07): it is NEEDS_REVIEW or N_FLAG_TODAY > 0, and both
+# are in the file. N_FLAG_TODAY stays - how many of the decision's routing rows
+# are flagged against today's master is in no other column of this file.
+_dl = d.drop(columns=["EFFECT", "ANALYSIS", "STATUS", "FLAGGED"])
 st.download_button(
     "Download this view as CSV", _dl.to_csv(index=False).encode("utf-8"),
     file_name="fts_review_queue.csv", mime="text/csv",

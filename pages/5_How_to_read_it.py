@@ -391,6 +391,20 @@ Treat them as **findings to check, not values to key**. The number is in the
 workbook so nothing is hidden, and they are counted in the totals — but keying
 one unread is how a data problem becomes a standard.
 """)
+# THE SECOND REASON, since 2026-10-07 on the Review queue too: the same band,
+# measured against what today's master holds rather than against the work
+# orders' standard. Counted live from the update list's REVIEW_FLAG_TODAY.
+_ft = data.edits().REVIEW_FLAG_TODAY
+_n_ft = int((_ft.notna() & (_ft.astype(str).str.strip() != "")).sum())
+st.markdown(
+    f"A routing row is also flagged when **today's master** has moved since "
+    f"the jobs ran and the value proposed is outside the same band of what "
+    f"it holds now, or when today's master runs another run type. "
+    f"**{ui.num(_n_ft)} routing row{'s' if _n_ft != 1 else ''}** carry that "
+    f"flag on this update list. The Review queue counts the decisions they "
+    f"belong to under *Flagged for manual review*, and Inspect, By part and "
+    f"the Review queue's row card name the part in an amber *check this "
+    f"against today's master* box.")
 
 st.divider()
 
@@ -477,8 +491,9 @@ st.info(
 st.markdown(
     f"**{_k['no_value']} decisions carry no single value to key in, and "
     f"that is deliberate.** Those families hold several different "
-    f"`RUN` values across their parts, so there is no one number to "
-    f"write. The row says *{ui.keying_instruction(_k['no_value_note'])}* — "
+    f"values across their parts, `RUN` or `SETUP_HRS`, so there is no one "
+    f"number to write. The row says, for example, "
+    f"*{ui.keying_instruction(_k['no_value_note'])}* — "
     f"the ratio is the "
     f"instruction, not the value. A blank in the suggested column on those "
     f"rows is the correct reading, not a gap.")

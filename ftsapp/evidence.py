@@ -105,6 +105,18 @@ UNITS = {K_PCSHR: ("Run", "PCS/HR"),
          K_SETUP: ("Setup", "h")}
 
 
+# WHAT A POOL'S OWN STANDARD IS, by route - the figure Measured is computed
+# from on a whole-family unit, and what the page calls it. It is a different
+# statistic on each, and calling all three "the hours-weighted blend" (as this
+# app did for one day, 2026-10-07) was true of PCS/HR only:
+#   PCS/HR    pieces over master hours across the pool  (fts_family_view)
+#   HRS/LOAD  master hours per work order, single-load   (fts_load_view)
+#   setup     the median stored SETUP_HRS of its setups   (fts_setup_view)
+POOL_FIGURE = {K_PCSHR: "hours-weighted rate",
+               K_LOAD: "average per work order",
+               K_SETUP: "median across its setups"}
+
+
 def kind_of(target, run_type):
     """Which unit a workbook row's standard is held in.
 
