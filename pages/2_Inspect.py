@@ -334,12 +334,17 @@ _from_family = (_act is not None and pd.notna(_own)
 # Standard WO, the same Standard today, the same kind of change. The update
 # list stays the one shown; a disagreement is an error on screen, never
 # resolved quietly in either direction.
+#
+# WHICH FRAME is evidence.unit_today's choice, shared with By part (2026-10-07):
+# the update list's rows on an action, the extract's for this unit's evidence
+# parts on anything else.
 _tkind = evidence.kind_of(target, run_type)
-_exec = (data.today_rows(target, run_type, operation, family, part_type, seq,
-                         part_id) if _act is not None else None)
-if _exec is not None and len(_exec):
-    td = data.today_summary(_exec)
-    _tframe = _exec
+_tframe, td_action = evidence.unit_today(target, run_type, operation, family,
+                                         part_type, seq, part_id, rows)
+td = data.today_summary(_tframe)
+_today_bad = 0
+if td_action:
+    _exec = _tframe
     _chk = evidence.today_parts(_tkind, operation, seq, _exec.PART_ID)
     _m = _exec[["PART_ID", "STANDARD_WO", "STANDARD_TODAY",
                 "STANDARD_CHANGE"]].merge(
@@ -356,13 +361,6 @@ if _exec is not None and len(_exec):
                         & _same(_m.STANDARD_TODAY, _m.STANDARD_TODAY_X)
                         & (_m.STANDARD_CHANGE.astype(str)
                            == _m.STANDARD_CHANGE_X.astype(str)))).sum())
-    td_action = True
-else:
-    _parts = [part_id] if part_id else rows.PART_ID.dropna().unique().tolist()
-    _tframe = evidence.today_parts(_tkind, operation, seq, _parts)
-    td = data.today_summary(_tframe)
-    _today_bad = 0
-    td_action = False
 _unit_word = "part" if part_id else "family"
 
 # Does the queue flag this one for a human? The band is on the RATIO, not on
@@ -454,11 +452,30 @@ if needs_human:
 k = st.columns([1, 1, 1, 1.1, 1, 1])
 # "Standard WO", not "Standard now". It is the work orders' copy, and "now"
 # invited reading it as the master today - which is the tile beside it.
-k[0].metric("Standard WO", ui.fmt(w["current"]),
+#
+# ON A WHOLE FAMILY IT IS ONE VALUE OR A COUNT (user, 2026-10-07), the rule the
+# Review queue and By part follow - data.one_value - and the way Standard today
+# beside it reads. It showed the pool's hours-weighted blend, a value no routing
+# line holds. The blend stays where it is arithmetic: Measured, the decision
+# table's standard row and the chart, each saying so when it differs.
+_family_wo = part_id is None and td is not None
+_wo_shown = td["wo_value"] if _family_wo else w["current"]
+_blend_differs = bool(
+    _family_wo and pd.notna(w["current"])
+    and (_wo_shown is None or abs(float(_wo_shown) - float(w["current"])) > 0.005))
+k[0].metric("Standard WO",
+            (f"{td['wo_n_values']} vals" if _family_wo and _wo_shown is None
+             else ui.fmt(_wo_shown)),
             help="The standard the work orders ran under: each work order's "
                  "own copy of the routing, taken from the latest one completed. "
                  "This is what the six rules test, and what every figure on "
-                 "this page is measured against.")
+                 "this page is measured against."
+                 + (f" Across the {td['n']} parts it is one value when every "
+                    f"part ran with the same, and the number of values when "
+                    f"they differ." if _family_wo else "")
+                 + (f" Measured and the chart work from the pool's "
+                    f"hours-weighted blend, {ui.fmt(w['current'])}."
+                    if _blend_differs else ""))
 if td is None:
     k[1].metric("Standard today", "—",
                 help="No master line for this step was found in the extract "
@@ -520,11 +537,20 @@ _op = "÷" if _mk == evidence.K_PCSHR else "×"
 _measured = evidence.measured_value(w["current"], stats.get("RATIO"), _mk)
 k[1].metric("Measured", ui.fmt(_measured),
             help=f"What this pool actually came to, in the same unit as the "
-                 f"standard: {ui.fmt(w['current'])} {_op} "
-                 f"{ui.fmt(stats.get('RATIO'), '.3f')}. Where all six rules "
-                 f"pass this is also the value proposed — the new standard is "
-                 f"what the jobs already achieve. Where a rule stops the unit, "
-                 f"this is still what was measured; it is simply not proposed.")
+                 f"standard: "
+                 + ("the pool's hours-weighted standard, " if _blend_differs
+                    else "")
+                 + f"{ui.fmt(w['current'])} {_op} "
+                 f"{ui.fmt(stats.get('RATIO'), '.3f')}. "
+                 # The blend is not what any part keys, so where it differs
+                 # from Standard WO the value proposed is not this figure.
+                 + ("Where all six rules pass, the value proposed applies the "
+                    "same ratio to each part's own standard. "
+                    if _blend_differs else
+                    "Where all six rules pass this is also the value proposed "
+                    "— the new standard is what the jobs already achieve. ")
+                 + "Where a rule stops the unit, this is still what was "
+                   "measured. It is simply not proposed.")
 if kindof == "act":
     # delta_color is always "off". Streamlit's default colours a delta by its
     # arithmetic sign, so a rate correctly coming DOWN prints red - a colour
@@ -535,11 +561,15 @@ if kindof == "act":
     # .st-key-fts-inline-delta rules in ui.py. It is a qualifier on the number,
     # read in the same breath as it, and on its own line it took a line of the
     # row and left this metric taller than the four beside it.
+    #
+    # The change is against the Standard WO tile, whatever that shows - on a
+    # whole family its one value, and no change where it is a count.
+    _base = _wo_shown
     with k[2].container(key="fts-inline-delta-change"):
         st.metric("Change it to", ui.fmt(w["suggested"]),
-                  delta=(f"{(w['suggested'] / w['current'] - 1) * 100:+.1f}%"
-                         if pd.notna(w["suggested"]) and pd.notna(w["current"])
-                         and w["current"] else None),
+                  delta=(f"{(w['suggested'] / _base - 1) * 100:+.1f}%"
+                         if pd.notna(w["suggested"]) and _base is not None
+                         and pd.notna(_base) and _base else None),
                   delta_color="off")
 else:
     # No number here, and no apology for it either. "Measured" two columns left
@@ -842,7 +872,10 @@ with _tc:
     # _mk and _measured come from the metric row above - one derivation per
     # page, so the table and the metric can never show different numbers for
     # the same thing.
-    _now = evidence.rate_txt(w["current"], _mk)
+    # The standard row stays the blend, since measured is computed from it, and
+    # says so where the Standard WO tile shows something else.
+    _now = (evidence.rate_txt(w["current"], _mk)
+            + (" — the pool's hours-weighted blend" if _blend_differs else ""))
     _then = evidence.rate_txt(_measured, _mk)
     _ratio = stats.get("RATIO")
     _lo, _hi = stats.get("CI_LOW"), stats.get("CI_HIGH")
@@ -950,9 +983,9 @@ spread = stats.get("N_DISTINCT_CURRENT")
 if spread is not None and pd.notna(spread) and int(spread) > 1 \
         and kindof != "act":
     st.caption(f"For information: the parts in this pool run "
-               f"**{int(spread)} different current values**, so "
-               f"'Standard WO' is the hours-weighted blend rather than any "
-               f"one stored figure. Nothing to apply — this unit is not "
+               f"**{int(spread)} different current values**, so Measured and "
+               f"the chart work from their hours-weighted blend rather than "
+               f"any one stored figure. Nothing to apply — this unit is not "
                f"proposed for change.")
 
 st.divider()

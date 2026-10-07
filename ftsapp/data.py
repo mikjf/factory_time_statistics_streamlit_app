@@ -412,13 +412,31 @@ def today_rows(target, run_type, operation, family, part_type, seq,
     return d[m]
 
 
+def one_value(s):
+    """The value every row holds, or NaN when they do not all hold the same.
+
+    THE RULE FOR A WHOLE-FAMILY ROW, on every page (user, 2026-10-07): Std WO,
+    Std today and Suggested show one number when every part the decision
+    covers holds it, and stay empty when the parts differ - there is no single
+    number to key, and a blend of them is a value no routing line holds. A part
+    with no value is a part that does not hold the same one, so it empties the
+    cell too. Compared at 4 decimals, the precision the sheets are written at.
+    """
+    s = pd.to_numeric(pd.Series(s), errors="coerce")
+    if len(s) == 0 or s.isna().any() or s.round(4).nunique() != 1:
+        return float("nan")
+    return float(s.iloc[0])
+
+
 def today_summary(rows):
     """today_rows() - or evidence.today_parts(), which has the same shape -
     reduced to what Inspect states about it, or None.
 
     A family action spans parts that can sit on different revisions and so
     hold different values today; `value` is set only when every part agrees,
-    and `n_values` says how many there are when they do not.
+    and `n_values` says how many there are when they do not. `wo_value` and
+    `wo_n_values` say the same of the standard the work orders ran with -
+    see one_value for the rule.
     """
     if rows is None or rows.empty:
         return None
@@ -426,8 +444,12 @@ def today_summary(rows):
     vals = sorted(set(t.dropna().round(4)))
     pct = rows.CHANGE_PCT_TODAY
     pcts = sorted(set(pct.dropna().round(1)))
+    _wo = one_value(rows.STANDARD_WO)
     return {
         "n": len(rows),
+        "wo_value": None if pd.isna(_wo) else _wo,
+        "wo_n_values": len(set(pd.to_numeric(rows.STANDARD_WO, errors="coerce")
+                               .dropna().round(4))),
         # One value across the parts that HAVE a line; parts without one are
         # counted in no_line and said separately.
         "value": vals[0] if len(vals) == 1 else None,

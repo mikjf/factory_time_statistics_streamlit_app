@@ -842,6 +842,59 @@ def today_parts(kind, operation, seq, part_ids):
     })
 
 
+def unit(target, run_type, operation, family, part_type, seq, part_id=None):
+    """(rows, stats) for one unit, by what it edits - the dispatch Inspect makes.
+
+    By part reaches a unit's evidence through this too, so a whole-family row
+    there covers exactly the parts Inspect shows for the same unit. A cheaper
+    route - every part of the family running the step - was measured against
+    it on 400 family units (2026-10-07) and differed on 16, all HRS/LOAD, where
+    the evidence keeps fewer parts than run the step.
+    """
+    kind = kind_of(target, run_type)
+    if kind == K_SETUP:
+        return setup(operation, family, part_type, seq)
+    if kind == K_LOAD:
+        return load(operation, family, part_type, seq, part_id)
+    if part_id is not None:
+        return run_part(operation, family, part_type, part_id, seq)
+    return run_family(operation, family, part_type, seq)
+
+
+def unit_today(target, run_type, operation, family, part_type, seq,
+               part_id=None, rows=None):
+    """(frame, from_list): one unit's parts with their Standard WO and today.
+
+    On an action the frame is the update list's own rows (data.today_rows) and
+    from_list is True; on every other unit it is rebuilt from the extract for
+    the parts in the unit's evidence (today_parts). One definition for Inspect
+    and By part. `rows` is the unit's evidence when the caller already holds
+    it; otherwise it is fetched, and only when needed.
+    """
+    if data.action_row(target, run_type, operation, family, part_type, seq,
+                       part_id) is not None:
+        ex = data.today_rows(target, run_type, operation, family, part_type,
+                             seq, part_id)
+        if ex is not None and len(ex):
+            return ex, True
+    if part_id is not None:
+        parts = [part_id]
+    else:
+        if rows is None:
+            rows, _ = unit(target, run_type, operation, family, part_type, seq)
+        parts = rows.PART_ID.dropna().unique().tolist()
+    return today_parts(kind_of(target, run_type), operation, seq, parts), False
+
+
+def keyable(value, kind):
+    """A suggested value rounded the way the pipeline rounds one before it
+    reaches the workbook: 2 decimals, the ERP field's own; setup at 10 h and
+    over to 1 - see fts_setup_view. For a figure the app derives itself."""
+    if value is None or pd.isna(value):
+        return float("nan")
+    return round(float(value), 1 if kind == K_SETUP and value >= 10 else 2)
+
+
 def today_row(td, kind):
     """The "master today" row of the decision table, from data.today_summary,
     or "" when there is nothing to state. One definition, so Inspect and the

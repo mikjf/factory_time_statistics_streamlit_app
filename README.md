@@ -147,10 +147,11 @@ reading.
 **After every new extract, run `python app_checks.py`** from this folder. It
 renders every page headless and checks what the screen and the downloads say
 against the update list: Std today and Status per decision, the two copies of
-today's master on every action, Status on every part row, and every statement
-in the master row updater. One line per check, exit 0 when all pass. It is the
-app's counterpart to the pipeline's `fts_checks.py`, which `run_all.py` already
-runs for you.
+today's master on every action, Status on every part row, the whole-family
+values on Inspect and By part, and every statement in the master row updater.
+One line per check, exit 0 when all pass. It is the app's counterpart to the
+pipeline's `fts_checks.py`, and the pipeline's `run_all.py` runs both for you
+when this folder sits beside it.
 
 ## Vocabulary and colour
 
@@ -164,6 +165,13 @@ The master comes in two copies, and the app names them apart:
 |---|---|
 | **Std WO** | the work orders' own copy of the routing — what the jobs ran with, and what the six rules test against |
 | **Std today** | the master as it stands in the latest extract, on each part's current revision |
+
+On a **whole family**, Std WO, Std today and Suggested show the one value every
+part holds, and stay empty where the parts differ. There is then no single
+number to key, and By part and the master row updater show each part's own.
+Inspect's Standard WO tile shows the number of values instead. Measured and the
+chart still work from the pool's hours-weighted blend, and say so where it
+differs.
 
 **Already done** means today's master has moved and now sits within the
 materiality threshold (rule 5) of the value proposed, so there is nothing left

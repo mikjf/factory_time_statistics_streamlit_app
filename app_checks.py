@@ -14,8 +14,12 @@ update list they came from.
     2. Review queue: Std today and Status equal the update list, decision by
        decision
     3. Inspect: the two copies of today's master - update list and extract -
-       agree on every action (the red cross-check never fires), and on every
-       part row of the "part by part" table Status follows from the row itself
+       agree on every action (the red cross-check never fires), on every
+       part row of the "part by part" table Status follows from the row itself,
+       and on every whole-family action the Standard WO tile is its parts' one
+       value or their count. By part: on the lower table's whole-family rows
+       that are decisions, Std WO, Std today and Suggested are the parts' one
+       value or blank
     4. the master row updater: as many rows as the "Operations rows to edit"
        tile, every statement pointing at its own row's SUGGESTED and
        MASTER_OPS_ROWID, empty on exactly the rows already done
@@ -109,11 +113,35 @@ acts = pd.read_excel(UL, "01_Actions")
 EXEC = {("RUN", "PCS/HR"): ("02_RunUpdateList", "RM_RECOMMENDED"),
         ("SETUP_HRS", "-"): ("03_SetupUpdateList", "SETUP_HRS_RECOMMENDED"),
         ("RUN", "HRS/LOAD"): ("04_LoadUpdateList", "RUN_RECOMMENDED")}
-ex = pd.concat([pd.read_excel(UL, s).assign(TARGET=t, RUN_TYPE=r)
-                for (t, r), (s, _) in EXEC.items()], ignore_index=True)
+ex = pd.concat([pd.read_excel(UL, s).assign(TARGET=t, RUN_TYPE=r,
+                                             RECOMMENDED=lambda d, c=c: d[c])
+                for (t, r), (s, c) in EXEC.items()], ignore_index=True)
 for c in ("FAMILY", "PART_TYPE", "OPERATION", "PART_ID"):
     acts[c] = acts[c].astype(str).str.strip()
     ex[c] = ex[c].astype(str).str.strip()
+
+
+def one(s):
+    """The value every part holds, or NaN - the whole-family rule, written out
+    again here rather than imported, so the check does not test the app's code
+    against itself."""
+    s = pd.to_numeric(s, errors="coerce")
+    return (float(s.iloc[0]) if len(s) and s.notna().all()
+            and s.round(4).nunique() == 1 else float("nan"))
+
+
+def same_value(a, b):
+    a, b = pd.to_numeric(a, errors="coerce"), pd.to_numeric(b, errors="coerce")
+    return (pd.isna(a) and pd.isna(b)) or (
+        not pd.isna(a) and not pd.isna(b) and abs(a - b) <= 1e-4)
+
+
+def family_rows(family, part_type, operation, seq, target, run_type):
+    """The update list's rows for one whole-family decision."""
+    return ex[(ex.FAMILY == family) & (ex.PART_TYPE == part_type)
+              & (ex.OPERATION == operation) & (ex.SEQ == seq)
+              & (ex.TARGET == target) & (ex.RUN_TYPE == run_type)
+              & (ex.ROUTE.astype(str).str.upper() == "FAMILY")]
 
 
 def main():
@@ -243,13 +271,32 @@ def main():
                              OPERATION=u.OPERATION.iloc[0], SEQ=int(r[sq]),
                              TARGET="RUN", RUN_TYPE="PCS/HR",
                              PART_ID=r["PART_ID"] if rnd.random() < .4 else None))
-    failed, disagree, rows, bad_rows = [], [], 0, 0
+    # THE STANDARD WO TILE ON A WHOLE-FAMILY ACTION: the one value its parts
+    # ran with, or "n vals" where they differ (2026-10-07).
+    tile_want = {}
+    for i, r in enumerate(acts.itertuples()):
+        if r.LEVEL == "PART":
+            continue
+        f = family_rows(r.FAMILY, r.PART_TYPE, r.OPERATION, int(r.SEQUENCE),
+                        r.TARGET, r.RUN_TYPE)
+        if len(f):
+            v = one(f.STANDARD_WO)
+            tile_want[i] = (f"{v:,.2f}".replace(",", "'") if pd.notna(v) else
+                            f"{f.STANDARD_WO.round(4).nunique()} vals")
+    failed, disagree, rows, bad_rows, bad_tile, tiles = [], [], 0, 0, [], 0
     eff = pipeline.MIN_EFFECT
     for i, unit in enumerate(units + held, 1):
         at = render("pages/2_Inspect.py", unit=unit)
         if at.exception:
             failed.append((unit["FAMILY"], unit["OPERATION"], unit["SEQ"]))
             continue
+        if i - 1 in tile_want:
+            tiles += 1
+            got = next((m.value for m in at.metric
+                        if m.label == "Standard WO"), None)
+            if got != tile_want[i - 1]:
+                bad_tile.append((unit["OPERATION"], unit["SEQ"], got,
+                                 tile_want[i - 1]))
         if any("disagrees between the update list and the extract" in x.value
                for x in at.error):
             disagree.append((unit["FAMILY"], unit["OPERATION"], unit["SEQ"]))
@@ -270,6 +317,11 @@ def main():
           not disagree, f"{len(disagree)} units, first {disagree[:1]}")
     check("every part row's Status follows from the row itself",
           rows > 0 and bad_rows == 0, f"{bad_rows} of {rows} part rows")
+    check("Standard WO on every whole-family action is its parts' one value "
+          "or their count", bool(tile_want) and tiles == len(tile_want)
+          and not bad_tile,
+          f"{len(bad_tile)} of {tiles} read differ ({len(tile_want)} "
+          f"expected), first {bad_tile[:1]}")
 
     # ---- By part --------------------------------------------------------
     print("By part", flush=True)
@@ -285,7 +337,10 @@ def main():
     parts = (done_parts[:5] + flagged + rnd.sample(edited, min(8, len(edited)))
              + rnd.sample(unedited, min(4, len(unedited)))
              + ["NOT-A-PART-NUMBER"])
-    failed, no_box = [], []
+    failed, no_box, fam_rows, fam_bad = [], [], 0, []
+    # The lower table names its analysis in words; this maps them back.
+    from ftsapp import ui
+    by_name = {ui.analysis_name(t, r): (t, r) for t, r in EXEC}
 
     def typed(p):
         return lambda at: at.text_input(key="by_part_typed").set_value(p)
@@ -299,10 +354,38 @@ def main():
                 w.value.startswith("**Check this against today's master.**")
                 for w in at.warning):
             no_box.append(p)
+        # THE LOWER TABLE'S WHOLE-FAMILY ROWS that are decisions on the update
+        # list: Std WO, Std today and Suggested are the one value the family's
+        # parts hold there, or blank (2026-10-07). Held rows have no list to
+        # compare with and are left to the render check.
+        low = [frame(d) for d in at.dataframe if "VERDICT" in frame(d).columns]
+        for r in (low[0].itertuples() if low else []):
+            if not str(r.APPLIES_TO).startswith("whole family"):
+                continue
+            t, rt = by_name.get(r.ANALYSIS, (None, None))
+            mine = ex[(ex.PART_ID == p) & (ex.OPERATION == r.OPERATION)
+                      & (ex.SEQ == int(r.SEQUENCE)) & (ex.TARGET == t)
+                      & (ex.RUN_TYPE == rt)
+                      & (ex.ROUTE.astype(str).str.upper() == "FAMILY")]
+            if mine.empty:
+                continue
+            f = family_rows(mine.FAMILY.iat[0], mine.PART_TYPE.iat[0],
+                            r.OPERATION, int(r.SEQUENCE), t, rt)
+            fam_rows += 1
+            wo = one(f.STANDARD_WO)
+            want = (wo, one(f.STANDARD_TODAY),
+                    one(f.RECOMMENDED) if pd.notna(wo) else float("nan"))
+            if not all(same_value(g, w) for g, w in
+                       zip((r.NOW, r.TODAY, r.SUGGESTED), want)):
+                fam_bad.append((r.OPERATION, int(r.SEQUENCE),
+                                (r.NOW, r.TODAY, r.SUGGESTED), want))
     check(f"renders on {len(dict.fromkeys(parts))} parts", not failed,
           f"{len(failed)} failed")
     check("the amber check appears on every part flagged against today",
           not no_box, f"{len(no_box)} without it")
+    check("lower table: whole-family decisions show their parts' one value "
+          "or blank", fam_rows > 0 and not fam_bad,
+          f"{len(fam_bad)} of {fam_rows} rows differ, first {fam_bad[:1]}")
 
     # ---- the rest -------------------------------------------------------
     print("Other pages", flush=True)

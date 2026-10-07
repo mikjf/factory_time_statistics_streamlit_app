@@ -9,6 +9,7 @@ different answers to give a director.
 import pathlib
 import sys
 
+import pandas as pd
 import streamlit as st
 
 # parent.parent is streamlit_app/, where ftsapp lives. Every page inserts it
@@ -17,7 +18,7 @@ import streamlit as st
 # no module named 'ftsapp'.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from ftsapp import data, freshness, pipeline, ui  # noqa: E402
+from ftsapp import data, evidence, freshness, pipeline, ui  # noqa: E402
 
 st.set_page_config(page_title="FTS · By part", page_icon=":material/qr_code:",
                    layout="wide")
@@ -48,6 +49,9 @@ S = data.SEQ
 # update list carries THIS part's own stored value with the family factor
 # applied. 26 of 169 family units have members running more than one current
 # value, so the two genuinely disagree - and only one of them is keyable.
+# Since 2026-10-07 the lower table no longer prints that average either: its
+# whole family rows show the one value every part holds, or nothing - see
+# family_rule.
 # ELEVEN SHARED, AND A TWELFTH THAT DIFFERS. The two tables agree on
 # everything up to Change %. The last column is the one thing they legitimately
 # disagree about:
@@ -80,7 +84,11 @@ STEP_TABLE_FMT = {"N_WO": ",.0f", "HOURS_DELTA": "+,.1f", "NOW": ",.2f",
 
 STEP_TABLE_CONFIG = {
     "OPERATION": st.column_config.TextColumn("Operation"),
-    S: st.column_config.NumberColumn("Step", format="%d"),
+    # WIDTHS AS ON THE REVIEW QUEUE (user, 2026-10-07): the columns the two
+    # pages share carry the pixel widths set there - Step 45, Applies to and
+    # Status 125, Δ Hours and Std WO 55, Std today 65. Everything else is
+    # auto-sized, Verdict excepted.
+    S: st.column_config.NumberColumn("Step", format="%d", width=45),
     # Same header, same three strings and the same helper as the Review
     # queue - see ui.analysis_name for why naming the analysis also names
     # the field it edits.
@@ -96,7 +104,7 @@ STEP_TABLE_CONFIG = {
     # name - see ui.applies_to. It repeats the page title on those rows,
     # which is the price of the two screens saying a thing one way.
     "APPLIES_TO": st.column_config.TextColumn(
-        "Applies to",
+        "Applies to", width=125,
         help="The part number where this part had enough work orders to be "
              "judged on its own; the whole family where its family supplied "
              "the evidence. On a whole family row every figure beside it is "
@@ -108,18 +116,24 @@ STEP_TABLE_CONFIG = {
     # "Δ Hours", the same header the Review queue uses for the same
     # column. It read "Δ h" here and "Hours" there.
     "HOURS_DELTA": st.column_config.NumberColumn(
-        "Δ Hours",
+        "Δ Hours", width=55,
         help=f"From the start of {pipeline.FY_LABEL} to the last booking in "
              f"the extract — a running total, not a rate. Positive means "
              f"the jobs take longer than the master allows."),
     # "Std WO", as on Inspect and the Review queue (2026-10-06). Its help said
     # "the value the master carries today", which was wrong: it is the value
     # the work orders ran with. Today's master is the upper table's Today.
+    #
+    # ON A WHOLE FAMILY ROW, ONE VALUE OR NOTHING (user, 2026-10-07) - the
+    # Review queue's rule, data.one_value. It was the pool's hours-weighted
+    # blend, a value no routing line holds; see family_rule below.
     "NOW": st.column_config.NumberColumn(
-        "Std WO",
+        "Std WO", width=55,
         help="The standard the work orders ran with: the latest completed "
              "work order's value (setup: the year's largest). Not "
-             "necessarily what the master holds today."),
+             "necessarily what the master holds today. On a whole family "
+             "row, the one value every part ran with, and blank where the "
+             "parts differ."),
     # BLANK IS A STATEMENT HERE, not a gap. Two of the three analyses write
     # a suggested value only where they propose one, and the family rollups
     # write one even where their own verdict says nothing could be judged -
@@ -130,7 +144,9 @@ STEP_TABLE_CONFIG = {
         "Suggested",
         help="Only where the analysis proposes one. Blank does not mean "
              "zero and does not mean the standard is right — Verdict says "
-             "which, and Ratio says how far off it was measured."),
+             "which, and Ratio says how far off it was measured. On a whole "
+             "family row it is blank wherever Std WO is, because each part "
+             "then gets its own value."),
     "RATIO": st.column_config.NumberColumn(
         "Ratio", help="Actual hours divided by master hours, across the "
                       "work orders that counted. It is on every row, "
@@ -145,20 +161,25 @@ STEP_TABLE_CONFIG = {
     "CHANGE_PCT": st.column_config.NumberColumn(
         "Change %",
         help="How much the field's own number changes, which is not how "
-             "the hours change. Blank wherever Suggested is."),
+             "the hours change. Blank where nothing is suggested. On a whole "
+             "family row it still shows when Suggested is blank, because "
+             "every part moves by the same proportion."),
     "VERDICT": st.column_config.TextColumn("Verdict", width="medium"),
-    # TODAY AND STATUS, upper table only (2026-10-06): this part's routing row
-    # as today's master holds it, and whether the suggestion is already in it.
-    # From the update list's STANDARD_TODAY / TODAY_STATUS, never recomputed.
+    # TODAY on both tables, STATUS on the upper one: the routing row as today's
+    # master holds it, and whether the suggestion is already in it. The upper
+    # table reads the update list's STANDARD_TODAY / TODAY_STATUS; the lower
+    # one (2026-10-07) the same frame Inspect reads - see family_rule.
     "TODAY": st.column_config.NumberColumn(
-        "Std today",
-        help="What this part's routing row holds in today's master. Std WO "
-             "is what the work orders ran with; the two differ where the master "
+        "Std today", width=65,
+        help="What today's master holds. On a part row, this part's routing "
+             "row. On a whole family row of the lower table, the one value "
+             "every part holds, and blank where they differ. Std WO is what "
+             "the work orders ran with, and the two differ where the master "
              "moved since."),
     # Fixed width for the reason the Review queue's Status has one: auto-sizing
     # fits the first rows, which usually read "to key".
     "STATUS": st.column_config.TextColumn(
-        "Status", width="medium",
+        "Status", width=125,
         help="Already done: today's master is within 10% of Suggested, so "
              "there is nothing left to key on this row. To key: it is not."),
     # Left ungrouped on purpose - a routing row id is an identifier, not a
@@ -219,6 +240,56 @@ def steps_table(df, part, last, today=False):
                  hide_index=True, width="stretch",
                  column_config=STEP_TABLE_CONFIG)
     return shown[cols]
+
+
+def family_rule(steps, part, edits):
+    """The lower table's standards under the Review queue's rule (user,
+    2026-10-07), with Std today added.
+
+    PART ROWS keep their own Std WO and Suggested and gain this part's Std
+    today. WHOLE FAMILY ROWS show the one value every part holds - Std WO,
+    Std today, Suggested - and nothing where the parts differ (data.one_value).
+    The parts are the ones Inspect shows for the same unit, through the same
+    frame (evidence.unit_today): the update list's on an action, the unit's
+    evidence parts on anything else.
+
+    SUGGESTED ON A FAMILY ROW, two sources. On an action it is the update
+    list's per-part value, which is what the master row updater keys. On any
+    other unit that still carries one - tested, and off by less than the gates
+    - it is the one Std WO moved by the row's own proportion, rounded the way
+    the pipeline rounds (evidence.keyable). Change % is left as it was: the
+    proportion every part moves by, which holds however many values there are.
+    """
+    out = steps.copy()
+    out["TODAY"] = float("nan")
+    for i, r in steps.iterrows():
+        pid = part if r.LEVEL == "PART" else None
+        seq = int(r[S])
+        frame, from_list = evidence.unit_today(
+            r.TARGET, r.RUN_TYPE, r.OPERATION, r.FAMILY, r.PART_TYPE, seq, pid)
+        has = frame is not None and len(frame) > 0
+        out.at[i, "TODAY"] = (data.one_value(frame.STANDARD_TODAY) if has
+                              else float("nan"))
+        if pid is not None:
+            continue
+        wo = data.one_value(frame.STANDARD_WO) if has else float("nan")
+        if from_list:
+            e = edits[(edits.OPERATION == r.OPERATION)
+                      & (edits.FAMILY == r.FAMILY)
+                      & (edits.PART_TYPE == r.PART_TYPE) & (edits[S] == seq)
+                      & (edits.TARGET_COLUMN == r.TARGET)
+                      & (edits.RUN_TYPE == r.RUN_TYPE)
+                      & (edits.ROUTE.astype(str).str.upper() == "FAMILY")]
+            sug = data.one_value(e.RECOMMENDED) if len(e) else float("nan")
+        elif pd.notna(r.SUGGESTED) and pd.notna(r.NOW) and r.NOW:
+            sug = evidence.keyable(wo * r.SUGGESTED / r.NOW,
+                                   evidence.kind_of(r.TARGET, r.RUN_TYPE))
+        else:
+            sug = float("nan")
+        out.at[i, "NOW"] = wo
+        out.at[i, "SUGGESTED"] = sug if pd.notna(wo) else float("nan")
+    return out
+
 
 edits = data.edits()
 parts = sorted(edits.PART_ID.dropna().unique().tolist())
@@ -617,9 +688,15 @@ if steps.empty:
 # reader could take from this table and be wrong about, since the page is about
 # a single part. Applies to says it per row; this says it once, before the
 # first row rather than after the last.
+# THE STANDARDS ON A WHOLE FAMILY ROW follow the Review queue's rule since
+# 2026-10-07 - one value or blank, see family_rule - and the caption says it
+# once, here, rather than leaving a blank cell to be read as a gap.
 st.caption("Including the ones left alone. **Verdict** distinguishes 'tested "
            "and holds' from 'not enough evidence'. On a *whole family* row "
-           "every figure is the family's, this part included.")
+           "every figure is the family's, this part included. Std WO, Std "
+           "today and Suggested show the one value every part holds, and "
+           "stay blank where the parts differ. The table above and the "
+           "Review queue's master row updater show this part's own.")
 
 # THE REVIEW QUEUE'S COLUMN ORDER, and for the same reasons it settled on:
 # which routing row, what kind, how wide and how big, then what to do. Family
@@ -634,7 +711,8 @@ st.caption("Including the ones left alone. **Verdict** distinguishes 'tested "
 # one of the three anyone acts on; Ratio is the same pair as a proportion. The
 # per-work-order rows they summarise are one click away in Inspect, which is
 # where a reader who wants the two absolutes should be looking anyway.
-shown_steps = steps_table(steps, part, "VERDICT")
+shown_steps = steps_table(family_rule(steps, part, edits), part, "VERDICT",
+                          today=True)
 # ONE LABEL PER ROW, not per step. The table now carries up to three analyses
 # and two levels at the same operation and step, and Inspect opens a different
 # unit for each - so a label naming only the operation and the step would have

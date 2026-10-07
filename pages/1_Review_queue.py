@@ -152,15 +152,17 @@ acts["STATUS"] = acts.ACTION_STATUS.map(ui.status_name)
 # STANDARD_TODAY per decision (user, 2026-10-06): today's master across the
 # parts the decision covers, read from the execution sheets through edits().
 # One value when every part holds the same; blank when they differ - the rule
-# CURRENT_VALUE (Std WO) already follows, and for the same reason: there is no
+# data.one_value states for every page, and for the same reason: there is no
 # single number to show. By part and the master row updater carry each part's.
+# NOT YET CURRENT_VALUE (Std WO) on setup and HRS/LOAD family actions: 01_Actions
+# writes the pool's own value there even where the parts differ (8 of 174
+# family actions on 7 Oct 2026). Open, and a change of its own.
 _e = data.edits().rename(columns={"TARGET_COLUMN": "TARGET", "ROUTE": "LEVEL"})
 _k = ["FAMILY", "PART_TYPE", "OPERATION", S, "TARGET", "RUN_TYPE", "LEVEL",
       "_PK"]
 _e["_PK"] = _e.PART_ID.where(_e.LEVEL == "PART", "")
-_t = (_e.groupby(_k).STANDARD_TODAY
-      .agg(lambda s: s.iloc[0] if s.notna().all() and s.round(4).nunique() == 1
-           else float("nan")).rename("STANDARD_TODAY").reset_index())
+_t = (_e.groupby(_k).STANDARD_TODAY.agg(data.one_value)
+      .rename("STANDARD_TODAY").reset_index())
 acts["_PK"] = acts.PART_ID.where(acts.LEVEL == "PART", "")
 _n = len(acts)
 acts = acts.merge(_t, on=_k, how="left").drop(columns="_PK")
