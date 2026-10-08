@@ -802,11 +802,25 @@ def _today_frames(key):
                 .groupby(k).tail(1).set_index(k).WO_REV)
         return out.join(last.rename("WO_REV"))
 
+    # THE LATEST REAL WORK ORDER, as the pipeline takes it (2026-10-08). A
+    # token booking - a work order closed at TOKEN_HOURS or less in total - is
+    # dropped by fts_analysis before RUN_MASTER_CURRENT is read, so Std WO is
+    # the value the last TIMED jobs ran with. This took the latest work order
+    # of any kind, and on 10 part-steps whose master had changed with only
+    # token bookings since, it read the new value: Inspect showed Std WO 0.50
+    # beside Standard today 0.93 marked "unchanged". Where a part-step has
+    # nothing but token bookings (468 on 7 Oct) the pipeline has no value at
+    # all, and the latest booking's is kept, as before.
     def latest_run(run_type):
         d = fy[(fy.LT_TYPE == "Run") & (fy.RUN_TYPE_MASTER == run_type)
                & (fy.RUN_MASTER > 0)]
-        return (d.sort_values("LAST_TRANSACTION_DATE", kind="stable")
-                .groupby(k).tail(1).set_index(k).RUN_MASTER.rename("WO"))
+        wo_hours = d.groupby(k + ["WORK_ORDER"]).HOURS_WORKED.transform("sum")
+
+        def last(x):
+            return (x.sort_values("LAST_TRANSACTION_DATE", kind="stable")
+                    .groupby(k).tail(1).set_index(k).RUN_MASTER)
+        return (last(d[wo_hours > pipeline.TOKEN_HOURS])
+                .combine_first(last(d)).rename("WO"))
 
     run_today = today("Run", "RUN_MASTER_TODAY")
     setup_wo = (_setup_frame(key).groupby(k).SETUP_HRS_STORED.max()

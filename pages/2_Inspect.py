@@ -715,11 +715,13 @@ st.caption(ui.direction_note(target, run_type))
 # never fired. Blue: an instruction, not a check (amber) or a verdict.
 if kindof == "act" and (pd.isna(w["suggested"]) or pd.isna(w["current"])):
     st.info(
+        # ONE LINE (user, 2026-10-08): the part-by-part table is right below,
+        # so pointing at it - or at By part - was a second line saying where
+        # to look rather than what to do.
         f"**This family runs more than one current standard**, so there is no "
-        f"single number to key in. Apply the ratio to each part's own value: "
+        f"single number to key in: "
         f"{'divide' if target == 'RUN' and run_type == 'PCS/HR' else 'multiply'}"
-        f" it by **{ui.fmt(stats.get('RATIO'), '.3f')}**. The part-by-part "
-        f"table below lists each part's value, and so does **By part**.",
+        f" each part's own value by **{ui.fmt(stats.get('RATIO'), '.3f')}**.",
         icon=":material/call_split:")
 
 # WHAT TODAY'S MASTER SAYS ABOUT THIS ACTION, in the same words as
