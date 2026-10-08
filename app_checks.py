@@ -100,8 +100,12 @@ def render(page, unit=None, setup=None):
 
 
 def frame(df_element):
+    """The table's data. ui.swiss_grid stores an empty number cell as +inf in
+    the copy it shows, so the grid draws "—" rather than "None"; it is turned
+    back into the empty value here, so a check compares what the page means."""
     v = df_element.value
-    return v.data if hasattr(v, "data") else v
+    v = v.data if hasattr(v, "data") else v
+    return v.replace(float("inf"), float("nan"))
 
 
 def errors(at):

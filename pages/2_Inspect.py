@@ -448,9 +448,8 @@ elif _part_done:
     detail += (f" Partly done: {td['done']} of {td['n']} parts already hold "
                f"it in today's master.")
 ui.verdict_banner(st, headline, "review" if needs_human else kindof, detail)
-if needs_human:
-    ui.review_warning(st, w["current"], w["suggested"], stats.get("RATIO"),
-                      pipeline.REVIEW_LO, pipeline.REVIEW_HI)
+# The ratio warning that explains this amber banner is NOT here any more - it
+# sits with the other boxes below the metric row (user, 2026-10-08).
 
 # Only show a keyable number when the verdict is to key one in. Rendering the
 # workbook's SUGGESTED beside "Leave this standard alone" put a live-looking
@@ -781,23 +780,30 @@ if td is not None and td_action:
                    f"**{td['change_pct']:+.1f}%**."
                    if td["change_pct"] is not None else ""),
                 icon=":material/history:")
-    if td["review"]:
-        _rec = next(c for c in ("RM_RECOMMENDED", "SETUP_HRS_RECOMMENDED",
-                                "RUN_RECOMMENDED") if c in _exec.columns)
-        _fl = _exec[_exec.REVIEW_FLAG_TODAY.notna()
-                    & (_exec.REVIEW_FLAG_TODAY.astype(str) != "")]
-        _band = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("outside")]
-        _typ = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("run type")]
-        # The wording is ui.today_check's, shared with By part.
-        ui.today_check(
-            st,
-            [(None if _n == 1 else r.PART_ID,
-              _with_unit(getattr(r, _rec)), _with_unit(r.STANDARD_TODAY),
-              getattr(r, _rec) / r.STANDARD_TODAY if r.STANDARD_TODAY
-              else None)
-             for r in _band.head(3).itertuples()],
-            max(len(_band) - 3, 0), len(_typ), _n, "parts",
-            pipeline.REVIEW_LO, pipeline.REVIEW_HI)
+# BELOW THE METRIC ROW, AFTER THE BLUE NOTES (user, 2026-10-08): the two amber
+# checks together, the ratio first and today's master second - the order the
+# Review queue's row card gives them. The ratio warning sat directly under the
+# banner, the only box above the numbers, which read as arbitrary.
+if needs_human:
+    ui.review_warning(st, w["current"], w["suggested"], stats.get("RATIO"),
+                      pipeline.REVIEW_LO, pipeline.REVIEW_HI)
+if td is not None and td_action and td["review"]:
+    _rec = next(c for c in ("RM_RECOMMENDED", "SETUP_HRS_RECOMMENDED",
+                            "RUN_RECOMMENDED") if c in _exec.columns)
+    _fl = _exec[_exec.REVIEW_FLAG_TODAY.notna()
+                & (_exec.REVIEW_FLAG_TODAY.astype(str) != "")]
+    _band = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("outside")]
+    _typ = _fl[_fl.REVIEW_FLAG_TODAY.astype(str).str.contains("run type")]
+    # The wording is ui.today_check's, shared with By part.
+    ui.today_check(
+        st,
+        [(None if _n == 1 else r.PART_ID,
+          _with_unit(getattr(r, _rec)), _with_unit(r.STANDARD_TODAY),
+          getattr(r, _rec) / r.STANDARD_TODAY if r.STANDARD_TODAY
+          else None)
+         for r in _band.head(3).itertuples()],
+        max(len(_band) - 3, 0), len(_typ), _n, "parts",
+        pipeline.REVIEW_LO, pipeline.REVIEW_HI)
 if _today_bad:
     st.error(f"**Today's master disagrees between the update list and the "
              f"extract** on {_today_bad} of {len(_exec)} parts. Either the "

@@ -95,8 +95,9 @@ STEP_TABLE_CONFIG = {
     # NOT width="small": that clipped "Run PCS/HR" to "Run PCS/HI" and
     # "whole family" to "whole famil", turning both columns into things the
     # reader has to guess at.
+    # 85 px (user, 2026-10-08) - 10 more than "small", which clipped.
     "ANALYSIS": st.column_config.TextColumn(
-        "Analysis",
+        "Analysis", width=85,
         help="Which of the three this row came from, which also says which "
              "field it is about: both run analyses judge RUN, setup judges "
              "SETUP_HRS. Setup is only ever judged per family."),
@@ -104,13 +105,14 @@ STEP_TABLE_CONFIG = {
     # name - see ui.applies_to. It repeats the page title on those rows,
     # which is the price of the two screens saying a thing one way.
     "APPLIES_TO": st.column_config.TextColumn(
-        "Applies to", width=125,
+        "Applies to", width=85,
         help="The part number where this part had enough work orders to be "
              "judged on its own; the whole family where its family supplied "
              "the evidence. On a whole family row every figure beside it is "
              "the family's."),
+    # Work orders, Suggested and Change % 65 px (user, 2026-10-08).
     "N_WO": st.column_config.NumberColumn(
-        "Work orders", help="How many the figures on this row are based "
+        "Work orders", width=65, help="How many the figures on this row are based "
                             "on. For setup, the real setups left after the "
                             "skipped ones and the crew mismatches come out."),
     # "Δ Hours", the same header the Review queue uses for the same
@@ -142,7 +144,7 @@ STEP_TABLE_CONFIG = {
     # where the analysis stands behind it, and Ratio carries the size of
     # the gap on every other row.
     "SUGGESTED": st.column_config.NumberColumn(
-        "Suggested",
+        "Suggested", width=65,
         help="Only where the analysis proposes one. Blank does not mean "
              "zero and does not mean the standard is right — Verdict says "
              "which, and Ratio says how far off it was measured. On a whole "
@@ -160,12 +162,15 @@ STEP_TABLE_CONFIG = {
              "It describes the measurement, not an instruction: Verdict "
              "says whether anything is being proposed."),
     "CHANGE_PCT": st.column_config.NumberColumn(
-        "Change %",
+        "Change %", width=65,
         help="How much the field's own number changes, which is not how "
              "the hours change. Blank where nothing is suggested. On a whole "
              "family row it still shows when Suggested is blank, because "
              "every part moves by the same proportion."),
-    "VERDICT": st.column_config.TextColumn("Verdict", width="medium"),
+    # 300 px (user, 2026-10-08): the table fills the page, so every width is
+    # a share of the stretch - at "medium" Verdict got too small a share and
+    # the left columns grew instead, cutting the longest verdicts.
+    "VERDICT": st.column_config.TextColumn("Verdict", width=300),
     # TODAY on both tables, STATUS on the upper one: the routing row as today's
     # master holds it, and whether the suggestion is already in it. The upper
     # table reads the update list's STANDARD_TODAY / TODAY_STATUS; the lower

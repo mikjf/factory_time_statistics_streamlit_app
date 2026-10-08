@@ -20,6 +20,7 @@ something the screen already says.
 import html
 import re
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -825,6 +826,10 @@ _VERDICTS = {
 }
 
 
+_SHORTER = {"watch - master changed recently, too few work orders on it":
+            "watch - master changed recently, too few work orders"}
+
+
 def verdict_name(verdict, run_type=None):
     """The workbook's verdict, said as scope + field + analysis.
 
@@ -851,7 +856,10 @@ def verdict_name(verdict, run_type=None):
         return verdict
     base = _VERDICTS.get(str(verdict).strip())
     if base is None:
-        return verdict
+        # SHORTER ON SCREEN (user, 2026-10-08): "on it" dropped, so the
+        # longest verdict fits By part's Verdict column. The workbook keeps
+        # fts_analysis's own text; nothing matches on this one.
+        return _SHORTER.get(str(verdict).strip(), verdict)
     # Setup carries RUN_TYPE "-" and its verdict already names SETUP_HRS, which
     # only one analysis ever writes - so there is nothing to disambiguate.
     if base.endswith("RUN") and run_type is not None and not pd.isna(run_type) \
@@ -1372,8 +1380,40 @@ def swiss_grid(df, specs):
     numeric values for sorting, which is the only route that gets both.
 
     specs: {column: format spec}, e.g. {"HOURS_DELTA": ",.0f"}.
+
+    AN EMPTY NUMBER CELL READS "—", NOT "None" (2026-10-08). The grid prints
+    any missing value as a grey "None" and ignores the Styler's na_rep for it -
+    tested on Streamlit 1.63 with float NaN, pandas NA, and na_rep "—" and "".
+    A formatted cell is drawn from the Styler's text, so in THIS copy only an
+    empty number is stored as +inf and formatted as "—". The column stays
+    numeric, so it still sorts as numbers - an empty cell sorts as the largest,
+    last in ascending order. A text column would draw "—" too but sort
+    "1'234.50" before "53.70". The caller's frame, its downloads and every
+    computation keep NaN; app_checks.frame() turns the inf back.
     """
     live = {c: s for c, s in specs.items() if c in df.columns}
-    return df.style.format(
-        {c: (lambda v, sp=s: fmt(v, sp)) for c, s in live.items()},
+    shown = df.copy()
+    for c in live:
+        col = shown[c]
+        # An object column of numbers and blanks - left by a row-by-row fill,
+        # as By part's lower table is - counts as a number column too.
+        if col.dtype == object:
+            num = pd.to_numeric(col, errors="coerce")
+            if int(num.notna().sum()) == int(col.notna().sum()):
+                col = num
+        if pd.api.types.is_float_dtype(col):
+            shown[c] = col.fillna(np.inf)
+    # AN EMPTY TEXT CELL TOO, in every text column the table carries - By
+    # part's Effect on a row with no ratio, Inspect's WO rev on a part with no
+    # revision read. A text column draws its own text, so "—" is simply put in.
+    # Both kinds of text column: object, and the string dtype pandas now gives
+    # a column built from strings (Inspect's WO rev is one).
+    for c in shown.columns:
+        if c not in live and (shown[c].dtype == object
+                              or pd.api.types.is_string_dtype(shown[c])):
+            shown[c] = shown[c].where(shown[c].notna(), "—")
+    return shown.style.format(
+        {c: (lambda v, sp=s: "—" if isinstance(v, float) and v == np.inf
+             else fmt(v, sp))
+         for c, s in live.items()},
         na_rep="—")
