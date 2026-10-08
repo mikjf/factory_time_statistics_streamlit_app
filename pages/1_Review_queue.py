@@ -564,8 +564,9 @@ event = st.dataframe(
         # Standard WO. "Now" read as today's master, which it is not.
         "CURRENT_VALUE": st.column_config.NumberColumn(
             "Std WO", width=55,
-            help="The standard the work orders ran with: the latest completed "
-                 "work order's value (setup: the year's largest). Not "
+            help="The standard the work orders ran with: the value on the "
+                 "latest completed work order with time booked on it, token "
+                 "bookings ignored (setup: the year's largest). Not "
                  "necessarily what the master holds today — Status says "
                  "whether that already carries the suggestion."),
         # Between Std WO and Suggested: what the jobs ran with, what the

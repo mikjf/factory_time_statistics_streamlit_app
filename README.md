@@ -170,9 +170,14 @@ On a **whole family**, Std WO, Std today and Suggested show the one value every
 part holds, and stay empty where the parts differ. There is then no single
 number to key, and By part, the Review queue's row card and the master row
 updater show each part's own. Inspect's Standard WO tile shows the number of
-values instead. Measured still works from the pool's own figure — an
-hours-weighted rate on PCS/HR, the average per work order on HRS/LOAD, the
-median across the setups on setup — and says which where it differs.
+values instead, Change it to reads *per part*, and Measured shows the ratio
+itself (× or ÷). The decision table below them keeps the arithmetic on the
+pool's own figure — an hours-weighted rate on PCS/HR, the average per work
+order on HRS/LOAD, the median across the setups on setup — and says which.
+
+**Std WO comes from a timed job.** It is the value on the latest work order
+with time booked on it; a token booking (closed at 0.02 h or less) does not
+set it, in the app as in the pipeline.
 
 **Already done** means today's master has moved and now sits within the
 materiality threshold (rule 5) of the value proposed, so there is nothing left

@@ -129,8 +129,9 @@ STEP_TABLE_CONFIG = {
     # value no routing line holds; see family_rule below.
     "NOW": st.column_config.NumberColumn(
         "Std WO", width=55,
-        help="The standard the work orders ran with: the latest completed "
-             "work order's value (setup: the year's largest). Not "
+        help="The standard the work orders ran with: the value on the "
+             "latest completed work order with time booked on it, token "
+             "bookings ignored (setup: the year's largest). Not "
              "necessarily what the master holds today. On a whole family "
              "row, the one value every part ran with, and blank where the "
              "parts differ."),

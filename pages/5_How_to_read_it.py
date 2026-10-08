@@ -496,7 +496,9 @@ st.markdown(
     f"*{ui.keying_instruction(_k['no_value_note'])}* — "
     f"the ratio is the "
     f"instruction, not the value. A blank in the suggested column on those "
-    f"rows is the correct reading, not a gap.")
+    f"rows is the correct reading, not a gap. Inspect says the same: "
+    f"*per part* under Change it to, and Measured as the ratio itself, with "
+    f"× or ÷ in front.")
 
 # "Staying honest about staleness" and "The pipeline behind this" moved to the
 # Dataset page: both are about the files the analysis is computed from rather

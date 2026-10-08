@@ -485,15 +485,23 @@ _blend_differs = bool(
 k[0].metric("Standard WO",
             (f"{td['wo_n_values']} vals" if _family_wo and _wo_shown is None
              else ui.fmt(_wo_shown)),
+            # "WITH TIME BOOKED ON IT" since 2026-10-08: a token booking does
+            # not set Std WO, here or in the pipeline - evidence.latest_run.
             help="The standard the work orders ran under: each work order's "
-                 "own copy of the routing, taken from the latest one completed. "
+                 "own copy of the routing, taken from the latest one completed "
+                 f"with time booked on it (token bookings, closed at "
+                 f"{pipeline.TOKEN_HOURS} h or less, are ignored). "
                  "This is what the six rules test, and what every figure on "
                  "this page is measured against."
                  + (f" Across the {td['n']} parts it is one value when every "
                     f"part ran with the same, and the number of values when "
                     f"they differ." if _family_wo else "")
-                 + (f" Measured works from the pool's {_pool_fig}, "
-                    f"{ui.fmt(w['current'])}."
+                 + ((f" Measured then shows the ratio, and the decision table "
+                     f"works it on the pool's {_pool_fig}, "
+                     f"{ui.fmt(w['current'])}."
+                     if _wo_shown is None else
+                     f" Measured works from the pool's {_pool_fig}, "
+                     f"{ui.fmt(w['current'])}.")
                     if _blend_differs else ""))
 if td is None:
     k[1].metric("Standard today", "—",

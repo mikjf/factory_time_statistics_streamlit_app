@@ -553,8 +553,23 @@ st.markdown(
     f"**One more check runs against today's master.** Where the master moved, "
     f"a proposal outside {pipeline.REVIEW_LO}–{pipeline.REVIEW_HI} of today's "
     f"value is flagged: the jump from today's master is then far larger than "
-    f"the one the six rules tested. Inspect and By part show it in amber, "
-    f"naming the part, the value proposed and today's value.")
+    f"the one the six rules tested. Inspect, By part and the Review queue's "
+    f"row card show it in amber, naming the part, the value proposed and "
+    f"today's value, and the Review queue counts those decisions under "
+    f"*Flagged for manual review*.\n\n"
+    # 2026-10-08: the two rules the tooltips carry, said once in full here.
+    f"**Std WO comes from a job that was timed.** A work order closed with "
+    f"{pipeline.TOKEN_HOURS} h or less is a token booking — closed, not "
+    f"timed — and does not set Std WO: it is read off the latest work order "
+    f"with time booked on it, the same work orders the six rules test.\n\n"
+    f"**On a whole family, a value is shown only when every part holds it.** "
+    f"Std WO, Std today and Suggested show the one value every part holds and "
+    f"stay empty where the parts differ, because there is then no single "
+    f"number to key: each part gets its own value multiplied or divided by "
+    f"the ratio. Inspect then shows the number of values on its Standard WO "
+    f"tile, *per part* under Change it to, and Measured as the ratio itself, "
+    f"with × or ÷ in front. The Review queue's row card lists the values, and "
+    f"By part and the master row updater show each part's own.")
 
 st.divider()
 
