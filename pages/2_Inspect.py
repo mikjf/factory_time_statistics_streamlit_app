@@ -307,7 +307,17 @@ _act = data.action_row(target, run_type, operation, family, part_type, seq,
                        part_id)
 if _act is not None and pd.notna(_act.TO_KEY):
     w["suggested"] = float(_act.TO_KEY)
-_from_family = (_act is not None and pd.notna(_own)
+# A WHOLE-FAMILY ACTION WITH NO SINGLE VALUE (2026-10-08). Its parts run
+# different values, so the update list leaves TO_KEY empty and each part gets
+# its own value times or divided by the ratio. Left alone, w["suggested"] kept
+# the unit sheet's figure - the pool's own figure moved by the ratio - and
+# "Change it to" showed a number no part keys (2.43 on one load family whose
+# parts key 1.95 and 2.65). Emptied here, every branch that already handles
+# "no single value" takes over: the tile, "to key" and the box below.
+_no_single = _act is not None and part_id is None and pd.isna(_act.TO_KEY)
+if _no_single:
+    w["suggested"] = float("nan")
+_from_family =(_act is not None and pd.notna(_own)
                 and pd.notna(w["suggested"])
                 and abs(float(_own) - float(w["suggested"])) > 0.101)
 
@@ -431,7 +441,9 @@ if _all_done:
               + (f"Today's master holds {ui.fmt(td['value'])}, "
                  if td["value"] is not None else
                  "Every part already holds a value ")
-              + f"within 10% of the {ui.fmt(w['suggested'])} proposed.")
+              + (f"within 10% of the {ui.fmt(w['suggested'])} proposed."
+                 if pd.notna(w["suggested"]) else
+                 "within 10% of the value proposed for it."))
 elif _part_done:
     detail += (f" Partly done: {td['done']} of {td['n']} parts already hold "
                f"it in today's master.")
@@ -542,21 +554,40 @@ _op = "÷" if _mk == evidence.K_PCSHR else "×"
 # sheets, so reading them printed a dash on exactly the units where this is the
 # interesting number.
 _measured = evidence.measured_value(w["current"], stats.get("RATIO"), _mk)
-k[1].metric("Measured", ui.fmt(_measured),
-            help=f"What this pool actually came to, in the same unit as the "
-                 f"standard: "
-                 + (f"the pool's {_pool_fig}, " if _blend_differs else "")
-                 + f"{ui.fmt(w['current'])} {_op} "
-                 f"{ui.fmt(stats.get('RATIO'), '.3f')}. "
-                 # The blend is not what any part keys, so where it differs
-                 # from Standard WO the value proposed is not this figure.
-                 + ("Where all six rules pass, the value proposed applies the "
-                    "same ratio to each part's own standard. "
-                    if _blend_differs else
-                    "Where all six rules pass this is also the value proposed "
-                    "— the new standard is what the jobs already achieve. ")
-                 + "Where a rule stops the unit, this is still what was "
-                   "measured. It is simply not proposed.")
+# THE RATIO ITSELF WHERE THE PARTS RUN DIFFERENT VALUES (user, 2026-10-08),
+# i.e. wherever Standard WO reads "n vals". The value above - the pool's own
+# figure moved by the ratio - is a number no part holds, and beside "per part"
+# it read as a proposal. "×1.577" / "÷4.089" is what was measured and what
+# each part's own value gets; the decision table keeps the arithmetic on the
+# pool's figure, labelled as such.
+_measured_as_ratio = _family_wo and _wo_shown is None
+if _measured_as_ratio:
+    k[1].metric(
+        "Measured", f"{_op}{ui.fmt(stats.get('RATIO'), '.3f')}",
+        help=f"The ratio this pool measured, which is what each part's own "
+             f"value is {'divided' if _op == '÷' else 'multiplied'} by. The "
+             f"parts run different values, so there is no one measured value "
+             f"to show. The decision table below works it on the pool's "
+             f"{_pool_fig}, {ui.fmt(w['current'])}."
+             + ("" if kindof == "act" else
+                " This unit did not clear all six rules, so nothing is "
+                "proposed."))
+else:
+    k[1].metric("Measured", ui.fmt(_measured),
+                help=f"What this pool actually came to, in the same unit as the "
+                     f"standard: "
+                     + (f"the pool's {_pool_fig}, " if _blend_differs else "")
+                     + f"{ui.fmt(w['current'])} {_op} "
+                     f"{ui.fmt(stats.get('RATIO'), '.3f')}. "
+                     # The blend is not what any part keys, so where it differs
+                     # from Standard WO the value proposed is not this figure.
+                     + ("Where all six rules pass, the value proposed applies the "
+                        "same ratio to each part's own standard. "
+                        if _blend_differs else
+                        "Where all six rules pass this is also the value proposed "
+                        "— the new standard is what the jobs already achieve. ")
+                     + "Where a rule stops the unit, this is still what was "
+                       "measured. It is simply not proposed.")
 if kindof == "act":
     # delta_color is always "off". Streamlit's default colours a delta by its
     # arithmetic sign, so a rate correctly coming DOWN prints red - a colour
@@ -570,13 +601,28 @@ if kindof == "act":
     #
     # The change is against the Standard WO tile, whatever that shows - on a
     # whole family its one value, and no change where it is a count.
+    #
+    # "PER PART" where the parts run different values (_no_single): no one
+    # number is proposed, and the change is the proportion every part moves
+    # by - the Review queue's Change % for the same decision, read off it.
     _base = _wo_shown
+    _per = (_act.TO_KEY_CHANGE_PCT if _no_single
+            and pd.notna(_act.TO_KEY_CHANGE_PCT) else None)
     with k[2].container(key="fts-inline-delta-change"):
-        st.metric("Change it to", ui.fmt(w["suggested"]),
-                  delta=(f"{(w['suggested'] / _base - 1) * 100:+.1f}%"
+        st.metric("Change it to",
+                  "per part" if _no_single else ui.fmt(w["suggested"]),
+                  delta=(f"{_per:+.1f}%" if _per is not None else
+                         f"{(w['suggested'] / _base - 1) * 100:+.1f}%"
                          if pd.notna(w["suggested"]) and _base is not None
                          and pd.notna(_base) and _base else None),
-                  delta_color="off")
+                  delta_color="off",
+                  help=(f"The parts run different values, so each gets its "
+                        f"own: its value "
+                        f"{'divided' if _mk == evidence.K_PCSHR else 'multiplied'}"
+                        f" by the ratio, {ui.fmt(stats.get('RATIO'), '.3f')}. "
+                        f"Every part moves by the same proportion. The "
+                        f"part-by-part table below lists each one."
+                        if _no_single else None))
 else:
     # No number here, and no apology for it either. "Measured" two columns left
     # now carries the arithmetic openly, so this metric no longer has to smuggle
@@ -657,6 +703,25 @@ k[4].metric("Work orders counted", ui.num(stats.get("N_COUNTED", 0)),
 # A caption is what every other note-about-the-numbers on this page is.
 st.caption(ui.direction_note(target, run_type))
 
+# Some family actions carry no single value to key in, because the family
+# runs several different current standards. Those rows say "divide each part's
+# own value by the ratio" - so the ratio has to be on the page, and it is, in
+# the metric above.
+#
+# DIRECTLY UNDER THE METRIC ROW (user, 2026-10-08): it explains the "per part"
+# in Change it to, so it is read with it, before the notes about today's
+# master. It sat below the part-by-part table and only appeared at all since
+# that day - w["suggested"] was never empty on these units before, so the box
+# never fired. Blue: an instruction, not a check (amber) or a verdict.
+if kindof == "act" and (pd.isna(w["suggested"]) or pd.isna(w["current"])):
+    st.info(
+        f"**This family runs more than one current standard**, so there is no "
+        f"single number to key in. Apply the ratio to each part's own value: "
+        f"{'divide' if target == 'RUN' and run_type == 'PCS/HR' else 'multiply'}"
+        f" it by **{ui.fmt(stats.get('RATIO'), '.3f')}**. The part-by-part "
+        f"table below lists each part's value, and so does **By part**.",
+        icon=":material/call_split:")
+
 # WHAT TODAY'S MASTER SAYS ABOUT THIS ACTION, in the same words as
 # TODAY_STATUS: "already done" means today's master is within MIN_EFFECT (10%)
 # of the value proposed. Blue, not green - green is "rule passed" on this page,
@@ -685,8 +750,10 @@ if td is not None and td_action:
         st.info(f"**Already done in today's master.** "
                 + (f"It holds {ui.fmt(td['value'])}, " if td["value"] is not None
                    else "Every part already holds a value ")
-                + f"within 10% of the {ui.fmt(w['suggested'])} proposed — "
-                  f"nothing left to key on this {_unit_word}{_of}.",
+                + (f"within 10% of the {ui.fmt(w['suggested'])} proposed — "
+                   if pd.notna(w["suggested"]) else
+                   "within 10% of the value proposed for it — ")
+                + f"nothing left to key on this {_unit_word}{_of}.",
                 icon=":material/task_alt:")
     elif _d:
         _left = _n - _d
@@ -803,18 +870,6 @@ if _from_family:
         f"`02_RunUpdateList` before keying it. The workbook records the basis "
         f"as *{_act.TO_KEY_BASIS}*.",
         icon=":material/error:")
-
-# Some family actions carry no single value to key in, because the family
-# runs several different current standards. Those rows say "divide each part's
-# own value by the ratio" - so the ratio has to be on the page, and it is, in
-# the metric above.
-if kindof == "act" and (pd.isna(w["suggested"]) or pd.isna(w["current"])):
-    st.info(
-        f"**This family runs more than one current standard**, so there is no "
-        f"single number to key in. Apply the ratio to each part's own value: "
-        f"{'divide' if target == 'RUN' and run_type == 'PCS/HR' else 'multiply'}"
-        f" it by **{ui.fmt(stats.get('RATIO'), '.3f')}**. **By part** lists the "
-        f"resulting value for every affected part.", icon=":material/call_split:")
 
 got = evidence.stored(target, run_type, operation, family, part_type, seq,
                       part_id)
@@ -989,10 +1044,14 @@ spread = stats.get("N_DISTINCT_CURRENT")
 if spread is not None and pd.notna(spread) and int(spread) > 1 \
         and kindof != "act":
     st.caption(f"For information: the parts in this pool run "
-               f"**{int(spread)} different current values**, so Measured "
-               f"works from the pool's {_pool_fig} rather than any one stored "
-               f"figure. Nothing to apply — this unit is not proposed for "
-               f"change.")
+               f"**{int(spread)} different current values**, so "
+               + ("Measured shows the ratio, and the decision table works it "
+                  f"on the pool's {_pool_fig}, rather than on any one stored "
+                  f"figure. "
+                  if _measured_as_ratio else
+                  f"Measured works from the pool's {_pool_fig} rather than "
+                  f"any one stored figure. ")
+               + "Nothing to apply — this unit is not proposed for change.")
 
 st.divider()
 

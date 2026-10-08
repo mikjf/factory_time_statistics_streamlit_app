@@ -1205,10 +1205,19 @@ def summary_rail(container, items):
 
 
 def review_warning(container, current, suggested, ratio, lo, hi):
-    """The banner that has to appear before anyone keys an extreme value."""
+    """The banner that has to appear before anyone keys an extreme value.
+
+    On a whole-family decision whose parts run different values there is no
+    single current or suggested value, and the banner printed "— → —"
+    (2026-10-08). It then names the ratio alone, applied to each part."""
+    _what = (f"at {fmt(current)} → {fmt(suggested)}, a ratio of "
+             f"{fmt(ratio, '.2f')}"
+             if not (pd.isna(current) or pd.isna(suggested)) else
+             f"at a ratio of {fmt(ratio, '.2f')}, applied to each part's own "
+             f"value")
     container.warning(
         f"**Check this one by hand before keying it in.** The evidence points "
-        f"at {fmt(current)} → {fmt(suggested)}, a ratio of {fmt(ratio, '.2f')} "
+        f"{_what} "
         f"— outside the {lo}–{hi} band the analysis treats as ordinarily "
         f"believable. A change this large is usually a standard that never "
         f"described the job rather than a process that drifted, so it wants a "
