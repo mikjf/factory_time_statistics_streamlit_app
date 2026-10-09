@@ -399,8 +399,9 @@ not.
                      "STANDARD_CHARGED_SKIPPED": st.column_config.NumberColumn(
                          "Skipped h", width=95,
                          help="Setup hours charged on work orders where no "
-                              "setup happened — every such ticket, including "
-                              "any whose crew did not match the routing."),
+                              "setup happened — each work order's own "
+                              "SETUP_HRS, counted once, including any whose "
+                              "crew did not match the routing."),
                      "STANDARD_CHARGED_ALL_WO": st.column_config.NumberColumn(
                          "Total h", width=95,
                          help="Setup hours charged across every work order at "
