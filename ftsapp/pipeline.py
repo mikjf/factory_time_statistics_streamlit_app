@@ -48,6 +48,34 @@ import fts_family_view as family_view    # noqa: E402
 import fts_load_view as load_view        # noqa: E402
 import fts_setup_view as setup_view      # noqa: E402
 
+# RE-IMPORTED WHEN THEIR FILES CHANGE (2026-10-09). Streamlit reloads the
+# app's own modules on save but not these, which live in the pipeline's clone:
+# a running app kept the rules it started with until it was restarted. The
+# timestamps of paths.CODE when these four were last imported:
+_LOADED = tuple(paths.mtime(p) for p in paths.CODE)
+
+
+def refresh():
+    """Re-import the pipeline modules if their files changed since import.
+
+    Called by paths.cache_key(), so no cached figure is ever computed under a
+    key that names newer code than the code in memory. Reloads in import order
+    - fts_analysis first, the views import it - and then this module itself,
+    which re-runs everything below: CACHE re-pointed at the absolute path
+    (a reload resets it to the relative default), and every constant and
+    function re-exported, so pipeline.SETUP_MIN and the rest follow the new
+    code too. The module objects stay the same objects, so every caller that
+    holds `pipeline` or `pipeline.setup_view` sees the new code. True when it
+    reloaded.
+    """
+    import importlib
+    if tuple(paths.mtime(p) for p in paths.CODE) == _LOADED:
+        return False
+    for m in (analysis, family_view, load_view, setup_view):
+        importlib.reload(m)
+    importlib.reload(sys.modules[__name__])
+    return True
+
 # Point them all at the real parquet. They resolve CACHE relative to the working
 # directory, which is wherever streamlit happened to be launched from.
 _CACHE = str(paths.CACHE)

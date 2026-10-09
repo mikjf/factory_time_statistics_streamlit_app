@@ -185,7 +185,14 @@ def problems():
 
 
 def guard():
-    """Render the problems and halt on anything fatal. Call it on every page."""
+    """Render the problems and halt on anything fatal. Call it on every page.
+
+    It also brings the pipeline's code up to date first (pipeline.refresh),
+    so a page never renders under rules older than the files on disk - the
+    cache keys do the same for every cached figure, see paths.cache_key.
+    """
+    from . import pipeline
+    pipeline.refresh()
     found = problems()
     for level, msg in found:
         if level == "stop":

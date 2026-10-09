@@ -65,6 +65,11 @@ OUTPUTS = ROOT / "outputs_run_pcs_hr"
 UPDATE_LIST = ROOT / "FTS_UPDATE_LIST.xlsx"
 SETUP = ROOT / "FTS_SETUP.xlsx"         # optional input, same as the pipeline
 LOAD = ROOT / "FTS_RUN_HRS_LOAD.xlsx"   # optional input, same as the pipeline
+# The pipeline modules pipeline.py imports - the code every rebuilt figure is
+# computed with. Part of every cache key, beside the data files: see
+# cache_key().
+CODE = tuple(ROOT / f for f in ("fts_analysis.py", "fts_family_view.py",
+                                "fts_load_view.py", "fts_setup_view.py"))
 
 
 def mtime(path):
@@ -88,6 +93,17 @@ def cache_key(*paths):
     showing a workbook that had been rewritten underneath it, which is the same
     stale-artefact failure the parquet mtime check in fts_analysis.load()
     exists to prevent - just relocated into the viewer.
+
+    THE PIPELINE'S CODE IS PART OF EVERY KEY (2026-10-09). A change to the
+    analysis rules with the same extract - a code-only commit - left a running
+    app serving figures computed under the old rules, and Inspect's
+    reconciliation then reported "these figures no longer reproduce" against a
+    workbook that was perfectly current. Keying on the data alone cannot see
+    that. So the key also carries CODE's timestamps, and before it is returned
+    pipeline.refresh() re-imports any of those modules that changed: a new
+    key with the old code still in memory would only recompute the old answer.
     """
+    from . import pipeline          # here, not at the top: pipeline imports us
+    pipeline.refresh()
     return tuple((str(p), (mtime(p) or _dt.datetime.min).timestamp())
-                 for p in paths)
+                 for p in (*paths, *CODE))
