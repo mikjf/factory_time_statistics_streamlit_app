@@ -133,7 +133,7 @@ STEP_TABLE_CONFIG = {
         "Std WO", width=55,
         help="The standard the work orders ran with: the value on the "
              "latest completed work order with time booked on it, token "
-             "bookings ignored (setup: the year's largest). Not "
+             "bookings ignored. Not "
              "necessarily what the master holds today. On a whole family "
              "row, the one value every part ran with, and blank where the "
              "parts differ."),

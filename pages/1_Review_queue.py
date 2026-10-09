@@ -566,7 +566,7 @@ event = st.dataframe(
             "Std WO", width=55,
             help="The standard the work orders ran with: the value on the "
                  "latest completed work order with time booked on it, token "
-                 "bookings ignored (setup: the year's largest). Not "
+                 "bookings ignored. Not "
                  "necessarily what the master holds today — Status says "
                  "whether that already carries the suggestion."),
         # Between Std WO and Suggested: what the jobs ran with, what the

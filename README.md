@@ -235,9 +235,12 @@ setup hours are the actual hours already on the line above.
 A field that is empty for every dot on a chart is dropped rather than shown as a
 row of dashes, so setup charts carry no quantity and no achieved rate.
 
-On a **crew-mismatch** setup row the standard line shows the routing's own value
-while master hours show the crew-scaled one — `Setup 0.50 h` against a master of
-`0.33 h` — and that gap is the reason the row was excluded.
+On a setup row the standard line and master hours both show the work order's
+own setup value (`SETUP_HRS_MASTER`, since 9 Oct 2026), whoever booked it. A
+**crew-mismatch** row is excluded because the people who booked were not the
+crew the routing plans for, not because of a gap between the two figures. A
+setup run under a value the part has since replaced shows as *ran under a
+standard since replaced*, as on the run analyses.
 
 ## Two scales, one table
 

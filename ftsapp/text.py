@@ -308,7 +308,7 @@ WHAT_IS_EXCLUDED_LATER = """
 |---|---|
 | Semi-finished pooled with finished — *every analysis* | Not an exclusion at all: both are analysed, never in the same pool. Same family, different physical job. |
 | Work orders booked at or under 0.02 h — *every analysis* | A flat hundredth of an hour against a lot records that a ticket was closed, not how long the job took. There is no duration inside it to correct. |
-| Work orders run under a master since replaced — *run* | They describe a master that no longer exists. |
+| Work orders run under a master since replaced — *run and setup* | They describe a master that no longer exists. |
 | Multi-load `HRS/LOAD` work orders — *`HRS/LOAD` run* | A job needing two loads is charged two full masters, but the data shows the second load costs less than the first. Kept and reported separately. |
 | Setups booked at or under 0.02 h — *setup* | The setup did not happen. Running several orders of one family back to back on one machine, only the first needs a full setup. Not performed. |
 | Setups run by a different crew than planned — *setup* | `SETUP_HRS` is one elapsed value for the crew the routing plans for. A different crew size is not used as evidence about the standard. |

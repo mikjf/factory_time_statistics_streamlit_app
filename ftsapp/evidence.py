@@ -253,19 +253,13 @@ def _standard_and_achieved(out, kind):
                 lambda v: num(v, 0) if pd.notna(v) else None)
 
     else:
-        # HOURS_MASTER on a crew-matched row IS the routing's setup value, so
-        # this line restates it with its unit and its route. On a crew-mismatch
-        # row it is not - master hours there have been scaled by the crew that
-        # actually booked - so the unit's stored value is shown instead, and
-        # the gap between this line and "master h" is the whole reason the row
-        # was excluded. SETUP_HRS_STORED is null on units with no crew-matched
-        # row at all, which shows as a dash rather than a wrong number.
-        crew_ok = (out.CREW_OK if "CREW_OK" in out.columns
-                   else pd.Series(True, index=out.index))
-        stored = (out.SETUP_HRS_STORED if "SETUP_HRS_STORED" in out.columns
-                  else pd.Series(np.nan, index=out.index))
-        src = out.HOURS_MASTER.where(crew_ok.fillna(False), stored)
-        out["STANDARD"] = src.map(
+        # HOURS_MASTER on a setup row IS the work order's own SETUP_HRS since
+        # 2026-10-09 (fts_setup_view.load reads SETUP_HRS_MASTER), on every
+        # row, crew-matched or not, so this line restates it with its unit and
+        # its route. It used to be rebuilt from the tickets, which scaled it by
+        # the crew that booked, and a crew-mismatch row then showed the unit's
+        # stored value here instead.
+        out["STANDARD"] = out.HOURS_MASTER.map(
             lambda v: rate_txt(v, kind) if pd.notna(v) else None)
 
     return out
@@ -486,18 +480,21 @@ def setup(operation, family, part_type, seq):
         return _blank()
 
     res = sv.test_family(g)
-    # Mirrors test_family exactly: performed, THEN crew-matched. Splitting it
-    # any other way makes the chart and the verdict disagree - the MAD filter
-    # runs on whatever set is handed to it, so computing it over all performed
-    # rows would keep and drop different work orders than the test did, and the
-    # reconciliation badge would start failing on units that are fine.
+    # Mirrors test_family exactly: performed, THEN crew-matched, THEN run under
+    # the part's setup in force. Splitting it any other way makes the chart and
+    # the verdict disagree - the MAD filter runs on whatever set is handed to
+    # it, so computing it over a wider set would keep and drop different work
+    # orders than the test did, and the reconciliation badge would start
+    # failing on units that are fine.
     performed = g[~g.SKIPPED]
-    real = performed[performed.CREW_OK]
+    crew = performed[performed.CREW_OK]
+    real = crew[crew.ON_CURRENT]
     keep = _mad_keep(real.LOG_RATIO)
 
     rows = pd.concat([_rows(real[keep], IN, K_SETUP),
                       _rows(real[~keep], OUTLIER, K_SETUP),
                       _rows(performed[~performed.CREW_OK], CREW, K_SETUP),
+                      _rows(crew[~crew.ON_CURRENT], SUPERSEDED, K_SETUP),
                       _rows(g[g.SKIPPED], SKIPPED, K_SETUP)])
 
     stats = {
@@ -515,6 +512,10 @@ def setup(operation, family, part_type, seq):
         "CHARGED_SKIPPED": res["STANDARD_CHARGED_SKIPPED"],
         "MAD_AGREES": True,
         "MIN_N": pipeline.SETUP_MIN, "MIN_HOURS": pipeline.SETUP_MIN_HOURS,
+        # the run path's labels, so Inspect's note on a changed standard reads
+        # the same for setup
+        "BASIS": ("current master only" if (~crew.ON_CURRENT).any()
+                  else "single master"),
     }
     return _pack(rows, keep.sum(), stats)
 
@@ -747,8 +748,9 @@ def outcome(verdict, stats):
 #   TODAY  the *_MASTER_TODAY value on the part's current master line at this
 #          step - one value per line, as fts.sql carries it
 #   WO     run: RUN_MASTER of the part's most recent work order this fiscal
-#          year (what *_CURRENT is); setup: the largest SETUP_HRS_STORED, the
-#          setup analysis's own per-part figure
+#          year (what *_CURRENT is); setup: SETUP_HRS_STORED, the setup
+#          analysis's own per-part figure - the SETUP_HRS of the part's latest
+#          performed work order since 2026-10-09, the largest one before
 #   moved  WO and TODAY further apart than SAME_VALUE; "no master line today"
 #          is not a move
 #
