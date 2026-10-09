@@ -140,10 +140,15 @@ def num(v, dp=2):
     beside another shown as "1.25" makes the pair hard to compare and the first
     look like a different kind of quantity. Every value on screen is held to the
     same precision, so a column of them reads as a column.
+
+    SWISS GROUPING, like ui.fmt: 1'500.00, not 1,500.00 (user, 2026-10-09). It
+    feeds rate_txt, so the decision table on Inspect and on How to read it, the
+    master-today row and the chart hovers all read it; it was the one helper in
+    the app still grouping with a comma.
     """
     if v is None or pd.isna(v):
         return None
-    return f"{float(v):,.{dp}f}"
+    return f"{float(v):,.{dp}f}".replace(",", "'")
 
 
 def rate_txt(value, kind):

@@ -83,6 +83,11 @@ def distribution(rows, stats, height=300, legend=True):
     # jump whenever anything on the page changes, which reads as the data
     # moving.
     d["JITTER"] = np.random.default_rng(0).uniform(-1, 1, len(d))
+    # The pieces line of the tooltip, as text: see QTY_TXT below. Null where
+    # TOTAL_QTY is - setup has none - so the line still drops out of setup.
+    if "TOTAL_QTY" in d.columns:
+        d["QTY_TXT"] = d.TOTAL_QTY.map(
+            lambda v: ui.num(v) if pd.notna(v) else None)
 
     lo, hi = float(d.RATIO.min()), float(d.RATIO.max())
     ci_lo, ci_hi = stats.get("CI_LOW"), stats.get("CI_HIGH")
@@ -133,8 +138,9 @@ def distribution(rows, stats, height=300, legend=True):
         ("WORK_ORDER", alt.Tooltip("WORK_ORDER:N", title="work order")),
         ("LAST_DATE", alt.Tooltip("LAST_DATE:T", title="last booked")),
         ("OP_TXT", alt.Tooltip("OP_TXT:N", title="operation")),
-        ("TOTAL_QTY", alt.Tooltip("TOTAL_QTY:Q", title="pieces",
-                                  format=",.0f")),
+        # Pre-formatted for the Swiss apostrophe - Vega tooltips have no
+        # locale hook, and a d3 ",.0f" printed 1,234.
+        ("QTY_TXT", alt.Tooltip("QTY_TXT:N", title="pieces")),
         ("LOADS", alt.Tooltip("LOADS:N", title="loads")),
         ("STANDARD", alt.Tooltip("STANDARD:N", title="standard")),
         # Pre-formatted strings, not numeric fields with a d3 format: the unit

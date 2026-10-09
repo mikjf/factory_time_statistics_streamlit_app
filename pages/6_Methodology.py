@@ -635,7 +635,7 @@ with st.expander("Every operation examined, and what came out of it — "
             "ACTIONS": st.column_config.NumberColumn(
                 "Masters to review",
                 help=f"Cleared all six rules. Sums to "
-                     f"{int(cov.ACTIONS.sum()):,} across the table — the same "
+                     f"{ui.num(int(cov.ACTIONS.sum()))} across the table — the same "
                      f"figure the landing page shows."),
             "PARTS": st.column_config.NumberColumn("Parts"),
             "EDITS": st.column_config.NumberColumn(
