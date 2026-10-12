@@ -136,7 +136,11 @@ def rule_method():
         f"over-allows counts the same as one that under-allows. It is a sum "
         f"over work orders, so it grows with the window and with how often the "
         f"step runs - a small error on a busy step outranks a large one on a "
-        f"rare step, which is the intended behaviour.",
+        f"rare step, which is the intended behaviour. The window opens on "
+        f"{pd.Timestamp(pipeline.FY_START).day} "
+        f"{pd.Timestamp(pipeline.FY_START):%b %Y} and never closes, so a part "
+        f"produced only now and then joins the list once its gap reaches "
+        f"{pipeline.MIN_HOURS_IMPACT:g} h.",
     ]
 
 
