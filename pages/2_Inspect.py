@@ -42,6 +42,12 @@ RUN, SETUP, LOAD = "Run — PCS/HR", "Setup", "Run — HRS/LOAD"
 # on it, and the picker below compares its value against WHOLE by string.
 WHOLE, WHOLE_INLINE = ui.WHOLE, ui.WHOLE_INLINE
 pre = st.session_state.get("unit") or {}
+# ARRIVED WITH A UNIT, or still browsing? Review queue and By part set "unit"
+# to send the reader here; this page writes its own choice back to "unit" AND
+# to "_inspect_unit" (see the end of the rail). The two differ only when
+# another page set "unit" since - and then that unit wins over whatever the
+# pickers held. A first visit, with nothing set anywhere, counts as arriving.
+_arrived = pre != st.session_state.get("_inspect_unit")
 
 
 def _kind(p):
@@ -50,11 +56,30 @@ def _kind(p):
     return LOAD if p.get("RUN_TYPE") == "HRS/LOAD" else RUN
 
 
-def _idx(options, value, default=0):
-    try:
-        return list(options).index(value)
-    except (ValueError, AttributeError):
-        return default
+def _picker(widget, label, options, key, want, **kw):
+    """A rail picker that keeps its choice when its options change.
+
+    KEYED, AND SEEDED BY HAND (user, 2026-10-12). Unkeyed, Streamlit identifies
+    a picker by its label, its options and its default index, so switching the
+    analysis - which changes every picker's options - made each a new widget
+    that fell back to the first family and its first operation. Writing the
+    choice back into the default index cured that and broke something worse:
+    the index moved after every choice, so the NEXT click on the same picker
+    landed on a different widget and was dropped. A key fixes the identity;
+    the value is set here before the widget exists:
+
+        the reader's current choice, if it is still offered,
+        else `want` (the unit the page was opened on), if offered,
+        else the first option.
+
+    On arrival from another page `want` goes first, so a row picked on Review
+    queue opens that unit even if the rail last showed another one.
+    """
+    options = list(options)
+    cur = st.session_state.get(key)
+    if _arrived or cur not in options:
+        st.session_state[key] = want if want in options else options[0]
+    return widget(label, options, key=key, **kw)
 
 
 # ---- selection, in the rail -------------------------------------------------
@@ -100,8 +125,9 @@ with st.sidebar:
     # each other. Setup is a different field and a different question.
     choices = [RUN] + ([LOAD] if data.has_load() else []) \
         + ([SETUP] if data.has_setup() else [])
-    kind = st.radio("Analysis", choices, index=_idx(choices, _kind(pre)),
-                    help="Three analyses, three different kinds of standard. "
+    kind = _picker(st.radio, "Analysis", choices, "inspect_analysis",
+                   _kind(pre),
+                   help="Three analyses, three different kinds of standard. "
                          "They are never pooled.")
 
     # ---- FAMILY FIRST, then the operations that family is routed through ----
@@ -170,7 +196,8 @@ with st.sidebar:
 
         labels = [_fam_label(f, p) for f, p in pairs]
         want = _fam_label(pre.get("FAMILY"), pre.get("PART_TYPE"))
-        chosen = st.selectbox("Family", labels, index=_idx(labels, want))
+        chosen = _picker(st.selectbox, "Family", labels, "inspect_family",
+                         want)
         family, part_type = pairs[labels.index(chosen)]
 
         fam_rows = universe[(universe.FAMILY == family)
@@ -179,15 +206,16 @@ with st.sidebar:
         # was every operation in the plant; on a family with four steps, forty
         # of the forty-eight led to an empty page.
         ops = sorted(fam_rows.OPERATION.unique())
-        operation = st.selectbox("Operation", ops,
-                                 index=_idx(ops, pre.get("OPERATION")))
+        operation = _picker(st.selectbox, "Operation", ops,
+                            "inspect_operation", pre.get("OPERATION"))
 
         scoped = fam_rows[fam_rows.OPERATION == operation]
         seqs = sorted(int(s) for s in scoped[S].unique())
-        seq = st.selectbox("Routing step", seqs, index=_idx(seqs, pre.get("SEQ")),
-                           help="The same operation can appear at several "
-                                "points of one routing and is a different job "
-                                "each time.")
+        seq = _picker(st.selectbox, "Routing step", seqs, "inspect_step",
+                      pre.get("SEQ"),
+                      help="The same operation can appear at several "
+                           "points of one routing and is a different job "
+                           "each time.")
 
         part_id = None
         if kind == SETUP:
@@ -215,9 +243,27 @@ with st.sidebar:
                 _k = (family, part_type, operation, int(seq))
                 opts = ([WHOLE] if _k in (act_fams or ()) else [])                     + [x for x in parts if _k + (x,) in (act_parts or ())]
                 opts = opts or [WHOLE]
-            pick = st.selectbox("Judged at", opts,
-                                index=_idx(opts, pre.get("PART_ID")))
+            pick = _picker(st.selectbox, "Judged at", opts,
+                           "inspect_judged_at",
+                           pre.get("PART_ID") if pre.get("PART_ID") else WHOLE)
             part_id = None if pick == WHOLE else pick
+
+        # THE CHOICE, WRITTEN BACK (user, 2026-10-12). The pickers keep their
+        # own values by key (_picker); this records the unit they add up to,
+        # for two readers. _arrived compares "unit" with "_inspect_unit" to
+        # tell a unit sent from another page from this page's own, and the
+        # next visit to Inspect opens on the unit last looked at. Setup has no
+        # part picker, so the part chosen under a run analysis is carried
+        # through it rather than forgotten. Same shape as Review queue's.
+        _keep_part = pre.get("PART_ID") if kind == SETUP else part_id
+        st.session_state["unit"] = st.session_state["_inspect_unit"] = {
+            "TARGET": "SETUP_HRS" if kind == SETUP else "RUN",
+            "RUN_TYPE": ("-" if kind == SETUP
+                         else "HRS/LOAD" if kind == LOAD else "PCS/HR"),
+            "OPERATION": operation, "FAMILY": family, "PART_TYPE": part_type,
+            "SEQ": int(seq), "LEVEL": "PART" if _keep_part else "FAMILY",
+            "PART_ID": _keep_part,
+        }
 
 if empty_op:
     # WHAT THIS BRANCH MEANS CHANGED with the family-first picker. It used to
@@ -1056,8 +1102,8 @@ _BASIS_NOTE = {
     "current master only": (
         "Tested on the current standard only",
         "the standard changed during the period, and work orders run under "
-        "the earlier value describe a standard that no longer exists. They "
-        "are on the chart, marked as replaced, but not counted."),
+        "the earlier value describe a standard that no longer exists. Shown "
+        "as replaced, not counted."),
     "insufficient data on current master": (
         "Too few work orders on the current standard",
         f"the standard changed during the period, and fewer than "
