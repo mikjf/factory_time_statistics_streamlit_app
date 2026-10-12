@@ -1046,11 +1046,30 @@ if len(_undrawn):
 with st.expander("Why the shaded band and the red line can disagree"):
     st.markdown(charts.ci_caption(stats))
 
+# BASIS is the pipeline's own label (fts_analysis.test_group, and its setup
+# twin in evidence.setup), written for the workbook. It used to open this box
+# as it stands - "**current master only** — ..." in lower case - the one box on
+# the page without a written heading (user, 2026-10-12). Mapped to one here;
+# the workbooks keep the label. The two values say different things, and the
+# old sentence only fitted the first: under the second nothing was set aside.
+_BASIS_NOTE = {
+    "current master only": (
+        "Tested on the current standard only",
+        "the standard changed during the period, and work orders run under "
+        "the earlier value describe a standard that no longer exists. They "
+        "are on the chart, marked as replaced, but not counted."),
+    "insufficient data on current master": (
+        "Too few work orders on the current standard",
+        f"the standard changed during the period, and fewer than "
+        f"{pipeline.MIN_WO} jobs have run under the new value. That is too "
+        f"few to judge it, so nothing is proposed until more have."),
+}
 if stats.get("BASIS") and stats["BASIS"] != "single master":
-    st.info(f"**{stats['BASIS']}** — the standard changed during the "
-            f"period, and work orders run under the superseded value "
-            f"describe a standard that no longer exists.",
-            icon=":material/history:")
+    _head, _body = _BASIS_NOTE.get(
+        stats["BASIS"],
+        (str(stats["BASIS"])[:1].upper() + str(stats["BASIS"])[1:],
+         "the standard changed during the period."))
+    st.info(f"**{_head}** — {_body}", icon=":material/history:")
 
 # Gated on the verdict. Unconditional, this told a reader to "apply the ratio to
 # each part's own value" on a screen whose banner said to leave the standard
