@@ -282,10 +282,10 @@ reported: the two estimators can disagree, and nothing depends on it.
 
 ## The master row updater
 
-The Review queue's second download is the file somebody keys from: **one row per
-routing row** rather than per decision, so a family decision covering many parts
-becomes one row for each of them. It follows the page's filters. Columns, in
-order:
+The Review queue's second download is the file the decisions are reviewed in
+and keyed from, as **`.xlsx`**: **one row per routing row** rather than per
+decision, so a family decision covering many parts becomes one row for each of
+them. It follows the page's filters. Columns, in order:
 
 | | |
 |---|---|
@@ -294,19 +294,24 @@ order:
 | `OPERATION`, `STEP`, `ANALYSIS`, `APPLIES_TO` | which step, which analysis, part or whole family |
 | `STANDARD_WO` | what the work orders ran with |
 | `STANDARD_TODAY` | what the routing row holds in today's master |
-| `SUGGESTED` | the value to key |
-| `RATIO`, `EFFECT` | the measurement, and which way it moves the time allowed |
+| `RATIO` | the measurement |
+| `SUGGESTED` | the value the analysis proposes |
+| **`REVIEW`** | empty, yellow - the reviewer's decision: empty accepts `SUGGESTED`, a number replaces it, `SKIP` leaves the row unchanged |
+| **`REVIEW_NOTE`** | empty, yellow - why |
+| `VALUE_TO_KEY` | formula: `REVIEW` if given, else `SUGGESTED`; empty on `SKIP`, and on a row already done unless `REVIEW` gives a number |
+| `EFFECT` | which way it moves the time allowed |
 | `TODAY_STATUS` | *already done* or *to key* |
 | `HOW_TO_APPLY` | the workbook's own instruction |
-| `SQL_UPDATE` | a ready-made `UPDATE` statement |
+| `SQL_UPDATE` | formula: the `UPDATE` statement for `VALUE_TO_KEY`, empty when it is empty |
 
-`SQL_UPDATE` is a **spreadsheet formula**, not finished text: it reads the
-`SUGGESTED` and `MASTER_OPS_ROWID` cells of its own row, so correcting a value
-in the sheet corrects the statement with it. Its column letters are derived
-from the column order, so a reordered file still points at the right cells. It
-is **left empty on a row already done**, so there is nothing to run by accident;
-the row stays in the file. Nothing here runs anything — it produces the SQL and
-leaves running it to a person who has read it.
+It is `.xlsx` and not `.csv` because a CSV loses its formulas the first time
+Excel saves it, and the statement then stops following the value beside it.
+The statement writes the value with **two decimals and a dot whatever the
+reader's Excel** (`FIXED` then `SUBSTITUTE`), so a PC set to a decimal comma
+still produces valid SQL. The formulas' column letters are derived from the
+column order, so a reordered file still points at the right cells. Nothing
+here runs anything: the reviewed file is checked against the newest extract
+before its statements go to the database.
 
 ## Layout
 

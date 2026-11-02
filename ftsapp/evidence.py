@@ -818,15 +818,26 @@ def _today_frames(key):
     # beside Standard today 0.93 marked "unchanged". Where a part-step has
     # nothing but token bookings (468 on 7 Oct) the pipeline has no value at
     # all, and the latest booking's is kept, as before.
+    #
+    # AND ONLY ROWS WITH PIECES AND HOURS (2026-11-02), the pipeline's own row
+    # filter (fts_analysis and fts_load_view: HOURS_MASTER > 0, HOURS_WORKED >
+    # 0), applied before the token test as the pipeline applies it. A job that
+    # booked hours on no pieces has no planned time to compare with, so the
+    # pipeline never reads its RUN_MASTER - but it is not a token booking
+    # either, and this took it as the latest job: a part-step whose newest job
+    # had 2.11 h on 0 pieces under a new standard showed Std WO 10.0 against
+    # the update list's 7.1, and Inspect flagged the two as disagreeing.
     def latest_run(run_type):
         d = fy[(fy.LT_TYPE == "Run") & (fy.RUN_TYPE_MASTER == run_type)
                & (fy.RUN_MASTER > 0)]
-        wo_hours = d.groupby(k + ["WORK_ORDER"]).HOURS_WORKED.transform("sum")
+        real = d[(d.HOURS_MASTER > 0) & (d.HOURS_WORKED > 0)]
+        wo_hours = real.groupby(k + ["WORK_ORDER"]).HOURS_WORKED.transform(
+            "sum")
 
         def last(x):
             return (x.sort_values("LAST_TRANSACTION_DATE", kind="stable")
                     .groupby(k).tail(1).set_index(k).RUN_MASTER)
-        return (last(d[wo_hours > pipeline.TOKEN_HOURS])
+        return (last(real[wo_hours > pipeline.TOKEN_HOURS])
                 .combine_first(last(d)).rename("WO"))
 
     run_today = today("Run", "RUN_MASTER_TODAY")

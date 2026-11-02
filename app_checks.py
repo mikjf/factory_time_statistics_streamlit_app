@@ -63,8 +63,11 @@ streamlit.page_link = lambda *a, **k: None
 
 
 def _record(label, data, *a, **k):
-    DOWNLOADS.append((k.get("file_name"),
-                      data.decode("utf-8") if isinstance(data, bytes) else data))
+    # Text downloads are decoded; a binary one (the .xlsx updater) is kept as
+    # bytes.
+    if isinstance(data, bytes) and not k.get("file_name", "").endswith(".xlsx"):
+        data = data.decode("utf-8")
+    DOWNLOADS.append((k.get("file_name"), data))
     return False
 
 
@@ -227,8 +230,13 @@ def main():
         if not up:
             check("master row updater offered", False, "no download recorded")
         else:
-            u = pd.read_csv(io.StringIO(up[-1]), dtype=str,
-                            keep_default_na=False)
+            # Read as written, formulas as their text: openpyxl without
+            # data_only returns a formula cell's formula, not a cached value.
+            from openpyxl import load_workbook
+            ws = load_workbook(io.BytesIO(up[-1])).active
+            rows = list(ws.iter_rows(values_only=True))
+            u = pd.DataFrame([["" if v is None else str(v) for v in r]
+                              for r in rows[1:]], columns=rows[0])
             tile = next(x for x in at.metric
                         if x.label == "Operations rows to edit").value
             check("updater rows equal the 'Operations rows to edit' tile",
@@ -236,11 +244,24 @@ def main():
                   f"{len(u)} rows, tile {tile}")
             L = {c: chr(65 + i) for i, c in enumerate(u.columns)}
             done = u.TODAY_STATUS == "already done"
-            own = [s == "" if d else
-                   (f"&{L['SUGGESTED']}{n}&" in s
-                    and f"&{L['MASTER_OPS_ROWID']}{n}&" in s)
-                   for n, (s, d) in enumerate(zip(u.SQL_UPDATE, done), 2)]
-            check("every statement points at its own row, empty when done",
+            # VALUE_TO_KEY reads its own row's REVIEW, SUGGESTED and status,
+            # and keys nothing on a row already done unless REVIEW says so;
+            # SQL_UPDATE reads its own row's VALUE_TO_KEY and routing row, and
+            # names the field its analysis edits.
+            def _own(n, k, s, a):
+                rv, sg = f"{L['REVIEW']}{n}", f"{L['SUGGESTED']}{n}"
+                st_, vk = f"{L['TODAY_STATUS']}{n}", f"{L['VALUE_TO_KEY']}{n}"
+                field = "SETUP_HRS" if a == "Setup" else "RUN"
+                return (k == f'=IF(UPPER(TRIM({rv}))="SKIP","",IF({rv}<>"",'
+                             f'{rv},IF({st_}="already done","",{sg})))'
+                        and s.startswith(f'=IF({vk}="","","UPDATE OPERATION '
+                                         f"SET {field} = '")
+                        and f"FIXED({vk},2,TRUE)" in s
+                        and s.endswith(f'&{L["MASTER_OPS_ROWID"]}{n}&";")'))
+            own = [_own(n, k, s, a) for n, (k, s, a) in enumerate(
+                zip(u.VALUE_TO_KEY, u.SQL_UPDATE, u.ANALYSIS), 2)]
+            check("every statement points at its own row, a done row keys "
+                  "nothing unless reviewed",
                   all(own), f"{own.count(False)} wrong")
             check("updater 'already done' rows equal the update list",
                   int(done.sum()) == int(ex.TODAY_STATUS.astype(str)

@@ -910,11 +910,14 @@ st.caption(
     "statement for it. `STANDARD_TODAY` and `TODAY_STATUS` say what that row "
     "holds in today's master and whether the suggestion is already in it; rows "
     "marked *already done* carry no statement, since there is nothing left "
-    "to key on them.\n\n"
-    "The statement is a **spreadsheet formula**, not finished text — it reads "
-    "the Suggested cell beside it, so correcting a value in the sheet corrects "
-    "the statement with it. Nothing here runs anything: it produces the SQL and "
-    "leaves running it to a person who has read it.")
+    "to key on them, unless REVIEW gives them a value.\n\n"
+    "It is an Excel file for review. **REVIEW** (yellow) is where the final "
+    "decision goes: leave it empty to accept SUGGESTED, type a number to "
+    "replace it, or type SKIP to leave the row unchanged. **REVIEW_NOTE** says "
+    "why. **VALUE_TO_KEY** and the `UPDATE` statement in **SQL_UPDATE** are "
+    "formulas and follow REVIEW as it is typed. Nothing here runs anything: "
+    "the reviewed file is checked against the newest extract before the SQL "
+    "goes to the database.")
 
 # ADDED 2026-09-01. The file above is one row per DECISION, which is the
 # right shape for reviewing and the wrong one for keying: a family decision is
@@ -980,9 +983,12 @@ _by_part = data.actions_by_part(d)
 # what the part is, part type - then operation, step and the rest as before.
 # PART_DESCRIPTION is the extract's, through data.part_index - the same line By
 # part shows under its title.
+#
+# RATIO BEFORE SUGGESTED (user, 2026-11-02): the measurement, then the value it
+# gives, then the reviewer's three columns - see the reviewed file below.
 _cols = ["MASTER_OPS_ROWID", "FAMILY", "PART_ID", "PART_DESCRIPTION",
          "PART_TYPE", "OPERATION", S, "ANALYSIS", "APPLIES_TO",
-         "CURRENT", "STANDARD_TODAY", "RECOMMENDED", "RATIO", "EFFECT",
+         "CURRENT", "STANDARD_TODAY", "RATIO", "RECOMMENDED", "EFFECT",
          "TODAY_STATUS", "HOW_TO_APPLY", "TARGET"]
 _by_part["PART_DESCRIPTION"] = _by_part.PART_ID.map(
     data.part_index().set_index("PART_ID").PART_DESCRIPTION)
@@ -1049,11 +1055,29 @@ _by_part = _by_part.sort_values(
 _by_part = _by_part.round({"STANDARD_WO": 2, "SUGGESTED": 2, "STANDARD_TODAY": 2,
                            "RATIO": 3})
 
-# ---- the statement, as a live spreadsheet formula ---------------------------
-# NOT THE FINISHED TEXT. This wrote the statement out fully rendered until
-# 2026-09-01; it now writes the formula that BUILDS it, so the cell recomputes
-# when somebody edits the value beside it. Editing Suggested and having the
-# statement still carry the old number is the failure this avoids.
+# ---- the reviewed file: REVIEW, VALUE_TO_KEY and the statement -------------
+# AN .XLSX, NOT A CSV, SINCE 2026-11-02 (user). The file goes to the project
+# managers and supply chain to be reviewed with the team leaders, and comes back
+# with the values they decided. A CSV cannot keep a formula once Excel saves it:
+# the copy that came back on 2026-11-02 had every statement turned into fixed
+# text, so a value corrected afterwards no longer reached its statement.
+#
+# THREE COLUMNS AFTER SUGGESTED, two of them the reviewer's (user):
+#   REVIEW        empty. A number overrides SUGGESTED, SKIP leaves the row
+#                 unchanged, empty accepts SUGGESTED.
+#   REVIEW_NOTE   free text, why.
+#   VALUE_TO_KEY  formula: REVIEW if given, else SUGGESTED - empty on SKIP, and
+#                 empty on a row already done unless REVIEW gives a number.
+# SQL_UPDATE builds the statement from VALUE_TO_KEY, so typing in REVIEW updates
+# both. No frozen-text copy beside it: copying the column out of Excel pastes
+# the text, and the reviewed file is checked against the newest extract before
+# anything is run.
+#
+# THE VALUE WRITTEN WITH TWO DECIMALS AND A DOT, whatever the reader's Excel.
+# Joined straight into the text, a number takes the reader's own decimal sign,
+# so on a PC set to Italian the statement read SET RUN = '0,18'. FIXED(v,2,TRUE)
+# gives two decimals with no thousands separator - the two the ERP field holds -
+# and SUBSTITUTE turns a comma into the dot SQL expects.
 #
 # BRANCHED ON TARGET, NOT ON ANALYSIS. Analysis is a display string built by
 # ui.analysis_name, and this page has already been bitten twice by comparing
@@ -1063,40 +1087,48 @@ _by_part = _by_part.round({"STANDARD_WO": 2, "SUGGESTED": 2, "STANDARD_TODAY": 2
 # the statement needs IS the data. It is the one part baked in as text rather
 # than referenced, because it is not a cell.
 #
-# THE COLUMN LETTERS ARE DERIVED, NOT TYPED. A formula saying J and A is right
-# only for one column order, and this file's order has already been rearranged
-# several times; a reorder would leave the formula quietly pointing at the
-# wrong columns - Ratio instead of Suggested - and still looking plausible.
-# Taking the letters from the position of the columns it actually means keeps
-# the formula correct through any future reshuffle.
-#
-# THE ROW NUMBER IS POSITIONAL, counted after the sort and off the row's place
-# in the file rather than off the frame's index, which the sort left unordered.
-# Row 1 is the header, so the first data row is 2.
-_out = [c for c in _cols if c != "TARGET"]
-_out = ["STEP" if c == S else _RENAME.get(c, c) for c in _out]
+# THE COLUMN LETTERS ARE DERIVED, NOT TYPED, from the position of the columns
+# the formulas mean, so a reorder cannot leave them pointing at Ratio instead
+# of Suggested. The row number counts the file's own rows after the sort; row 1
+# is the header.
+_at = _by_part.columns.get_loc("SUGGESTED") + 1
+for _k, _c in enumerate(("REVIEW", "REVIEW_NOTE", "VALUE_TO_KEY")):
+    _by_part.insert(_at + _k, _c, "")
+_target = _by_part.pop("TARGET")
+_by_part["SQL_UPDATE"] = ""
+_out = list(_by_part.columns)
 assert len(_out) <= 26, "past column Z - the letters below need two characters"
-_val, _rid = (chr(ord("A") + _out.index("SUGGESTED")),
-              chr(ord("A") + _out.index("MASTER_OPS_ROWID")))
-# A NaN would leave the formula building "SET RUN = ''", a live statement that
-# blanks a standard. There are none today on any of the 2'468 rows; the cell is
-# left empty rather than trusted, because an empty cell is a visible nothing.
-#
-# EMPTY ON AN ALREADY-DONE ROW TOO (user, 2026-10-06). Today's master is within
-# 10% of SUGGESTED there, so the statement would only nudge a value already
-# keyed; left in, it is one more live line for somebody to run by accident. The
-# row stays in the file with TODAY_STATUS saying why its statement is blank.
-_by_part["SQL_UPDATE"] = [
-    "" if pd.isna(v) or pd.isna(rid) or s == "already done" else
-    f'''="UPDATE OPERATION SET {t} = '"&{_val}{n}&"' WHERE ROWID = "&{_rid}{n}&";"'''
-    for n, (t, v, rid, s) in enumerate(zip(_by_part.TARGET, _by_part.SUGGESTED,
-                                           _by_part.MASTER_OPS_ROWID,
-                                           _by_part.TODAY_STATUS), start=2)]
-_by_part = _by_part.drop(columns=["TARGET"])
+_L = {c: chr(ord("A") + i) for i, c in enumerate(_out)}
+
+
+def _formulas(n, target, value, rowid):
+    """VALUE_TO_KEY and SQL_UPDATE for file row n.
+
+    A row with no SUGGESTED or no routing row gets neither: a statement built
+    on a blank would key a blank. There are none today.
+    """
+    if pd.isna(value) or pd.isna(rowid):
+        return "", ""
+    rv, sg = f"{_L['REVIEW']}{n}", f"{_L['SUGGESTED']}{n}"
+    done, vk = f"{_L['TODAY_STATUS']}{n}", f"{_L['VALUE_TO_KEY']}{n}"
+    key = (f'=IF(UPPER(TRIM({rv}))="SKIP","",IF({rv}<>"",{rv},'
+           f'IF({done}="already done","",{sg})))')
+    sql = (f'=IF({vk}="","","UPDATE OPERATION SET {target} = ' + "'\""
+           f'&SUBSTITUTE(FIXED({vk},2,TRUE),",",".")'
+           + "&\"' WHERE ROWID = \""
+           f'&{_L["MASTER_OPS_ROWID"]}{n}&";")')
+    return key, sql
+
+
+_f = [_formulas(n, t_, v, r) for n, (t_, v, r) in enumerate(
+    zip(_target, _by_part.SUGGESTED, _by_part.MASTER_OPS_ROWID), start=2)]
+_by_part["VALUE_TO_KEY"] = [k for k, _ in _f]
+_by_part["SQL_UPDATE"] = [s for _, s in _f]
 st.download_button(
-    "Download master row updater as CSV",
-    _by_part.to_csv(index=False).encode("utf-8"),
-    file_name="fts_review_queue_sql_master_updater.csv", mime="text/csv",
+    "Download master row updater (.xlsx)",
+    ui.updater_xlsx(_by_part, editable=("REVIEW", "REVIEW_NOTE")),
+    file_name="fts_review_queue_sql_master_updater.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     icon=":material/download:")
 # THE COUNT IS THE CHECK. This file must have exactly as many rows as the
 # "Operations rows to edit" tile at the top of the page, under every filter -

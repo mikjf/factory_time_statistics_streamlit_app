@@ -1417,3 +1417,48 @@ def swiss_grid(df, specs):
              else fmt(v, sp))
          for c, s in live.items()},
         na_rep="—")
+
+
+def updater_xlsx(df, editable=()):
+    """The master row updater as .xlsx bytes, formulas kept as formulas.
+
+    A string starting with "=" is written as a formula, so VALUE_TO_KEY and
+    SQL_UPDATE stay live. The header row is frozen and filtered, the columns
+    the reviewer fills in are yellow, and the values carry the app's own
+    precision: two decimals, three on the ratio. Imported inside, matching
+    chart_key: ui is the lowest layer in this package.
+    """
+    import io
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xw:
+        df.to_excel(xw, index=False, sheet_name="updater")
+        ws = xw.sheets["updater"]
+        ws.freeze_panes = "B2"
+        ws.auto_filter.ref = ws.dimensions
+        yellow = PatternFill("solid", start_color="FFF2CC", end_color="FFF2CC")
+        fmt2 = {"STANDARD_WO", "STANDARD_TODAY", "SUGGESTED", "REVIEW",
+                "VALUE_TO_KEY"}
+        for i, col in enumerate(df.columns, start=1):
+            letter = get_column_letter(i)
+            ws[f"{letter}1"].font = Font(bold=True)
+            # Formula columns are sized for what they show, not for the
+            # formula text, which is what the frame holds.
+            width = {"SQL_UPDATE": 60, "VALUE_TO_KEY": 14,
+                     "REVIEW_NOTE": 30}.get(col) or max(10, min(40, max(
+                         len(col) + 2,
+                         int(df[col].astype(str).str.len().max() or 0) + 2)))
+            ws.column_dimensions[letter].width = width
+            spec = "0.000" if col == "RATIO" else (
+                "0.00" if col in fmt2 else None)
+            if col in editable or spec:
+                for (cell,) in ws.iter_rows(min_row=1 if col in editable else 2,
+                                            min_col=i, max_col=i):
+                    if col in editable:
+                        cell.fill = yellow
+                    if spec and cell.row > 1:
+                        cell.number_format = spec
+    return buf.getvalue()
+
