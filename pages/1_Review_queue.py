@@ -24,7 +24,7 @@ import streamlit as st
 # no module named 'ftsapp'.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from ftsapp import data, freshness, pipeline, text, ui  # noqa: E402
+from ftsapp import data, freshness, paths, pipeline, text, ui  # noqa: E402
 
 st.set_page_config(page_title="FTS · Review queue",
                    page_icon=":material/checklist:", layout="wide")
@@ -1124,10 +1124,34 @@ _f = [_formulas(n, t_, v, r) for n, (t_, v, r) in enumerate(
     zip(_target, _by_part.SUGGESTED, _by_part.MASTER_OPS_ROWID), start=2)]
 _by_part["VALUE_TO_KEY"] = [k for k, _ in _f]
 _by_part["SQL_UPDATE"] = [s for _, s in _f]
+# THE EXTRACT'S DATE IS IN THE NAME AND ON AN INFO SHEET (2026-11-03). A file
+# goes out for review and comes back days or weeks later; by then its
+# STANDARD_TODAY is only as current as the extract it was made from, and the
+# name was the same every time. fts.xlsx keeps the time the export was written
+# - new_extract.py moves it into place, it does not copy it - so that is when
+# the extract was taken.
+_taken = paths.mtime(paths.EXTRACT)
+_last = data.extract_span()[1]
+_info = [
+    ("extract taken (fts.xlsx)",
+     f"{_taken:%Y-%m-%d %H:%M}" if _taken else "missing"),
+    ("last booking in extract",
+     f"{_last:%Y-%m-%d}" if pd.notna(_last) else "—"),
+    ("downloaded at", f"{pd.Timestamp.now():%Y-%m-%d %H:%M}"),
+    ("rows", f"{len(_by_part)} routing rows, "
+             + ("the whole queue" if len(d) == len(acts) else
+                f"filtered: {len(d)} of {len(acts)} decisions")),
+    ("to review", "REVIEW empty = accept SUGGESTED, a number = replace it, "
+                  "SKIP = leave the row. REVIEW_NOTE says why."),
+    ("before keying", "Check the reviewed file against an extract taken the "
+                      "same day - routing rows change revision and the master "
+                      "is edited by hand in the meantime."),
+]
 st.download_button(
     "Download master row updater (.xlsx)",
-    ui.updater_xlsx(_by_part, editable=("REVIEW", "REVIEW_NOTE")),
-    file_name="fts_review_queue_sql_master_updater.xlsx",
+    ui.updater_xlsx(_by_part, editable=("REVIEW", "REVIEW_NOTE"), info=_info),
+    file_name=("fts_review_queue_sql_master_updater"
+               + (f"_{_taken:%Y-%m-%d}" if _taken else "") + ".xlsx"),
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     icon=":material/download:")
 # THE COUNT IS THE CHECK. This file must have exactly as many rows as the

@@ -1419,7 +1419,7 @@ def swiss_grid(df, specs):
         na_rep="—")
 
 
-def updater_xlsx(df, editable=()):
+def updater_xlsx(df, editable=(), info=()):
     """The master row updater as .xlsx bytes, formulas kept as formulas.
 
     A string starting with "=" is written as a formula, so VALUE_TO_KEY and
@@ -1427,6 +1427,11 @@ def updater_xlsx(df, editable=()):
     the reviewer fills in are yellow, and the values carry the app's own
     precision: two decimals, three on the ratio. Imported inside, matching
     chart_key: ui is the lowest layer in this package.
+
+    info - (label, value) pairs for an INFO sheet: which extract the file was
+    made from, so a file that comes back weeks later still says how old its
+    STANDARD_TODAY is. It goes SECOND, so the updater stays the sheet a
+    reader - or anything reading the active sheet - opens on.
     """
     import io
     from openpyxl.styles import Font, PatternFill
@@ -1460,5 +1465,11 @@ def updater_xlsx(df, editable=()):
                         cell.fill = yellow
                     if spec and cell.row > 1:
                         cell.number_format = spec
+        if info:
+            pd.DataFrame(list(info), columns=["", " "]).to_excel(
+                xw, index=False, sheet_name="INFO")
+            wi = xw.sheets["INFO"]
+            wi.column_dimensions["A"].width = 26
+            wi.column_dimensions["B"].width = 90
     return buf.getvalue()
 

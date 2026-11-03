@@ -304,6 +304,13 @@ them. It follows the page's filters. Columns, in order:
 | `HOW_TO_APPLY` | the workbook's own instruction |
 | `SQL_UPDATE` | formula: the `UPDATE` statement for `VALUE_TO_KEY`, empty when it is empty |
 
+The file is named after the extract it was made from -
+`fts_review_queue_sql_master_updater_<date>.xlsx`, the date `fts.xlsx` was
+taken - and a second sheet, **`INFO`**, says the same with the time, the last
+booking in the extract, when it was downloaded, how many rows and whether a
+filter was in force. A file that comes back from review weeks later still says
+how old its `STANDARD_TODAY` is.
+
 It is `.xlsx` and not `.csv` because a CSV loses its formulas the first time
 Excel saves it, and the statement then stops following the value beside it.
 The statement writes the value with **two decimals and a dot whatever the

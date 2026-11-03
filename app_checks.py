@@ -226,14 +226,28 @@ def main():
               f"{want_n} ({want_t} against today)")
 
         # The master row updater.
-        up = [d for n, d in DOWNLOADS if n and "updater" in n]
+        up = [(n, d) for n, d in DOWNLOADS if n and "updater" in n]
         if not up:
             check("master row updater offered", False, "no download recorded")
         else:
             # Read as written, formulas as their text: openpyxl without
             # data_only returns a formula cell's formula, not a cached value.
             from openpyxl import load_workbook
-            ws = load_workbook(io.BytesIO(up[-1])).active
+            name, wb = up[-1][0], load_workbook(io.BytesIO(up[-1][1]))
+            ws = wb.active
+            # The extract it was made from, in its name and on its INFO sheet,
+            # with the updater still the sheet it opens on.
+            taken = paths.mtime(paths.EXTRACT)
+            said = ({r[0]: r[1] for r in wb["INFO"].iter_rows(
+                min_row=2, values_only=True)} if "INFO" in wb.sheetnames
+                else {})
+            check("updater carries the extract's date in its name and INFO",
+                  taken is not None and ws.title == "updater"
+                  and name.endswith(f"_{taken:%Y-%m-%d}.xlsx")
+                  and said.get("extract taken (fts.xlsx)")
+                  == f"{taken:%Y-%m-%d %H:%M}",
+                  f"{name}, opens on {ws.title!r}, INFO says "
+                  f"{said.get('extract taken (fts.xlsx)')!r}")
             rows = list(ws.iter_rows(values_only=True))
             u = pd.DataFrame([["" if v is None else str(v) for v in r]
                               for r in rows[1:]], columns=rows[0])
