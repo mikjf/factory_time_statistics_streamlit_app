@@ -1,6 +1,6 @@
 # Factory time statistics: the Streamlit review app
 
-#### -- Project Status: [Active]
+#### -- Project Status: [Completed]
 
 ## Objective
 
