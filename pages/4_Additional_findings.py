@@ -262,9 +262,9 @@ elif choice == SETUPS:
     #
     # CHARGED, ALL IS LAST, deliberately apart from the three beside it. Those
     # three describe the skipped work orders; this one spans every work order
-    # at these steps, and it is here only as the denominator that gives 540 h a
-    # size - one setup hour in five. Sitting between them it read as another
-    # figure about the 1'893.
+    # at these steps, and it is here only as the denominator that gives the skipped
+    # hours a size. Sitting between them it read as another
+    # figure about the skipped work orders.
     c = st.columns(4)
     c[0].metric("Work orders", ui.num(d2.WO_SKIPPED.sum()),
                 help=f"Setup tickets booked at or under {pipeline.SKIP_CUT} h, "
@@ -274,9 +274,9 @@ elif choice == SETUPS:
                 help="Every family, part type and routing step with a setup "
                      "standard here. Not all of them have a skip.")
     # THE UNFILTERED TOTAL LIVES HERE NOW. 03_SkipRate lists only steps with
-    # SETUP_MIN or more work orders, so this figure is 540 h against a true
-    # 591 h - and the paragraph that used to say so has gone. Without it the
-    # page under-reports the finding by 51 h with nothing on screen admitting
+    # SETUP_MIN or more work orders, so this figure falls short of the true
+    # total - and the paragraph that used to say so has gone. Without it the
+    # page under-reports the finding with nothing on screen admitting
     # it, so the caveat moves to the tooltip on the number it qualifies.
     _all = data.skip_hours_total()
     _shown = float(skip.STANDARD_CHARGED_SKIPPED.sum())
@@ -314,7 +314,7 @@ not.
     #
     # ONLY WHILE NOTHING IS FILTERED. The figure above now follows the rail, so
     # under a family or a run type it is that selection's total - and comparing
-    # one family's hours against the plant's 591 h would read as though the
+    # one family's hours against the plant's total would read as though the
     # family were missing the difference. Unfiltered, the two are the same two
     # numbers this sentence has always compared.
     # Same shape as the micro-durations table: identity, then the work orders,
@@ -455,7 +455,7 @@ else:
                 help="Master hours minus hours worked: capacity the schedule "
                      "reserved and the costing charged, and nobody used.")
     # THE DENOMINATOR, and the tile that moves most under the pickers. Left off,
-    # 1'032 h could be a fiftieth of the exposure or half of it; it is a third.
+    # the hours could be a fiftieth of the exposure or half of it.
     # And the share is flat only in aggregate - the worst family loses 53% of
     # what it is charged, while another with MORE work orders loses 21%, which
     # an absolute figure alone hides completely.

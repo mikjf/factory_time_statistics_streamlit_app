@@ -236,8 +236,8 @@ with st.sidebar:
     # follow.
     #
     # AND IT SORTS ON THE ABSOLUTE VALUE - d.HOURS_DELTA.abs() below - which the
-    # label alone cannot convey. 110 of the 238 actions are negative, and the
-    # largest gap in the whole list is -422 h, so "biggest" read as "largest
+    # label alone cannot convey. close to half the actions are negative, and the
+    # largest gap in the whole list is one of them, so "biggest" read as "largest
     # signed" puts the wrong row at the top of the reader's expectation. The
     # help says so with the case that proves it.
     # OFF BY DEFAULT. Left on, the queue opens scrambled relative to its own
@@ -463,7 +463,7 @@ detail = st.toggle("Show the statistics columns", value=False,
 #
 # EFFECT COMES BEFORE CHANGE %, AND AFTER BOTH VALUES. The sign of Change %
 # means OPPOSITE THINGS by analysis: a PCS/HR rate falling 11.7% SLOWS the
-# standard down (+324 h on one row), while a setup duration falling 72% SPEEDS
+# standard down (hundreds of hours on one row), while a setup duration falling 72% SPEEDS
 # it up (-5 h). Both print a minus.
 #
 # Effect used to sit AFTER Change %, where it corrected the misreading. Ahead of

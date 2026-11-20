@@ -119,7 +119,7 @@ def skip_hours_total():
     """Hours charged for setups never performed, ACROSS EVERY STEP.
 
     03_SkipRate lists only steps with SETUP_MIN or more work orders, so summing
-    it comes up short - 540 h against a true 591 h on the current extract. The
+    it comes up short of the true total on the current extract. The
     whole figure is the one 00_Summary carries, which is also what the README
     and the workbook quote, so reading it rather than recomputing keeps the
     three in step.
@@ -620,8 +620,8 @@ def part_index():
 
     known_parts() answers "does this exist" and is a bare set. This answers
     "what is it", which the rail needs the moment the change-only filter is
-    switched off: 1,438 parts are in the extract and 954 carry an edit, so
-    without a family for the other 484 the Family filter would silently drop
+    switched off: most parts in the extract carry no edit, so
+    without a family for those the Family filter would silently drop
     them rather than narrow them.
 
     It also gives the identity line under the title a family to name for a part
@@ -630,7 +630,7 @@ def part_index():
 
     PART_DESCRIPTION rides along because that line is the ONLY place a reader
     is told what the part physically is. It is on the extract, so it is here
-    for all 1,438 parts rather than only for the ones with a run unit.
+    for every part rather than only for the ones with a run unit.
     """
     return _part_index(paths.cache_key(paths.CACHE))
 
@@ -644,7 +644,7 @@ def _part_index(key):
         df[c] = df[c].str.strip()
     # One row per part. A part carries one family, one type and one description
     # across every ticket, so first() is the value, not a choice among several.
-    # Checked on this extract: 1,438 parts, none with a second description and
+    # Checked on this extract: every part, none with a second description and
     # none with it blank.
     return (df.dropna(subset=["PART_ID"]).groupby("PART_ID", as_index=False)
               .first())
@@ -904,7 +904,7 @@ def _by_type(keys):
 
     For the chart tooltips only - run_gross_by_operation/family stay at one
     row per bar, which is what sets its height and its rank. S SABBIARE mixes
-    both run types (45 h HRS/LOAD, 55 h PCS/HR) despite sitting outside the
+    both run types (roughly half and half) despite sitting outside the
     operation top ten today, so a single run-type label per bar would be
     correct now and silently wrong the moment it grows into it - the split is
     shown regardless of whether a given row actually mixes.

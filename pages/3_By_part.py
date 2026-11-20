@@ -320,8 +320,8 @@ with st.sidebar:
              "editing.")
 
     # Off, the list is every part in the extract - which is why part_index()
-    # exists: 1,438 parts are in there and 954 carry an edit, and without a
-    # family for the other 484 the filter below would drop them rather than
+    # exists: most parts in there carry no edit, and without a
+    # family for those the filter below would drop them rather than
     # narrow them.
     pool = edits if only_changes else data.part_index()
 

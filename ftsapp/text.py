@@ -342,7 +342,7 @@ _FY_LONG = f"{_FY.day} {_FY:%B %Y}"
 # downstream can count what they removed. Two sentences saying that in full were
 # cut - they explained the placement to a maintainer, and the reader only needs
 # the fact. Full four-row comparison against the operational dashboard is in
-# README.md, "Why these totals differ from the operational dashboard".
+# the analysis repository's DESIGN.md, under Scope.
 #
 # The closing paragraph no longer spells out part x routing step / family x
 # routing step: the Methodology page now opens "What counts as one pool"

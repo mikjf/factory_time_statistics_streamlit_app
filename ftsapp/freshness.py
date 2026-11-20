@@ -5,7 +5,7 @@ numbers and a recent-looking date, and nothing on screen says it describes data
 that has since been replaced. That has already cost this project once: an
 extract was re-run to fix an arithmetic bug, came back with an identical row
 count, and was assumed to be the same data - while ten families' routings had
-been rebuilt underneath it and 8,549 hours had silently left scope.
+been rebuilt underneath it and thousands of hours had silently left scope.
 
 A dashboard multiplies that risk, because the people reading it will not be the
 people who ran the pipeline. So the ordering is checked before anything renders

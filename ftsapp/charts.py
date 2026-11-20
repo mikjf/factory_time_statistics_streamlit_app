@@ -319,10 +319,10 @@ ALL_STEPS = "of all its master run time"
 FLAGGED_STEPS = "of just the steps being changed"
 
 # Below this a percentage stops meaning anything. Unfiltered, the "% of master"
-# ranking is led by a family misstating 58.8% of 200 master hours and another at
-# 24.3% of 88 - real arithmetic, no information. Four of the unfiltered top ten
-# sit under 500 master hours. At 1,000 the survivors still carry 84% of all
-# misstated hours.
+# ranking is led by families misstating a large share of a few dozen or a few hundred
+# master hours - real arithmetic, no information. Several of the unfiltered
+# top ten sit far below the floor. At 1,000 the survivors still carry most of
+# the misstated hours.
 PCT_FLOOR_H = 1000
 
 # Axis titles carry the arithmetic rather than the word "misstated", so a bar is
@@ -440,8 +440,8 @@ def operation_bar(d, top=10):
     # type is baked into the label text instead - which can vary - leaving the
     # tooltip itself just "operation" and "misstated hours" beside it.
     #
-    # "(mixed)" IS HONEST, NOT A GUESS. S SABBIARE runs 55 h PCS/HR against
-    # 45 h HRS/LOAD - close enough that tagging it either way would be a coin
+    # "(mixed)" IS HONEST, NOT A GUESS. one operation runs about as many hours
+    # PCS/HR as HRS/LOAD - close enough that tagging it either way would be a coin
     # flip stated as fact. It sits outside today's top ten, but the tag has to
     # be right the day it is not.
     d10 = d.nlargest(top, "GROSS_HOURS").copy()
