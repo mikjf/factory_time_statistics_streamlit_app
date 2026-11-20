@@ -1,9 +1,14 @@
-# Master time review — the tool
+# Factory time statistics: the Streamlit review app
 
-A browser view over the master-time analysis, so project management, finance and
-supply chain can read the proposed standard changes, open up the work orders
-behind any one of them, and see where those work orders actually sit against the
-master.
+#### -- Project Status: [Active]
+
+## Objective
+
+A Streamlit app over a statistical review of manufacturing time standards. The analysis checks
+the routing standards held in the ERP (how long setup and run should take, per part and
+operation) against the hours actually booked on labour tickets, and proposes the standards that
+should change. This app lets project management, finance and supply chain read those proposals,
+open up the work orders behind any one of them, and see why a standard was changed or left alone.
 
 **The analysis itself lives in a separate repository:**
 <https://github.com/mikjf/factory_time_statistics>
@@ -12,6 +17,33 @@ That is where the SQL extract and the Python that produces the workbooks live.
 This repository is only the viewer. It computes no standard of its own — it
 reads what the analysis wrote and, for one unit at a time, rebuilds the evidence
 from the extract so the two can be compared.
+
+### What this project demonstrates
+
+- **A multipage Streamlit app on top of an existing pipeline**, reusing its functions and
+  thresholds instead of re-implementing them, so the two cannot drift apart
+- **Explaining a decision, not just showing it:** the six rules a standard must pass are the
+  spine of the interface, so "why isn't my part on the list" is answered on screen
+- **A viewer that checks its own numbers:** every figure is recomputed from the extract and
+  compared with the workbook that produced it; a headless check script renders every page after
+  each new extract
+- **Refusing stale results:** file ordering is checked before anything renders
+- **Read-only by design:** no caches, no exports to disk, nothing written to the ERP; the review
+  file generates the SQL `UPDATE` statements as Excel formulas for a person to check and run
+- **Accessible charts:** Altair distributions where every colour is paired with a symbol
+
+### Tech stack
+
+- Python 3.12
+- Streamlit and Altair
+- pandas, NumPy, SciPy
+- pyarrow, openpyxl
+
+### Data
+
+The app runs on confidential production data (ERP routings and labour tickets). None of it is in
+this repository, and the repository holds no screenshots of it: the data stays inside the
+company. Running the app needs the analysis repository and an ERP extract, described below.
 
 ## What it needs to run
 
