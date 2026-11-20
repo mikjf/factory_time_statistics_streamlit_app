@@ -101,7 +101,7 @@ repository's README under **Running it**.
 ## The pages
 
 The analysis applies **six rules** in order, and a standard only changes if it
-passes all of them. So the six rules are the spine of the interface: on
+passes them all. So the six rules are the spine of the interface: on
 **Inspect**, "How this was decided" shows all six with the selected unit's own
 figures, directly under the verdict and above the chart, with the rule that
 stopped it marked `(STOPPED)`.
